@@ -1,6 +1,5 @@
 import { ref, computed, watch } from 'vue'
 import { useMouse, useIdle } from '@vueuse/core'
-import { invoke } from '@tauri-apps/api/core'
 
 export type IslandState = 'idle' | 'focus' | 'break' | 'hide' | 'alert'
 
@@ -10,9 +9,9 @@ const prevState = ref<IslandState>('idle')
 // Whether the user is interacting with UI (task list, context menu)
 const interacting = ref(false)
 
-// Thresholds: how far (in client Y) from the island to trigger hide/restore
-const HIDE_Y = 60       // mouse within 60px of island top → hide
-const RESTORE_Y = 120   // mouse beyond 120px from island bottom → restore
+// Proximity thresholds in client Y pixels
+const HIDE_Y = 50       // mouse in top 50px of window → hide
+const RESTORE_Y = 100   // mouse beyond 100px → restore
 
 export function useIslandState() {
   const { y: mouseY } = useMouse({ type: 'client' })
@@ -28,24 +27,17 @@ export function useIslandState() {
     }
   })
 
-  // Proximity detection using client Y coordinate
-  // The island sits at the top of the window. When the mouse enters the
-  // upper zone of the window (near the island), it means the user is
-  // reaching for browser tabs etc. → hide the island.
-  watch(mouseY, async (my) => {
+  // Proximity detection: purely visual hide (no click-through)
+  // When the mouse enters the top zone of the window, the island shrinks
+  // to a 2px line. When the mouse moves away, it restores.
+  watch(mouseY, (my) => {
     if (state.value === 'alert' || interacting.value) return
 
-    try {
-      if (state.value !== 'hide' && my >= 0 && my < HIDE_Y) {
-        prevState.value = state.value
-        state.value = 'hide'
-        await invoke('set_click_through', { ignore: true })
-      } else if (state.value === 'hide' && my > RESTORE_Y) {
-        state.value = prevState.value
-        await invoke('set_click_through', { ignore: false })
-      }
-    } catch {
-      // not in tauri context (browser dev)
+    if (state.value !== 'hide' && my >= 0 && my < HIDE_Y) {
+      prevState.value = state.value
+      state.value = 'hide'
+    } else if (state.value === 'hide' && my > RESTORE_Y) {
+      state.value = prevState.value
     }
   })
 
@@ -56,10 +48,8 @@ export function useIslandState() {
 
   function setInteracting(v: boolean) {
     interacting.value = v
-    // Restore from hide if user starts interacting
     if (v && state.value === 'hide') {
       state.value = prevState.value
-      invoke('set_click_through', { ignore: false }).catch(() => {})
     }
   }
 
