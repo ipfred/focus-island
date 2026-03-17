@@ -1,19 +1,21 @@
 import { ref, computed, watch } from 'vue'
 import { useMouse, useIdle } from '@vueuse/core'
 import { invoke } from '@tauri-apps/api/core'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 
 export type IslandState = 'idle' | 'focus' | 'break' | 'hide' | 'alert'
 
 const state = ref<IslandState>('idle')
 const prevState = ref<IslandState>('idle')
 
-// Proximity detection thresholds (px)
-const HIDE_THRESHOLD = 200
-const RESTORE_THRESHOLD = 320
+// Whether the user is interacting with UI (task list, context menu)
+const interacting = ref(false)
+
+// Thresholds: how far (in client Y) from the island to trigger hide/restore
+const HIDE_Y = 60       // mouse within 60px of island top → hide
+const RESTORE_Y = 120   // mouse beyond 120px from island bottom → restore
 
 export function useIslandState() {
-  const { x: mouseX, y: mouseY } = useMouse({ type: 'client' })
+  const { y: mouseY } = useMouse({ type: 'client' })
   const { idle } = useIdle(5 * 60 * 1000) // 5 minutes
 
   // Watch idle for alert state
@@ -26,36 +28,24 @@ export function useIslandState() {
     }
   })
 
-  // Proximity detection - compare mouse position to window position on screen
-  watch([mouseX, mouseY], async ([mx, my]) => {
-    if (state.value === 'alert') return
+  // Proximity detection using client Y coordinate
+  // The island sits at the top of the window. When the mouse enters the
+  // upper zone of the window (near the island), it means the user is
+  // reaching for browser tabs etc. → hide the island.
+  watch(mouseY, async (my) => {
+    if (state.value === 'alert' || interacting.value) return
 
     try {
-      const win = getCurrentWindow()
-      const pos = await win.outerPosition()
-      const size = await win.outerSize()
-      const sf = await win.scaleFactor()
-      const scaleFactor = typeof sf === 'number' ? sf : 1
-
-      const wx = pos.x / scaleFactor
-      const wy = pos.y / scaleFactor
-      const ww = size.width / scaleFactor
-      const wh = size.height / scaleFactor
-
-      const cx = Math.max(wx, Math.min(wx + ww, mx))
-      const cy = Math.max(wy, Math.min(wy + wh, my))
-      const dist = Math.hypot(mx - cx, my - cy)
-
-      if (state.value !== 'hide' && dist < HIDE_THRESHOLD) {
+      if (state.value !== 'hide' && my >= 0 && my < HIDE_Y) {
         prevState.value = state.value
         state.value = 'hide'
         await invoke('set_click_through', { ignore: true })
-      } else if (state.value === 'hide' && dist > RESTORE_THRESHOLD) {
+      } else if (state.value === 'hide' && my > RESTORE_Y) {
         state.value = prevState.value
         await invoke('set_click_through', { ignore: false })
       }
     } catch {
-      // not in tauri context (dev)
+      // not in tauri context (browser dev)
     }
   })
 
@@ -64,8 +54,17 @@ export function useIslandState() {
     state.value = s
   }
 
+  function setInteracting(v: boolean) {
+    interacting.value = v
+    // Restore from hide if user starts interacting
+    if (v && state.value === 'hide') {
+      state.value = prevState.value
+      invoke('set_click_through', { ignore: false }).catch(() => {})
+    }
+  }
+
   const isHidden = computed(() => state.value === 'hide')
   const isAlert = computed(() => state.value === 'alert')
 
-  return { state, setState, isHidden, isAlert }
+  return { state, setState, setInteracting, isHidden, isAlert }
 }

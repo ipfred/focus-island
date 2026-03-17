@@ -14,8 +14,8 @@
       {
         "label": "main",
         "title": "Pomodoro Island",
-        "width": 420,
-        "height": 64,
+        "width": 360,
+        "height": 460,
         "minWidth": 4,
         "minHeight": 2,
         "resizable": false,
@@ -25,7 +25,7 @@
         "skipTaskbar": true,
         "shadow": false,
         "x": 750,
-        "y": 8
+        "y": 4
       }
     ],
     "security": {
@@ -43,17 +43,11 @@
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
-      "icons/icon.icns",
       "icons/icon.ico"
     ]
   },
   "plugins": {
-    "fs": {
-      "scope": {
-        "allow": ["$APPDATA/**"],
-        "deny": []
-      }
-    },
+    "fs": {},
     "shell": {
       "open": false
     }

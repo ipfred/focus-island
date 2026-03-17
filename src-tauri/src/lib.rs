@@ -24,10 +24,11 @@ pub fn run() {
             // Position window at top-center on startup
             if let Ok(monitor) = window.current_monitor() {
                 if let Some(monitor) = monitor {
-                    let screen_width = monitor.size().width as i32;
-                    let win_width = 420_i32;
-                    let x = (screen_width - win_width) / 2;
-                    let _ = window.set_position(tauri::PhysicalPosition::new(x, 8));
+                    let scale_factor = monitor.scale_factor();
+                    let screen_width = monitor.size().width as f64 / scale_factor;
+                    let win_width = 360.0_f64;
+                    let x = ((screen_width - win_width) / 2.0) * scale_factor;
+                    let _ = window.set_position(tauri::PhysicalPosition::new(x as i32, (4.0 * scale_factor) as i32));
                 }
             }
             Ok(())

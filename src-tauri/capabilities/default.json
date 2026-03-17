@@ -1,0 +1,15 @@
+{
+  "identifier": "default",
+  "description": "Default capabilities for Pomodoro Island",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "fs:default",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-mkdir",
+    "fs:allow-appdata-read-recursive",
+    "fs:allow-appdata-write-recursive",
+    "shell:default"
+  ]
+}

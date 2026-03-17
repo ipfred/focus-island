@@ -1,5 +1,5 @@
-import { ref, watch } from 'vue'
-import { readTextFile, writeTextFile, BaseDirectory } from '@tauri-apps/plugin-fs'
+import { ref, watch, computed } from 'vue'
+import { readTextFile, writeTextFile, mkdir, BaseDirectory } from '@tauri-apps/plugin-fs'
 
 export interface Task {
   id: string
@@ -7,6 +7,7 @@ export interface Task {
   completed: boolean
   pomodoroCount: number
   createdAt: number
+  updatedAt: number
 }
 
 const TASKS_FILE = 'pomodoro-island/tasks.json'
@@ -27,6 +28,7 @@ async function load() {
 async function save() {
   if (!loaded.value) return
   try {
+    await mkdir('pomodoro-island', { baseDir: BaseDirectory.AppData, recursive: true })
     await writeTextFile(TASKS_FILE, JSON.stringify(tasks.value), { baseDir: BaseDirectory.AppData })
   } catch (e) {
     console.error('Failed to save tasks', e)
@@ -39,13 +41,23 @@ export function useTasks() {
   if (!loaded.value) load()
 
   function addTask(title: string) {
+    const now = Date.now()
     tasks.value.unshift({
       id: crypto.randomUUID(),
       title: title.trim(),
       completed: false,
       pomodoroCount: 0,
-      createdAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
     })
+  }
+
+  function updateTask(id: string, title: string) {
+    const t = tasks.value.find(t => t.id === id)
+    if (t) {
+      t.title = title.trim()
+      t.updatedAt = Date.now()
+    }
   }
 
   function deleteTask(id: string) {
@@ -64,7 +76,5 @@ export function useTasks() {
 
   const activeTasks = computed(() => tasks.value.filter(t => !t.completed))
 
-  return { tasks, activeTasks, addTask, deleteTask, toggleComplete, incrementPomodoro }
+  return { tasks, activeTasks, addTask, updateTask, deleteTask, toggleComplete, incrementPomodoro }
 }
-
-import { computed } from 'vue'

@@ -1,8 +1,14 @@
 @import 'tailwindcss';
 
+@layer base {
+  html {
+    background-color: transparent !important;
+  }
+}
+
 :root {
-  --island-bg: rgba(10, 10, 12, 0.92);
-  --island-radius: 32px;
+  --island-bg: rgba(12, 12, 14, 0.65);
+  --island-radius: 22px;
   --focus-color: #e85d3a;
   --break-color: #3a9e6e;
   --idle-color: #4a8fd4;
@@ -12,7 +18,8 @@
 html, body, #app {
   margin: 0;
   padding: 0;
-  background: transparent;
+  background: transparent !important;
+  background-color: transparent !important;
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;

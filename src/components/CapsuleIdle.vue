@@ -9,57 +9,78 @@ const { start } = useTimer()
 const carouselIndex = ref(0)
 let carouselTimer: ReturnType<typeof setInterval> | null = null
 
+const displayTasks = computed(() => activeTasks.value.slice(0, 3))
+
+const currentTask = computed(() => {
+  if (displayTasks.value.length === 0) return null
+  return displayTasks.value[carouselIndex.value % displayTasks.value.length]
+})
+
 onMounted(() => {
   carouselTimer = setInterval(() => {
-    if (activeTasks.value.length > 0) {
-      carouselIndex.value = (carouselIndex.value + 1) % Math.min(activeTasks.value.length, 3)
+    if (displayTasks.value.length > 1) {
+      carouselIndex.value = (carouselIndex.value + 1) % displayTasks.value.length
     }
-  }, 10000)
+  }, 5000)
 })
 
 onUnmounted(() => {
   if (carouselTimer) clearInterval(carouselTimer)
 })
-
-const displayedTasks = computed(() => {
-  const active = activeTasks.value
-  if (active.length === 0) return []
-  return [active[carouselIndex.value % active.length]]
-})
 </script>
 
 <template>
-  <div class="flex items-center justify-center w-full h-full px-4 gap-3">
-    <div v-if="activeTasks.length === 0" class="text-white/40 text-sm">
-      No tasks — right-click to add
+  <div class="relative w-full h-full overflow-hidden">
+    <!-- Empty state -->
+    <div v-if="displayTasks.length === 0" class="flex items-center justify-center w-full h-full px-4">
+      <span class="text-white/30 text-xs">右键添加任务</span>
     </div>
-    <TransitionGroup
-      v-else
-      tag="div"
-      name="slide"
-      class="flex items-center gap-2 w-full overflow-hidden"
-    >
+
+    <!-- Carousel -->
+    <TransitionGroup v-else tag="div" name="carousel" class="relative w-full h-full">
       <div
-        v-for="task in displayedTasks"
-        :key="task.id"
-        class="flex items-center gap-2 w-full cursor-pointer"
-        @click="start(task.id)"
+        v-if="currentTask"
+        :key="currentTask.id"
+        class="absolute inset-0 flex items-center px-4 gap-2 cursor-pointer"
+        @click="start(currentTask.id)"
       >
-        <span class="text-[var(--idle-color)] text-xs shrink-0">
-          {{ '●'.repeat(Math.min(task.pomodoroCount, 4)) }}{{ task.pomodoroCount > 4 ? `+${task.pomodoroCount - 4}` : '' }}
+        <!-- Pomodoro dots -->
+        <span v-if="currentTask.pomodoroCount > 0" class="text-[var(--idle-color)] text-[10px] shrink-0 opacity-70">
+          {{ '●'.repeat(Math.min(currentTask.pomodoroCount, 3)) }}{{ currentTask.pomodoroCount > 3 ? '+' : '' }}
         </span>
-        <span class="text-white text-sm truncate flex-1">{{ task.title }}</span>
-        <span class="text-white/30 text-xs shrink-0">click to start</span>
+        <!-- Title -->
+        <span class="text-white/90 text-xs truncate flex-1">{{ currentTask.title }}</span>
+        <!-- Hint -->
+        <span class="text-white/20 text-[10px] shrink-0">点击开始</span>
       </div>
     </TransitionGroup>
+
+    <!-- Dots indicator -->
+    <div
+      v-if="displayTasks.length > 1"
+      class="absolute bottom-0.5 left-1/2 -translate-x-1/2 flex gap-1"
+    >
+      <div
+        v-for="(_, i) in displayTasks"
+        :key="i"
+        class="w-1 h-1 rounded-full transition-colors duration-300"
+        :class="i === carouselIndex % displayTasks.length ? 'bg-white/40' : 'bg-white/10'"
+      />
+    </div>
   </div>
 </template>
 
 <style scoped>
-.slide-enter-active,
-.slide-leave-active {
-  transition: all 0.4s ease;
+.carousel-enter-active,
+.carousel-leave-active {
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.slide-enter-from { opacity: 0; transform: translateY(8px); }
-.slide-leave-to   { opacity: 0; transform: translateY(-8px); }
+.carousel-enter-from {
+  opacity: 0;
+  transform: translateY(100%);
+}
+.carousel-leave-to {
+  opacity: 0;
+  transform: translateY(-100%);
+}
 </style>
