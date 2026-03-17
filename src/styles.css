@@ -1,0 +1,23 @@
+@import 'tailwindcss';
+
+:root {
+  --island-bg: rgba(10, 10, 12, 0.92);
+  --island-radius: 32px;
+  --focus-color: #e85d3a;
+  --break-color: #3a9e6e;
+  --idle-color: #4a8fd4;
+  --alert-color: #e8a23a;
+}
+
+html, body, #app {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+* {
+  box-sizing: border-box;
+}

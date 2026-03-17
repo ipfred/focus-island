@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo --version)",
+      "Bash(npx create-tauri-app:*)",
+      "Bash(cargo search:*)",
+      "Bash(xargs grep:*)",
+      "Bash(cargo info:*)",
+      "Bash(npx vite:*)"
+    ]
+  }
+}
