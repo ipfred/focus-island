@@ -2447,6 +2447,7 @@ dependencies = [
 name = "pomodoro-island"
 version = "0.1.0"
 dependencies = [
+ "core-graphics",
  "serde",
  "serde_json",
  "tauri",

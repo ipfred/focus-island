@@ -1,52 +1,37 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useTimerBridge } from '../composables/useTimerBridge'
-import SideNav from './SideNav.vue'
 import TaskArea from './TaskArea.vue'
-import TaskDetail from './TaskDetail.vue'
 import PanelTitleBar from './PanelTitleBar.vue'
-import type { Task, TaskCategory } from '../composables/useTasks'
 
 const { startBridge } = useTimerBridge()
+const isVisible = ref(true)
 
-const selectedCategory = ref<TaskCategory>('today')
-const selectedTask = ref<Task | null>(null)
-
-onMounted(() => {
+onMounted(async () => {
   startBridge()
+  
+  const win = getCurrentWebviewWindow()
+  await win.onFocusChanged(({ payload: focused }) => {
+    if (focused) {
+      isVisible.value = true
+    }
+  })
 })
 
-function onTaskSelect(task: Task) {
-  selectedTask.value = selectedTask.value?.id === task.id ? null : task
-}
-
-function closeDetail() {
-  selectedTask.value = null
-}
-
 async function closeWindow() {
+  isVisible.value = false
+  // 立即通知后端隐藏，让灵动岛能及时响应
   await invoke('hide_panel')
 }
 </script>
 
 <template>
-  <div class="panel-root">
+  <div class="panel-root" :class="isVisible ? 'animate-in' : 'animate-out'">
     <PanelTitleBar @close="closeWindow" />
     <div class="panel-body">
-      <SideNav :selected="selectedCategory" @select="selectedCategory = $event" />
-      <TaskArea
-        :category="selectedCategory"
-        :selected-task-id="selectedTask?.id ?? null"
-        @task-select="onTaskSelect"
-      />
-      <Transition name="slide-right">
-        <TaskDetail
-          v-if="selectedTask"
-          :task="selectedTask"
-          @close="closeDetail"
-        />
-      </Transition>
+      <TaskArea category="today" @close="closeWindow" />
     </div>
   </div>
 </template>
@@ -56,28 +41,39 @@ async function closeWindow() {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: rgba(18, 18, 22, 0.96);
+  background: rgba(18, 18, 22, 0.6);
   backdrop-filter: blur(24px);
   border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.08);
   overflow: hidden;
   color: #e8e8ea;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  transform-origin: top center;
+  will-change: transform, opacity;
+}
+
+.animate-in {
+  animation: panel-pop-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-out {
+  animation: panel-pop-out 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes panel-pop-in {
+  0% { transform: scale(0.9) translateY(-40px); opacity: 0; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+@keyframes panel-pop-out {
+  0% { transform: scale(1) translateY(0); opacity: 1; }
+  100% { transform: scale(0.9) translateY(-40px); opacity: 0; }
 }
 
 .panel-body {
   display: flex;
   flex: 1;
   overflow: hidden;
-}
-
-.slide-right-enter-active,
-.slide-right-leave-active {
-  transition: all 0.22s ease;
-}
-.slide-right-enter-from,
-.slide-right-leave-to {
-  transform: translateX(20px);
-  opacity: 0;
+  background: transparent;
 }
 </style>

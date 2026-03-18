@@ -16,7 +16,7 @@
         "label": "main",
         "title": "Pomodoro Island",
         "width": 360,
-        "height": 460,
+        "height": 60,
         "minWidth": 4,
         "minHeight": 2,
         "resizable": false,
@@ -26,7 +26,7 @@
         "skipTaskbar": true,
         "shadow": false,
         "x": 750,
-        "y": 4
+        "y": 0
       },
       {
         "label": "panel",
@@ -38,7 +38,7 @@
         "resizable": true,
         "decorations": false,
         "transparent": true,
-        "alwaysOnTop": false,
+        "alwaysOnTop": true,
         "skipTaskbar": false,
         "shadow": true,
         "visible": false,

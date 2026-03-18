@@ -4,39 +4,6 @@
 
 下面我为你详细拆解这两个方案的**成熟解决思路、交互设计和在 Tauri 中的技术实现方式**，帮你打通这个纠结。
 
----
-
-### 方案一：纯粹的“单灵动岛”方案（Single Island）
-
-这个方案最炫酷，所有的操作都在这一个“胶囊”里完成。
-**核心冲突点**：既然鼠标靠近它要“躲开并允许鼠标穿透”，那我怎么去点击“新增任务”和“暂停”呢？
-
-#### 💡 成熟的解决方案设计：快捷键唤醒 + 状态形态演变
-
-我们可以参考 Mac 上的 **Raycast / Spotlight** 以及苹果灵动岛的真实交互逻辑，放弃用鼠标去“找”灵动岛，而是**用快捷键让灵动岛变成控制台**。
-
-*   **平时（专注态/防遮挡态）**：灵动岛是一条线或小胶囊。开启 `setIgnoreMouseEvents(true)`（鼠标穿透），鼠标滑过毫无阻碍。
-*   **交互（控制态）**：
-    *   用户按下全局快捷键（如 `Alt + Space` 或 `Ctrl + Shift + X`）。
-    *   灵动岛瞬间**居中并向下展开**，变成一个类似搜索框的控制台。此时关闭鼠标穿透 `setIgnoreMouseEvents(false)`。
-    *   **如何新增任务**：直接在这个框里打字，按回车，自动加入任务并开始番茄钟。
-    *   **如何暂停/跳过**：展开状态下，会显示出 ⏸️ 和 ⏭️ 按钮，用鼠标点击或按 `Tab` 切换。
-    *   按 `Esc` 或鼠标点击屏幕其他地方（失去焦点 Blur），灵动岛立刻缩回去，再次开启鼠标穿透。
-
-#### 🛠 Tauri 技术实现要点（方案一）
-1.  **单窗口**：只创建一个无边框透明窗口（Frameless Transparent Window）。
-2.  **动态穿透**：
-    ```javascript
-    // Tauri 前端调用示例
-    import { appWindow } from '@tauri-apps/api/window';
-    // 正常状态：开启鼠标穿透
-    await appWindow.setIgnoreMouseEvents(true);
-    // 按下快捷键展开后：关闭鼠标穿透，允许点击
-    await appWindow.setIgnoreMouseEvents(false);
-    ```
-3.  **动画引擎**：由于窗口大小其实是固定的（包含展开后的最大尺寸），只是里面的 HTML 元素在变化，建议用 Vue 的 `<Transition>` 或 Tailwind 的 `transition-all` 做元素的放大缩小动画。
-
----
 
 ### 方案二：任务面板 + 灵动岛（Dashboard + Island）—— ⭐️ 强烈推荐
 
