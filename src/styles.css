@@ -28,3 +28,27 @@ html, body, #app {
 * {
   box-sizing: border-box;
 }
+
+/* panel 窗口：允许文字选中和滚动 */
+.panel-root {
+  user-select: text;
+  -webkit-user-select: text;
+  overflow: hidden;
+}
+
+.panel-root input,
+.panel-root textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* slide-right transition for TaskDetail */
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.22s;
+}
+.slide-right-enter-from,
+.slide-right-leave-to {
+  transform: translateX(32px);
+  opacity: 0;
+}

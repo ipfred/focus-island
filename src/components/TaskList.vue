@@ -53,7 +53,7 @@ async function startEdit(task: { id: string; title: string }) {
 
 function confirmEdit() {
   if (editingId.value && editingTitle.value.trim()) {
-    updateTask(editingId.value, editingTitle.value)
+    updateTask(editingId.value, { title: editingTitle.value })
   }
   editingId.value = null
 }

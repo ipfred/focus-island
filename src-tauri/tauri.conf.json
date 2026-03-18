@@ -27,6 +27,22 @@
         "shadow": false,
         "x": 750,
         "y": 4
+      },
+      {
+        "label": "panel",
+        "title": "专注清单",
+        "width": 720,
+        "height": 600,
+        "minWidth": 600,
+        "minHeight": 480,
+        "resizable": true,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": false,
+        "skipTaskbar": false,
+        "shadow": true,
+        "visible": false,
+        "center": true
       }
     ],
     "security": {

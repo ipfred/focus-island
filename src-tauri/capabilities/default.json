@@ -1,7 +1,7 @@
 {
   "identifier": "default",
   "description": "Default capabilities for Pomodoro Island",
-  "windows": ["main"],
+  "windows": ["main", "panel"],
   "permissions": [
     "core:default",
     "fs:default",
