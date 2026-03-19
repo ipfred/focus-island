@@ -1,13 +1,17 @@
 use tauri::{
-    AppHandle, Manager, Runtime, WebviewWindow,
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
+    AppHandle, Manager, Runtime, WebviewWindow,
 };
 
 #[cfg(target_os = "macos")]
 use core_graphics::event::CGEvent;
 #[cfg(target_os = "macos")]
 use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
+#[cfg(target_os = "windows")]
+use windows::Win32::Foundation::POINT;
+#[cfg(target_os = "windows")]
+use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 
 #[tauri::command]
 fn get_mouse_position() -> (f64, f64) {
@@ -18,6 +22,15 @@ fn get_mouse_position() -> (f64, f64) {
             return (point.x, point.y);
         }
     }
+
+    #[cfg(target_os = "windows")]
+    {
+        let mut point = POINT::default();
+        if unsafe { GetCursorPos(&mut point) }.is_ok() {
+            return (point.x as f64, point.y as f64);
+        }
+    }
+
     (0.0, 0.0)
 }
 
@@ -30,17 +43,30 @@ fn set_click_through<R: Runtime>(window: WebviewWindow<R>, ignore: bool) {
 fn set_island_height<R: Runtime>(app: AppHandle<R>, height: f64) {
     if let Some(main) = app.get_webview_window("main") {
         let _ = main.set_size(tauri::LogicalSize::new(360.0, height));
+        if let Ok(Some(monitor)) = main.current_monitor() {
+            let scale_factor = monitor.scale_factor();
+            let screen_width = monitor.size().width as f64;
+            let win_width = 360.0_f64 * scale_factor;
+            let position = monitor.position();
+            let x = position.x as f64 + (screen_width - win_width) / 2.0;
+            let y = position.y as f64;
+            let _ = main.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
+        }
     }
 }
 
 #[tauri::command]
 fn get_window_position<R: Runtime>(window: WebviewWindow<R>) -> (i32, i32) {
-    window.outer_position().map(|p| (p.x, p.y)).unwrap_or((0, 0))
+    window
+        .outer_position()
+        .map(|p| (p.x, p.y))
+        .unwrap_or((0, 0))
 }
 
 #[tauri::command]
 fn show_panel<R: Runtime>(app: AppHandle<R>) {
     if let Some(panel) = app.get_webview_window("panel") {
+        let _ = panel.set_ignore_cursor_events(false);
         if let Some(main) = app.get_webview_window("main") {
             if let Ok(pos) = main.outer_position() {
                 if let Ok(Some(monitor)) = main.current_monitor() {
@@ -50,7 +76,8 @@ fn show_panel<R: Runtime>(app: AppHandle<R>) {
                     let main_w = 360.0 * sf;
                     let new_x = pos.x as f64 - (panel_w - main_w) / 2.0;
                     let new_y = pos.y as f64 + (52.0 * sf); // slightly below the capsule
-                    let _ = panel.set_position(tauri::PhysicalPosition::new(new_x as i32, new_y as i32));
+                    let _ = panel
+                        .set_position(tauri::PhysicalPosition::new(new_x as i32, new_y as i32));
                 }
             }
             // 确保灵动岛也保持置顶显示
@@ -100,6 +127,20 @@ fn set_island_visible<R: Runtime>(app: AppHandle<R>, visible: bool) {
     }
 }
 
+#[tauri::command]
+fn get_screen_info<R: Runtime>(app: AppHandle<R>) -> (f64, f64, f64) {
+    // 返回 (屏幕物理宽度, 缩放因子, 屏幕左上角物理X)
+    if let Some(main) = app.get_webview_window("main") {
+        if let Ok(Some(monitor)) = main.current_monitor() {
+            let scale_factor = monitor.scale_factor();
+            let physical_width = monitor.size().width as f64;
+            let position = monitor.position();
+            return (physical_width, scale_factor, position.x as f64);
+        }
+    }
+    (1920.0, 1.0, 0.0)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -115,28 +156,30 @@ pub fn run() {
             toggle_panel,
             is_panel_visible,
             set_island_visible,
+            get_screen_info,
         ])
         .setup(|app| {
             // Position main window at top-center
             if let Some(window) = app.get_webview_window("main") {
                 if let Ok(Some(monitor)) = window.current_monitor() {
                     let scale_factor = monitor.scale_factor();
-                    let screen_width = monitor.size().width as f64 / scale_factor;
-                    let win_width = 360.0_f64;
-                    // Position at y=0 or y=top edge
-                    let x = ((screen_width - win_width) / 2.0) * scale_factor;
-                    let _ = window.set_position(tauri::PhysicalPosition::new(
-                        x as i32,
-                        0,
-                    ));
+                    let screen_width = monitor.size().width as f64;
+                    let win_width = 360.0_f64 * scale_factor;
+                    let position = monitor.position();
+                    // Position at top center of the current monitor
+                    let x = position.x as f64 + (screen_width - win_width) / 2.0;
+                    let y = position.y as f64;
+                    let _ = window.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
                 }
                 // 不再默认调用 set_ignore_cursor_events 以免用户觉得“完全鼠标穿透”难以控制
                 // 用户依靠动态窗口高度调整来操作底层元素
             }
 
             // 系统托盘菜单
-            let open_panel = MenuItem::with_id(app, "open_panel", "打开专注清单", true, None::<&str>)?;
-            let toggle_island = MenuItem::with_id(app, "toggle_island", "显示/隐藏灵动岛", true, None::<&str>)?;
+            let open_panel =
+                MenuItem::with_id(app, "open_panel", "打开专注清单", true, None::<&str>)?;
+            let toggle_island =
+                MenuItem::with_id(app, "toggle_island", "显示/隐藏灵动岛", true, None::<&str>)?;
             let separator = PredefinedMenuItem::separator(app)?;
             let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
 

@@ -15,7 +15,7 @@ const lineWidth = computed(() => `${Math.max(8, progress.value * 100)}%`)
 
 <template>
   <!-- The 2px collapsed line shown when hiding -->
-  <div class="w-full h-full flex items-center justify-center">
+  <div class="w-full h-full flex items-start justify-center">
     <div
       class="h-[2px] rounded-full transition-all duration-1000 ease-linear opacity-70"
       :style="{ width: lineWidth, backgroundColor: lineColor }"

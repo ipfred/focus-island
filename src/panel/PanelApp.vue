@@ -11,7 +11,8 @@ const isVisible = ref(true)
 
 onMounted(async () => {
   startBridge()
-  
+  await invoke('set_click_through', { ignore: false })
+
   const win = getCurrentWebviewWindow()
   await win.onFocusChanged(({ payload: focused }) => {
     if (focused) {
@@ -41,8 +42,7 @@ async function closeWindow() {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: rgba(18, 18, 22, 0.6);
-  backdrop-filter: blur(24px);
+  background: #121216;
   border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.08);
   overflow: hidden;
