@@ -75,7 +75,7 @@ fn show_panel<R: Runtime>(app: AppHandle<R>) {
                     let panel_w = 720.0 * sf;
                     let main_w = 360.0 * sf;
                     let new_x = pos.x as f64 - (panel_w - main_w) / 2.0;
-                    let new_y = pos.y as f64 + (52.0 * sf); // slightly below the capsule
+                    let new_y = pos.y as f64 + (38.0 * sf); // slightly below the capsule
                     let _ = panel
                         .set_position(tauri::PhysicalPosition::new(new_x as i32, new_y as i32));
                 }

@@ -16,7 +16,7 @@
         "label": "main",
         "title": "Pomodoro Island",
         "width": 360,
-        "height": 60,
+        "height": 42,
         "minWidth": 4,
         "minHeight": 2,
         "resizable": false,
