@@ -31,11 +31,11 @@ async function handleInput(event: KeyboardEvent) {
     event.preventDefault()
     const t = newTitle.value.trim()
     if (!t) return
-    
+
     // Add task
     const newTask = addTask(t, props.category, event.shiftKey ? 1 : undefined)
     newTitle.value = ''
-    
+
     // Shift+Enter to start and close window
     if (event.shiftKey) {
       setTaskPriority(newTask.id, 1)
@@ -108,11 +108,11 @@ function onDragEnd() {
     <div class="zone-2">
       <div class="zone-header">核心专注区</div>
       <div v-if="top3Tasks.length === 0" class="empty-hint">暂无主打任务，输入后按回车添加</div>
-      <div 
-        v-for="(task, index) in top3Tasks" 
+      <div
+        v-for="(task, index) in top3Tasks"
         :key="task.id"
         class="focus-task-item"
-        :class="{ 'is-running-task': activeTaskId === task.id }"
+        :class="{ 'is-running': activeTaskId === task.id }"
         draggable="true"
         @dragstart="onDragStart(task, $event)"
         @dragover.prevent
@@ -120,32 +120,52 @@ function onDragEnd() {
         @drop="onDrop(task)"
         @dragend="onDragEnd"
       >
-        <!-- 正常态 -->
-        <template v-if="!(activeTaskId === task.id && running)">
+        <!-- 运行态 -->
+        <template v-if="activeTaskId === task.id">
+          <template v-if="running">
+            <div class="running-card">
+              <div class="running-header">
+                <span class="running-dot">●</span>
+                <span class="task-title running-title">{{ task.title }}</span>
+                <span class="task-timer">{{ displayTime }}</span>
+              </div>
+              <div class="running-actions">
+                <button class="run-btn pause-btn" @click="pause()" title="暂停">❚❚ 暂停</button>
+                <button class="run-btn done-btn" @click="handleDoneTask(task.id)" title="完成">✓ 完成</button>
+                <button class="run-btn abandon-btn" @click="handleAbandon()" title="放弃">✕ 放弃</button>
+              </div>
+              <div class="progress-bar"><div class="progress-fill"></div></div>
+            </div>
+          </template>
+
+          <!-- 暂停态 -->
+          <template v-else>
+            <div class="running-card paused">
+              <div class="running-header">
+                <span class="running-dot paused-dot">●</span>
+                <span class="task-title running-title">{{ task.title }}</span>
+                <span class="task-timer">{{ displayTime }}</span>
+              </div>
+              <div class="running-actions">
+                <button class="run-btn pause-btn" @click="resume()" title="继续">▶ 继续</button>
+                <button class="run-btn done-btn" @click="handleDoneTask(task.id)" title="完成">✓ 完成</button>
+                <button class="run-btn abandon-btn" @click="handleAbandon()" title="放弃">✕ 放弃</button>
+              </div>
+              <div class="progress-bar"><div class="progress-fill paused-fill"></div></div>
+            </div>
+          </template>
+        </template>
+
+        <!-- 正常态（非活跃任务） -->
+        <template v-else>
           <div class="task-row">
-            <span class="rank-icon">
-              {{ index === 0 ? '👑' : index === 1 ? '🥇' : '🥈' }}
-            </span>
+            <span class="rank-badge">{{ index === 0 ? '\u2460' : index === 1 ? '\u2461' : '\u2462' }}</span>
             <button class="check-circle" @click="handleDoneTask(task.id)" title="完成"></button>
             <span class="task-title">{{ task.title }}</span>
-            <span class="pomo-count" v-if="task.pomodoroCount > 0">🍅x{{ task.pomodoroCount }}</span>
+            <span class="pomo-count" v-if="task.pomodoroCount > 0">● {{ task.pomodoroCount }}</span>
             <div class="task-actions">
-              <button class="action-btn" @click="handleStartTask(task)" title="开始">▶</button>
-              <button class="action-btn delete" @click="deleteTask(task.id)" title="删除">✕</button>
-            </div>
-          </div>
-        </template>
-        
-        <!-- 运行态 -->
-        <template v-else>
-          <div class="task-row running">
-            <span class="rank-icon running">●</span>
-            <span class="task-title">{{ task.title }}</span>
-            <span class="task-timer">{{ displayTime }}</span>
-            <div class="task-actions">
-              <button class="action-btn" @click="pause()" title="暂停">Ⅱ</button>
-              <button class="action-btn" @click="handleDoneTask(task.id)" title="完成">✓</button>
-              <button class="action-btn delete" @click="handleAbandon()" title="放弃">↷</button>
+              <button class="act-btn" @click="handleStartTask(task)" title="开始">▶</button>
+              <button class="act-btn delete" @click="deleteTask(task.id)" title="删除">✕</button>
             </div>
           </div>
         </template>
@@ -155,21 +175,21 @@ function onDragEnd() {
     <!-- Zone 3: Inbox -->
     <div class="zone-3">
       <div class="zone-header">
-        📥 稍后处理 ({{ inboxTasks.length }})
+        稍后处理 ({{ inboxTasks.length }})
       </div>
       <div class="inbox-list">
         <div v-if="inboxTasks.length === 0" class="empty-hint">收件箱为空</div>
-        <div 
-          v-for="task in inboxTasks" 
+        <div
+          v-for="task in inboxTasks"
           :key="task.id"
           class="inbox-item"
         >
           <span class="inbox-dot">·</span>
           <span class="inbox-title">{{ task.title }}</span>
           <div class="inbox-actions">
-            <button class="action-btn" @click="setTaskPriority(task.id, 3)" title="移至专注区">⬆️</button>
-            <button class="action-btn" @click="toggleComplete(task.id)" title="完成">✅</button>
-            <button class="action-btn delete" @click="deleteTask(task.id)" title="删除">🗑️</button>
+            <button class="act-btn" @click="setTaskPriority(task.id, 3)" title="移至专注区">↑</button>
+            <button class="act-btn" @click="toggleComplete(task.id)" title="完成">✓</button>
+            <button class="act-btn delete" @click="deleteTask(task.id)" title="删除">✕</button>
           </div>
         </div>
       </div>
@@ -178,9 +198,9 @@ function onDragEnd() {
     <!-- Zone 4: Footer -->
     <div class="zone-4">
       <div class="footer-stats">
-        🍅 今日专注: {{ todayStats.completedToday }} 个任务 (约 {{ todayStats.focusMinutes }} 分钟)
+        <span class="footer-dot">●</span> 今日: {{ todayStats.completedToday }} 任务 · {{ todayStats.focusMinutes }} 分钟
       </div>
-      <button class="footer-settings" title="设置" @click="emit('settings')">⚙️</button>
+      <button class="footer-settings" title="设置" @click="emit('settings')">⚙</button>
     </div>
   </div>
 </template>
@@ -196,8 +216,9 @@ function onDragEnd() {
   color: #e8e8ea;
 }
 
+/* Zone 1: Input */
 .zone-1 {
-  padding: 16px 20px;
+  padding: 12px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
 }
@@ -207,9 +228,9 @@ function onDragEnd() {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
-  padding: 12px 16px;
+  padding: 10px 14px;
   color: #fff;
-  font-size: 14px;
+  font-size: 13px;
   outline: none;
   transition: all 0.2s;
   box-sizing: border-box;
@@ -224,31 +245,33 @@ function onDragEnd() {
   color: rgba(255, 255, 255, 0.3);
 }
 
+/* Zone headers & hints */
 .zone-header {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.4);
-  margin-bottom: 8px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  margin-bottom: 6px;
   font-weight: 500;
   letter-spacing: 0.5px;
 }
 
 .empty-hint {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.3);
-  padding: 8px 0;
+  color: rgba(255, 255, 255, 0.25);
+  padding: 6px 0;
 }
 
+/* Zone 2: Focus Queue */
 .zone-2 {
-  padding: 12px 16px;
+  padding: 10px 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
 }
 
 .focus-task-item {
   background: rgba(255, 255, 255, 0.035);
-  border-radius: 12px;
-  margin-bottom: 6px;
-  padding: 6px 10px;
+  border-radius: 10px;
+  margin-bottom: 4px;
+  padding: 5px 10px;
   transition: all 0.2s;
   border: 1px solid rgba(255, 255, 255, 0.06);
   cursor: grab;
@@ -263,21 +286,140 @@ function onDragEnd() {
   border-color: rgba(255, 255, 255, 0.12);
 }
 
-.focus-task-item.is-running-task {
-  background: color-mix(in srgb, var(--focus-color) 8%, transparent);
-  border-color: color-mix(in srgb, var(--focus-color) 28%, transparent);
+/* Running task card */
+.focus-task-item.is-running {
+  background: color-mix(in srgb, var(--focus-color) 10%, transparent);
+  border-color: color-mix(in srgb, var(--focus-color) 30%, transparent);
+  border-left: 3px solid var(--focus-color);
+  padding: 8px 10px;
+  cursor: default;
 }
 
+.running-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.running-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.running-dot {
+  color: var(--focus-color);
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.paused-dot {
+  animation: blink 1.2s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.running-title {
+  color: #fff !important;
+  font-weight: 600 !important;
+}
+
+.running-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.run-btn {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.2s;
+}
+
+.pause-btn {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.pause-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.done-btn {
+  background: color-mix(in srgb, var(--break-color) 20%, transparent);
+  color: var(--break-color);
+  border-color: color-mix(in srgb, var(--break-color) 30%, transparent);
+}
+
+.done-btn:hover {
+  background: color-mix(in srgb, var(--break-color) 35%, transparent);
+}
+
+.abandon-btn {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.abandon-btn:hover {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.3);
+  background: rgba(248, 113, 113, 0.1);
+}
+
+.progress-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 100%;
+  border-radius: 2px;
+  background: var(--focus-color);
+  transform-origin: left;
+}
+
+.paused-fill {
+  animation: progress-blink 1.5s ease-in-out infinite;
+}
+
+@keyframes progress-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Normal task row */
 .task-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 28px;
+  min-height: 32px;
 }
 
-.task-row.running .task-title {
-  color: #fff;
-  font-weight: 600;
+.rank-badge {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
 }
 
 .check-circle {
@@ -288,6 +430,7 @@ function onDragEnd() {
   background: transparent;
   cursor: pointer;
   padding: 0;
+  flex-shrink: 0;
   transition: border-color 0.2s, background 0.2s;
 }
 
@@ -307,74 +450,66 @@ function onDragEnd() {
 
 .pomo-count {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--focus-color);
+  opacity: 0.7;
 }
 
 .task-timer {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--focus-color);
   font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 
 .task-actions {
   display: flex;
-  gap: 6px;
+  gap: 4px;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity 0.15s;
 }
 
 .focus-task-item:hover .task-actions {
   opacity: 1;
 }
 
-.action-btn {
+/* Unified action button */
+.act-btn {
+  min-width: 24px;
+  height: 24px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: 700;
   color: rgba(255, 255, 255, 0.8);
-  transition: background 0.2s, color 0.2s, border-color 0.2s;
-  padding: 2px 5px;
-  border-radius: 6px;
-  min-width: 22px;
+  cursor: pointer;
   text-align: center;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
 
-.action-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
+.act-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
   border-color: rgba(255, 255, 255, 0.2);
   color: #fff;
 }
 
-.action-btn.delete {
-  color: rgba(255, 255, 255, 0.6);
+.act-btn.delete {
+  color: rgba(255, 255, 255, 0.5);
 }
 
-.rank-icon {
-  width: 18px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  line-height: 1;
-  flex-shrink: 0;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35));
-}
-
-.rank-icon.running {
-  font-size: 10px;
-  color: var(--focus-color);
-  filter: none;
+.act-btn.delete:hover {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.3);
+  background: rgba(248, 113, 113, 0.1);
 }
 
 /* Zone 3: Inbox */
 .zone-3 {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 20px;
+  padding: 12px 16px;
 }
 
 .zone-3::-webkit-scrollbar { width: 4px; }
@@ -384,14 +519,14 @@ function onDragEnd() {
 .inbox-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .inbox-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
+  padding: 6px 10px;
   border-radius: 6px;
   transition: background 0.2s;
   cursor: default;
@@ -410,13 +545,16 @@ function onDragEnd() {
   flex: 1;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .inbox-actions {
   display: flex;
   gap: 4px;
   opacity: 0;
-  transition: opacity 0.2s;
+  transition: opacity 0.15s;
 }
 
 .inbox-item:hover .inbox-actions {
@@ -425,7 +563,7 @@ function onDragEnd() {
 
 /* Zone 4: Footer */
 .zone-4 {
-  padding: 12px 20px;
+  padding: 10px 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   justify-content: space-between;
@@ -436,16 +574,22 @@ function onDragEnd() {
 
 .footer-stats {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.footer-dot {
+  color: var(--focus-color);
+  font-size: 10px;
 }
 
 .footer-settings {
   background: transparent;
   border: none;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.45);
   font-size: 16px;
   cursor: pointer;
   transition: color 0.2s;
+  padding: 2px;
 }
 
 .footer-settings:hover {
