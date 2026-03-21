@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, nextTick } from "vue";
 import { useTasks } from "../composables/useTasks";
 import { useTimerBridge } from "../composables/useTimerBridge";
 import type { Task, TaskCategory } from "../composables/useTasks";
@@ -18,6 +18,7 @@ const {
     setTaskPriority,
     todayStats,
     incrementPomodoro,
+    updateTask,
 } = useTasks();
 const {
     start,
@@ -128,6 +129,33 @@ function onDrop(targetTask: Task) {
 
 function onDragEnd() {
     draggedTaskId.value = null;
+}
+
+// Inline Edit
+const editingTaskId = ref<string | null>(null);
+const editingTitle = ref("");
+
+function startEdit(task: Task) {
+    editingTaskId.value = task.id;
+    editingTitle.value = task.title;
+    nextTick(() => {
+        const input = document.querySelector('.edit-title-input') as HTMLInputElement;
+        input?.focus();
+        input?.select();
+    });
+}
+
+function saveEdit() {
+    if (!editingTaskId.value) return;
+    const trimmed = editingTitle.value.trim();
+    if (trimmed && trimmed !== tasks.value.find(t => t.id === editingTaskId.value)?.title) {
+        updateTask(editingTaskId.value, { title: trimmed });
+    }
+    editingTaskId.value = null;
+}
+
+function cancelEdit() {
+    editingTaskId.value = null;
 }
 </script>
 
@@ -261,7 +289,15 @@ function onDragEnd() {
                             @click="handleDoneTask(task.id)"
                             title="完成"
                         ></button>
-                        <span class="task-title">{{ task.title }}</span>
+                        <input
+                            v-if="editingTaskId === task.id"
+                            class="edit-title-input task-title"
+                            v-model="editingTitle"
+                            @keydown.enter="saveEdit"
+                            @keydown.esc="cancelEdit"
+                            @blur="saveEdit"
+                        />
+                        <span v-else class="task-title" @dblclick="startEdit(task)">{{ task.title }}</span>
                         <span class="pomo-count" v-if="task.pomodoroCount > 0"
                             >● {{ task.pomodoroCount }}</span
                         >
@@ -302,7 +338,15 @@ function onDragEnd() {
                     class="inbox-item"
                 >
                     <span class="inbox-dot">·</span>
-                    <span class="inbox-title">{{ task.title }}</span>
+                    <input
+                        v-if="editingTaskId === task.id"
+                        class="edit-title-input inbox-title"
+                        v-model="editingTitle"
+                        @keydown.enter="saveEdit"
+                        @keydown.esc="cancelEdit"
+                        @blur="saveEdit"
+                    />
+                    <span v-else class="inbox-title" @dblclick="startEdit(task)">{{ task.title }}</span>
                     <span class="task-time">{{
                         formatTime(task.createdAt)
                     }}</span>
@@ -616,6 +660,16 @@ function onDragEnd() {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.edit-title-input {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid color-mix(in srgb, var(--focus-color) 50%, transparent);
+    border-radius: 4px;
+    padding: 2px 6px;
+    outline: none;
+    box-sizing: border-box;
+    min-width: 0;
 }
 
 .pomo-count {
