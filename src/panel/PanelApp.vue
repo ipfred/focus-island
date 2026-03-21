@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useTimerBridge } from '../composables/useTimerBridge'
@@ -10,9 +11,10 @@ import PanelTitleBar from './PanelTitleBar.vue'
 const { startBridge } = useTimerBridge()
 const isVisible = ref(true)
 const isClosing = ref(false)
+const isWindowAnimating = ref(false)
 let unlistenResize: (() => void) | null = null
+let unlistenAnim: (() => void) | null = null
 let resizeTimer: number | null = null
-let closeTimer: number | null = null
 
 onMounted(async () => {
   startBridge()
@@ -26,6 +28,7 @@ onMounted(async () => {
     // ignore if not supported or denied
   }
   const scheduleReposition = () => {
+    if (isWindowAnimating.value) return
     if (resizeTimer) window.clearTimeout(resizeTimer)
     resizeTimer = window.setTimeout(() => {
       invoke('position_panel_under_island')
@@ -35,30 +38,27 @@ onMounted(async () => {
   unlistenResize = await appWindow.onResized(() => {
     scheduleReposition()
   })
+  unlistenAnim = await listen<boolean>('panel-window-anim', event => {
+    isWindowAnimating.value = !!event.payload
+  })
   await win.onFocusChanged(({ payload: focused }) => {
     if (focused) {
       isVisible.value = true
       isClosing.value = false
-      if (closeTimer) {
-        window.clearTimeout(closeTimer)
-        closeTimer = null
-      }
     }
   })
 })
 
 onUnmounted(() => {
   if (unlistenResize) unlistenResize()
+  if (unlistenAnim) unlistenAnim()
 })
 
 async function closeWindow() {
   if (isClosing.value) return
   isClosing.value = true
   isVisible.value = false
-  closeTimer = window.setTimeout(() => {
-    invoke('hide_panel')
-    closeTimer = null
-  }, 200)
+  await invoke('animate_panel_close')
 }
 </script>
 
@@ -88,21 +88,21 @@ async function closeWindow() {
 }
 
 .animate-in {
-  animation: panel-pop-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: panel-fade-in 0.18s ease-out forwards;
 }
 
 .animate-out {
-  animation: panel-pop-out 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: panel-fade-out 0.18s ease-in forwards;
 }
 
-@keyframes panel-pop-in {
-  0% { transform: scale(0.92) translateY(-28px); opacity: 0; }
-  100% { transform: scale(1) translateY(0); opacity: 1; }
+@keyframes panel-fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
 }
 
-@keyframes panel-pop-out {
-  0% { transform: scale(1) translateY(0); opacity: 1; }
-  100% { transform: scale(0.92) translateY(-28px); opacity: 0; }
+@keyframes panel-fade-out {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 .panel-body {
