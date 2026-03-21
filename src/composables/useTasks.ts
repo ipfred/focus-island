@@ -1,5 +1,7 @@
 import { ref, watch, computed } from 'vue'
 import { readTextFile, writeTextFile, mkdir, BaseDirectory } from '@tauri-apps/plugin-fs'
+import { emitTo, listen } from '@tauri-apps/api/event'
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useSettings } from './useSettings'
 
 export type TaskCategory = 'today' | 'tomorrow' | 'week'
@@ -37,6 +39,16 @@ function normalizeCategory(category: TaskCategory) {
   scoped.forEach(task => {
     task.priority = 0
   })
+
+  // Auto-fill from inbox when focus area has fewer than 3
+  if (orderedFocus.length < 3) {
+    const inbox = scoped
+      .filter(task => !orderedFocus.includes(task))
+      .sort((a, b) => a.createdAt - b.createdAt)
+    while (orderedFocus.length < 3 && inbox.length > 0) {
+      orderedFocus.push(inbox.shift()!)
+    }
+  }
 
   orderedFocus.slice(0, 3).forEach((task, index) => {
     task.priority = (index + 1) as TaskPriority
@@ -78,17 +90,37 @@ async function load() {
   loaded.value = true
 }
 
+let isSyncing = false
+
 async function save() {
-  if (!loaded.value) return
+  if (!loaded.value || isSyncing) return
   try {
     await mkdir('pomodoro-island', { baseDir: BaseDirectory.AppData, recursive: true })
-    await writeTextFile(TASKS_FILE, JSON.stringify(tasks.value), { baseDir: BaseDirectory.AppData })
+    const json = JSON.stringify(tasks.value)
+    await writeTextFile(TASKS_FILE, json, { baseDir: BaseDirectory.AppData })
+    // Broadcast to other windows
+    const self = getCurrentWebviewWindow().label
+    const targets = self === 'main' ? ['panel'] : ['main']
+    for (const target of targets) {
+      emitTo(target, 'tasks-updated', json).catch(() => {})
+    }
   } catch (e) {
     console.error('Failed to save tasks', e)
   }
 }
 
 watch(tasks, save, { deep: true })
+
+// Listen for cross-window task updates
+listen<string>('tasks-updated', (event) => {
+  try {
+    isSyncing = true
+    const parsed = JSON.parse(event.payload) as Task[]
+    tasks.value = parsed
+    // nextTick to let watch fire and skip save due to isSyncing
+    setTimeout(() => { isSyncing = false }, 50)
+  } catch { /* ignore */ }
+})
 
 export function useTasks() {
   if (!loaded.value) load()

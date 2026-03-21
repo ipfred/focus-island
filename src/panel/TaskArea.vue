@@ -47,7 +47,9 @@ const top3Tasks = computed(() => {
 });
 
 const inboxTasks = computed(() => {
-    return activeTasks.value.filter((t) => t.priority === 0);
+    return activeTasks.value
+        .filter((t) => t.priority === 0)
+        .sort((a, b) => a.createdAt - b.createdAt);
 });
 
 function formatTime(ts: number) {
@@ -303,7 +305,7 @@ function onDragEnd() {
                     <div class="inbox-actions">
                         <button
                             class="act-btn"
-                            @click="setTaskPriority(task.id, 3)"
+                            @click="setTaskPriority(task.id, 1)"
                             title="移至专注区"
                         >
                             ↑
