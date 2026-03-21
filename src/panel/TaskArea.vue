@@ -8,7 +8,7 @@ const props = defineProps<{
   category: TaskCategory
 }>()
 
-const emit = defineEmits<{ close: [] }>()
+const emit = defineEmits<{ close: [], settings: [] }>()
 
 const { tasks, addTask, deleteTask, toggleComplete, setTaskPriority, todayStats, incrementPomodoro } = useTasks()
 const { start, pause, resume, running, activeTaskId, displayTime, abandon, skipToBreak } = useTimerBridge()
@@ -180,7 +180,7 @@ function onDragEnd() {
       <div class="footer-stats">
         🍅 今日专注: {{ todayStats.completedToday }} 个任务 (约 {{ todayStats.focusMinutes }} 分钟)
       </div>
-      <button class="footer-settings" title="设置">⚙️</button>
+      <button class="footer-settings" title="设置" @click="emit('settings')">⚙️</button>
     </div>
   </div>
 </template>
@@ -216,8 +216,8 @@ function onDragEnd() {
 }
 
 .quick-add-input:focus {
-  border-color: rgba(232, 93, 58, 0.6);
-  box-shadow: 0 0 0 2px rgba(232, 93, 58, 0.2);
+  border-color: color-mix(in srgb, var(--focus-color) 60%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-color) 20%, transparent);
 }
 
 .quick-add-input::placeholder {
@@ -264,8 +264,8 @@ function onDragEnd() {
 }
 
 .focus-task-item.is-running-task {
-  background: rgba(232, 93, 58, 0.08);
-  border-color: rgba(232, 93, 58, 0.28);
+  background: color-mix(in srgb, var(--focus-color) 8%, transparent);
+  border-color: color-mix(in srgb, var(--focus-color) 28%, transparent);
 }
 
 .task-row {
@@ -292,8 +292,8 @@ function onDragEnd() {
 }
 
 .check-circle:hover {
-  border-color: #3a9e6e;
-  background: rgba(58, 158, 110, 0.2);
+  border-color: var(--break-color);
+  background: color-mix(in srgb, var(--break-color) 20%, transparent);
 }
 
 .task-title {
@@ -313,7 +313,7 @@ function onDragEnd() {
 .task-timer {
   font-size: 12px;
   font-weight: 700;
-  color: #e85d3a;
+  color: var(--focus-color);
   font-variant-numeric: tabular-nums;
 }
 
@@ -366,7 +366,7 @@ function onDragEnd() {
 
 .rank-icon.running {
   font-size: 10px;
-  color: #e85d3a;
+  color: var(--focus-color);
   filter: none;
 }
 

@@ -4,14 +4,17 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useIslandState } from "../composables/useIslandState";
 import { useTimer } from "../composables/useTimer";
+import { useSettings, type Settings } from "../composables/useSettings";
 import CapsuleIdle from "./CapsuleIdle.vue";
 import CapsuleFocus from "./CapsuleFocus.vue";
 import type { TimerStatePayload } from "../composables/useTimerBridge";
 
 const { state, setState } = useIslandState();
 const timer = useTimer();
+const { applyExternalSettings } = useSettings();
 
 let unlisten: (() => void) | null = null;
+let unlistenSettings: (() => void) | null = null;
 const VISIBLE_HEIGHT = 42.0;
 
 const progressScale = computed(() => {
@@ -38,6 +41,7 @@ onMounted(async () => {
         "timer-state-update",
         ({ payload }) => {
             timer.remaining.value = payload.remaining;
+            timer.totalDuration.value = payload.totalDuration;
             timer.running.value = payload.running;
             timer.activeTaskId.value = payload.activeTaskId;
             timer.activeTaskTitle.value = payload.activeTaskTitle ?? null;
@@ -59,10 +63,15 @@ onMounted(async () => {
             }
         },
     );
+
+    unlistenSettings = await listen<Settings>("settings-changed", ({ payload }) => {
+        applyExternalSettings(payload);
+    });
 });
 
 onUnmounted(() => {
     unlisten?.();
+    unlistenSettings?.();
 });
 </script>
 
@@ -117,7 +126,7 @@ onUnmounted(() => {
     width: 320px;
     height: 34px;
     border-radius: 17px;
-    background: rgba(20, 20, 22, 0.82);
+    background: rgba(20, 20, 22, var(--island-opacity, 0.82));
     backdrop-filter: blur(16px);
     box-shadow: 0 4px 32px rgba(0, 0, 0, 0.45);
     transition: box-shadow 0.4s ease;

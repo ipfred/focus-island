@@ -1,5 +1,6 @@
 import { ref, watch, computed } from 'vue'
 import { readTextFile, writeTextFile, mkdir, BaseDirectory } from '@tauri-apps/plugin-fs'
+import { useSettings } from './useSettings'
 
 export type TaskCategory = 'today' | 'tomorrow' | 'week'
 // 0=收件箱, 1=主任务, 2=次级A, 3=次级B
@@ -196,12 +197,13 @@ export function useTasks() {
   const completedTasks = computed(() => tasks.value.filter(t => t.completed))
 
   const todayStats = computed(() => {
+    const { settings } = useSettings()
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
     const ts = todayStart.getTime()
     const todayDone = tasks.value.filter(t => t.updatedAt >= ts && t.completed)
     const totalPomodoros = tasks.value.reduce((sum, t) => sum + t.pomodoroCount, 0)
-    const focusMinutes = totalPomodoros * 25
+    const focusMinutes = totalPomodoros * settings.value.focusDuration
     return { totalPomodoros, focusMinutes, completedToday: todayDone.length }
   })
 

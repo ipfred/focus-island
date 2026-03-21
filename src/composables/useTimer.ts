@@ -1,12 +1,11 @@
 import { ref, computed } from 'vue'
+import { useSettings } from './useSettings'
 
 export type TimerPhase = 'focus' | 'break'
 
-const FOCUS_DURATION = 25 * 60
-const BREAK_DURATION = 5 * 60
-
 const phase = ref<TimerPhase>('focus')
-const remaining = ref(FOCUS_DURATION)
+const remaining = ref(25 * 60)
+const totalDuration = ref(25 * 60)
 const running = ref(false)
 const activeTaskId = ref<string | null>(null)
 const activeTaskTitle = ref<string | null>(null)
@@ -27,22 +26,28 @@ type PhaseCallback = (phase: TimerPhase, taskId: string | null) => void
 const onDoneCallbacks: PhaseCallback[] = []
 
 function onPhaseDone() {
+  const { settings } = useSettings()
   onDoneCallbacks.forEach(cb => cb(phase.value, activeTaskId.value))
   if (phase.value === 'focus') {
     phase.value = 'break'
-    remaining.value = BREAK_DURATION
+    const breakSecs = settings.value.breakDuration * 60
+    remaining.value = breakSecs
+    totalDuration.value = breakSecs
   } else {
     phase.value = 'focus'
-    remaining.value = FOCUS_DURATION
+    const focusSecs = settings.value.focusDuration * 60
+    remaining.value = focusSecs
+    totalDuration.value = focusSecs
     activeTaskId.value = null
     activeTaskTitle.value = null
   }
 }
 
 export function useTimer() {
+  const { settings } = useSettings()
+
   const progress = computed(() => {
-    const total = phase.value === 'focus' ? FOCUS_DURATION : BREAK_DURATION
-    return 1 - remaining.value / total
+    return 1 - remaining.value / totalDuration.value
   })
 
   const displayTime = computed(() => {
@@ -55,7 +60,9 @@ export function useTimer() {
     activeTaskId.value = taskId
     activeTaskTitle.value = taskTitle ?? null
     phase.value = 'focus'
-    remaining.value = FOCUS_DURATION
+    const focusSecs = settings.value.focusDuration * 60
+    remaining.value = focusSecs
+    totalDuration.value = focusSecs
     resume()
   }
 
@@ -75,14 +82,18 @@ export function useTimer() {
   function skipToBreak() {
     pause()
     phase.value = 'break'
-    remaining.value = BREAK_DURATION
+    const breakSecs = settings.value.breakDuration * 60
+    remaining.value = breakSecs
+    totalDuration.value = breakSecs
     resume()
   }
 
   function skipBreak() {
     pause()
     phase.value = 'focus'
-    remaining.value = FOCUS_DURATION
+    const focusSecs = settings.value.focusDuration * 60
+    remaining.value = focusSecs
+    totalDuration.value = focusSecs
     activeTaskId.value = null
     activeTaskTitle.value = null
   }
@@ -90,7 +101,9 @@ export function useTimer() {
   function abandon() {
     pause()
     phase.value = 'focus'
-    remaining.value = FOCUS_DURATION
+    const focusSecs = settings.value.focusDuration * 60
+    remaining.value = focusSecs
+    totalDuration.value = focusSecs
     activeTaskId.value = null
     activeTaskTitle.value = null
     running.value = false
@@ -103,6 +116,7 @@ export function useTimer() {
   return {
     phase,
     remaining,
+    totalDuration,
     running,
     activeTaskId,
     activeTaskTitle,

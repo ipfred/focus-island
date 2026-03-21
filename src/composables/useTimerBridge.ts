@@ -9,6 +9,7 @@ import { useTasks } from './useTasks'
 export interface TimerStatePayload {
   phase: TimerPhase
   remaining: number
+  totalDuration: number
   running: boolean
   activeTaskId: string | null
   activeTaskTitle: string | null
@@ -35,6 +36,7 @@ export function useTimerBridge() {
       const payload: TimerStatePayload = {
         phase: timer.phase.value,
         remaining: timer.remaining.value,
+        totalDuration: timer.totalDuration.value,
         running: timer.running.value,
         activeTaskId: timer.activeTaskId.value,
         activeTaskTitle:

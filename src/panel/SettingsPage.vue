@@ -1,0 +1,289 @@
+<script setup lang="ts">
+import { useSettings, presetThemes } from '../composables/useSettings'
+
+const emit = defineEmits<{ back: [] }>()
+
+const { settings } = useSettings()
+
+const opacityPercent = (v: number) => Math.round(v * 100) + '%'
+</script>
+
+<template>
+  <div class="settings-page">
+    <div class="settings-header">
+      <button class="back-btn" @click="emit('back')">← 返回</button>
+      <span class="header-title">设置</span>
+    </div>
+
+    <!-- 透明度 -->
+    <div class="settings-section">
+      <div class="section-title">灵动岛透明度</div>
+      <div class="opacity-row">
+        <input
+          type="range"
+          class="opacity-slider"
+          min="0"
+          max="0.9"
+          step="0.01"
+          v-model.number="settings.islandOpacity"
+        />
+        <span class="opacity-value">{{ opacityPercent(settings.islandOpacity) }}</span>
+      </div>
+    </div>
+
+    <!-- 番茄钟时间 -->
+    <div class="settings-section">
+      <div class="section-title">番茄钟时间</div>
+      <div class="duration-row">
+        <label class="duration-label">专注时间</label>
+        <div class="stepper">
+          <button class="stepper-btn" @click="settings.focusDuration = Math.max(1, settings.focusDuration - 5)">−</button>
+          <span class="stepper-value">{{ settings.focusDuration }}</span>
+          <button class="stepper-btn" @click="settings.focusDuration = Math.min(120, settings.focusDuration + 5)">+</button>
+        </div>
+        <span class="duration-unit">分钟</span>
+      </div>
+      <div class="duration-row">
+        <label class="duration-label">休息时间</label>
+        <div class="stepper">
+          <button class="stepper-btn" @click="settings.breakDuration = Math.max(1, settings.breakDuration - 1)">−</button>
+          <span class="stepper-value">{{ settings.breakDuration }}</span>
+          <button class="stepper-btn" @click="settings.breakDuration = Math.min(30, settings.breakDuration + 1)">+</button>
+        </div>
+        <span class="duration-unit">分钟</span>
+      </div>
+    </div>
+
+    <!-- 颜色主题 -->
+    <div class="settings-section">
+      <div class="section-title">颜色主题</div>
+      <div class="theme-list">
+        <button
+          v-for="theme in presetThemes"
+          :key="theme.id"
+          class="theme-card"
+          :class="{ active: settings.activeThemeId === theme.id }"
+          @click="settings.activeThemeId = theme.id"
+        >
+          <div class="theme-colors">
+            <span class="color-dot" :style="{ background: theme.focusColor }"></span>
+            <span class="color-dot" :style="{ background: theme.breakColor }"></span>
+            <span class="color-dot" :style="{ background: theme.idleColor }"></span>
+          </div>
+          <span class="theme-name">{{ theme.name }}</span>
+          <span v-if="settings.activeThemeId === theme.id" class="theme-check">✓</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+@reference "../styles.css";
+
+.settings-page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  color: #e8e8ea;
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.back-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color 0.2s, background 0.2s;
+}
+
+.back-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.header-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.settings-section {
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.section-title {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+/* 透明度 */
+.opacity-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.opacity-slider {
+  flex: 1;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+}
+
+.opacity-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.opacity-value {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  min-width: 36px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 时长 */
+.duration-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.duration-row:last-child {
+  margin-bottom: 0;
+}
+
+.duration-label {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.7);
+  min-width: 60px;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.stepper-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 16px;
+  width: 32px;
+  height: 30px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stepper-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.stepper-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  min-width: 32px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.duration-unit {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* 主题 */
+.theme-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.theme-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  transition: all 0.2s;
+  width: 100%;
+  text-align: left;
+}
+
+.theme-card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.theme-card.active {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.theme-colors {
+  display: flex;
+  gap: 4px;
+}
+
+.color-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.theme-name {
+  flex: 1;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.theme-check {
+  font-size: 14px;
+  color: var(--focus-color);
+  font-weight: 700;
+}
+
+.settings-page::-webkit-scrollbar { width: 4px; }
+.settings-page::-webkit-scrollbar-track { background: transparent; }
+.settings-page::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+</style>

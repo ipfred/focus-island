@@ -13,6 +13,7 @@
   --break-color: #3a9e6e;
   --idle-color: #4a8fd4;
   --alert-color: #e8a23a;
+  --island-opacity: 0.82;
 }
 
 html, body, #app {

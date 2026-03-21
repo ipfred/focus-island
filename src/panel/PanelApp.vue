@@ -5,10 +5,15 @@ import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useTimerBridge } from '../composables/useTimerBridge'
+import { useSettings } from '../composables/useSettings'
 import TaskArea from './TaskArea.vue'
+import SettingsPage from './SettingsPage.vue'
 import PanelTitleBar from './PanelTitleBar.vue'
 
 const { startBridge } = useTimerBridge()
+useSettings()
+
+const currentView = ref<'tasks' | 'settings'>('tasks')
 const isVisible = ref(true)
 const isClosing = ref(false)
 const isWindowAnimating = ref(false)
@@ -65,7 +70,10 @@ async function closeWindow() {
   <div class="panel-root" :class="isVisible ? 'animate-in' : 'animate-out'">
     <PanelTitleBar @close="closeWindow" />
     <div class="panel-body">
-      <TaskArea category="today" @close="closeWindow" />
+      <transition name="slide-right" mode="out-in">
+        <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" @settings="currentView = 'settings'" />
+        <SettingsPage v-else @back="currentView = 'tasks'" />
+      </transition>
     </div>
   </div>
 </template>
