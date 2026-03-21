@@ -37,7 +37,9 @@ const activeTasks = computed(() =>
 );
 
 const completedCount = computed(
-    () => tasks.value.filter((t) => t.completed && t.category === props.category).length,
+    () =>
+        tasks.value.filter((t) => t.completed && t.category === props.category)
+            .length,
 );
 
 const top3Tasks = computed(() => {
@@ -56,9 +58,7 @@ function formatTime(ts: number) {
     const d = new Date(ts);
     const month = d.getMonth() + 1;
     const day = d.getDate();
-    const h = d.getHours().toString().padStart(2, "0");
-    const m = d.getMinutes().toString().padStart(2, "0");
-    return `${month}/${day} ${h}:${m}`;
+    return `${month}月${day}日`;
 }
 
 // Input
@@ -262,10 +262,12 @@ function onDragEnd() {
                             title="完成"
                         ></button>
                         <span class="task-title">{{ task.title }}</span>
-                        <span class="task-time">{{ formatTime(task.createdAt) }}</span>
                         <span class="pomo-count" v-if="task.pomodoroCount > 0"
                             >● {{ task.pomodoroCount }}</span
                         >
+                        <span class="task-time">{{
+                            formatTime(task.createdAt)
+                        }}</span>
                         <div class="task-actions">
                             <button
                                 class="act-btn delete"
@@ -301,7 +303,9 @@ function onDragEnd() {
                 >
                     <span class="inbox-dot">·</span>
                     <span class="inbox-title">{{ task.title }}</span>
-                    <span class="task-time">{{ formatTime(task.createdAt) }}</span>
+                    <span class="task-time">{{
+                        formatTime(task.createdAt)
+                    }}</span>
                     <div class="inbox-actions">
                         <button
                             class="act-btn"
@@ -342,7 +346,9 @@ function onDragEnd() {
                     title="已完成任务"
                     @click="emit('completed')"
                 >
-                    ✓ 已完成{{ completedCount > 0 ? ` (${completedCount})` : "" }}
+                    ✓ 已完成{{
+                        completedCount > 0 ? ` (${completedCount})` : ""
+                    }}
                 </button>
                 <button
                     class="footer-btn"
@@ -787,6 +793,8 @@ function onDragEnd() {
     color: rgba(255, 255, 255, 0.25);
     flex-shrink: 0;
     font-variant-numeric: tabular-nums;
+    /*width: 46px;
+    text-align: right;*/
 }
 
 /* Zone 4: Footer */
