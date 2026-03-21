@@ -768,16 +768,23 @@ function onDragEnd() {
 }
 
 .footer-btn {
-    background: transparent;
-    border: none;
-    color: rgba(255, 255, 255, 0.45);
-    font-size: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 11px;
+    font-weight: 500;
     cursor: pointer;
-    transition: color 0.2s;
-    padding: 2px 4px;
+    transition: all 0.2s;
+    padding: 4px 10px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
 }
 
 .footer-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.2);
     color: #fff;
 }
 </style>
