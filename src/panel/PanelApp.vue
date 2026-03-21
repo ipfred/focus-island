@@ -57,7 +57,6 @@ onUnmounted(() => {
 async function closeWindow() {
   if (isClosing.value) return
   isClosing.value = true
-  isVisible.value = false
   await invoke('animate_panel_close')
 }
 </script>

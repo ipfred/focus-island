@@ -21,10 +21,10 @@ const PANEL_MIN_HEIGHT: u32 = 480;
 const PANEL_GAP_Y: i32 = 6;
 const PANEL_ANIM_MS: u64 = 320;
 const PANEL_ANIM_STEP_MS: u64 = 16;
-const PANEL_ANIM_MIN_W: u32 = 220;
-const PANEL_ANIM_MIN_H: u32 = 40;
-const PANEL_ANIM_ARC_PX: f64 = 14.0;
-const PANEL_ANIM_OVERSHOOT: f64 = 0.04;
+const PANEL_ANIM_MIN_W: u32 = 160;
+const PANEL_ANIM_MIN_H: u32 = 28;
+const PANEL_ANIM_ARC_PX: f64 = 24.0;
+const PANEL_ANIM_OVERSHOOT: f64 = 0.08;
 
 static LAST_PANEL_SIZE: OnceLock<Mutex<Option<tauri::PhysicalSize<u32>>>> = OnceLock::new();
 
@@ -129,6 +129,14 @@ fn ease_in_quart(t: f64) -> f64 {
     t * t * t * t
 }
 
+fn ease_out_quart(t: f64) -> f64 {
+    1.0 - (1.0 - t).powi(4)
+}
+
+fn ease_in_quint(t: f64) -> f64 {
+    t * t * t * t * t
+}
+
 
 fn position_panel_under_island_inner<R: Runtime>(app: &AppHandle<R>) {
     let Some(panel) = app.get_webview_window("panel") else {
@@ -215,15 +223,15 @@ fn animate_panel_open<R: Runtime>(app: AppHandle<R>) {
         loop {
             let t = (start.elapsed().as_millis() as f64) / (PANEL_ANIM_MS as f64);
             let t = t.min(1.0);
-            let k_pos = ease_out_cubic(t);
-            let mut k_size = k_pos;
-            if t > 0.8 {
-                let u = (t - 0.8) / 0.2;
+            let k_pos = ease_out_quart(t);
+            let mut k_size = ease_out_cubic(t);
+            if t > 0.7 {
+                let u = (t - 0.7) / 0.3;
                 let bump = (std::f64::consts::PI * u).sin();
                 k_size = k_size * (1.0 + PANEL_ANIM_OVERSHOOT * bump);
             }
             let dir_y = if target_pos.y >= start_pos.y { 1.0 } else { -1.0 };
-            let arc = PANEL_ANIM_ARC_PX * 4.0 * t * (1.0 - t) * dir_y;
+            let arc = PANEL_ANIM_ARC_PX * (1.0 - (2.0 * t - 1.0).powi(2)) * dir_y;
             let x = start_pos.x as f64 + (target_pos.x - start_pos.x) as f64 * k_pos;
             let y = start_pos.y as f64 + (target_pos.y - start_pos.y) as f64 * k_pos + arc;
             let w =
@@ -278,11 +286,11 @@ fn animate_panel_close<R: Runtime>(app: AppHandle<R>) {
         loop {
             let t = (start.elapsed().as_millis() as f64) / (PANEL_ANIM_MS as f64);
             let t = t.min(1.0);
-            let k_pos = ease_in_cubic(t);
+            let k_pos = ease_in_quart(t);
             let k_w = ease_in_cubic(t);
-            let k_h = ease_in_quart(t);
+            let k_h = ease_in_quint(t);
             let dir_y = if target_pos.y >= start_pos.y { 1.0 } else { -1.0 };
-            let arc = PANEL_ANIM_ARC_PX * 4.0 * t * (1.0 - t) * dir_y;
+            let arc = PANEL_ANIM_ARC_PX * (1.0 - (2.0 * t - 1.0).powi(2)) * dir_y;
             let x = start_pos.x as f64 + (target_pos.x - start_pos.x) as f64 * k_pos;
             let y = start_pos.y as f64 + (target_pos.y - start_pos.y) as f64 * k_pos + arc;
             let w =
