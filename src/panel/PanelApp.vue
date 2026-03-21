@@ -8,12 +8,13 @@ import { useTimerBridge } from '../composables/useTimerBridge'
 import { useSettings } from '../composables/useSettings'
 import TaskArea from './TaskArea.vue'
 import SettingsPage from './SettingsPage.vue'
+import CompletedPage from './CompletedPage.vue'
 import PanelTitleBar from './PanelTitleBar.vue'
 
 const { startBridge } = useTimerBridge()
 useSettings()
 
-const currentView = ref<'tasks' | 'settings'>('tasks')
+const currentView = ref<'tasks' | 'settings' | 'completed'>('tasks')
 const isVisible = ref(true)
 const isClosing = ref(false)
 const isWindowAnimating = ref(false)
@@ -71,8 +72,9 @@ async function closeWindow() {
     <PanelTitleBar @close="closeWindow" />
     <div class="panel-body">
       <transition name="slide-right" mode="out-in">
-        <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" @settings="currentView = 'settings'" />
-        <SettingsPage v-else @back="currentView = 'tasks'" />
+        <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" @settings="currentView = 'settings'" @completed="currentView = 'completed'" />
+        <SettingsPage v-else-if="currentView === 'settings'" @back="currentView = 'tasks'" />
+        <CompletedPage v-else @back="currentView = 'tasks'" />
       </transition>
     </div>
   </div>
