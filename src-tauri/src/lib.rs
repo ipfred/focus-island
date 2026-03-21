@@ -16,6 +16,9 @@ use windows::Win32::Foundation::POINT;
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 
+#[cfg(target_os = "linux")]
+use x11::xlib;
+
 const PANEL_GAP_Y: i32 = 6;
 const PANEL_ANIM_MS: u64 = 320;
 const PANEL_ANIM_STEP_MS: u64 = 16;
@@ -41,6 +44,34 @@ fn get_mouse_position() -> (f64, f64) {
         let mut point = POINT::default();
         if unsafe { GetCursorPos(&mut point) }.is_ok() {
             return (point.x as f64, point.y as f64);
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    unsafe {
+        let display = xlib::XOpenDisplay(std::ptr::null());
+        if !display.is_null() {
+            let mut root_return = 0;
+            let mut child_return = 0;
+            let mut root_x = 0;
+            let mut root_y = 0;
+            let mut win_x = 0;
+            let mut win_y = 0;
+            let mut mask = 0;
+            let root = xlib::XDefaultRootWindow(display);
+            xlib::XQueryPointer(
+                display,
+                root,
+                &mut root_return,
+                &mut child_return,
+                &mut root_x,
+                &mut root_y,
+                &mut win_x,
+                &mut win_y,
+                &mut mask,
+            );
+            xlib::XCloseDisplay(display);
+            return (root_x as f64, root_y as f64);
         }
     }
 
