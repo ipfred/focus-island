@@ -228,9 +228,6 @@ function cancelEdit() {
                                     ■ 停止
                                 </button>
                             </div>
-                            <div class="progress-bar">
-                                <div class="progress-fill"></div>
-                            </div>
                         </div>
                     </template>
 
@@ -268,9 +265,6 @@ function cancelEdit() {
                                 >
                                     ■ 停止
                                 </button>
-                            </div>
-                            <div class="progress-bar">
-                                <div class="progress-fill paused-fill"></div>
                             </div>
                         </div>
                     </template>
