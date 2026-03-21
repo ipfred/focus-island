@@ -14,6 +14,11 @@ onMounted(async () => {
   await invoke('set_click_through', { ignore: false })
 
   const win = getCurrentWebviewWindow()
+  try {
+    await win.setBackgroundColor([0, 0, 0, 0])
+  } catch {
+    // ignore if not supported or denied
+  }
   await win.onFocusChanged(({ payload: focused }) => {
     if (focused) {
       isVisible.value = true
@@ -42,6 +47,7 @@ async function closeWindow() {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  width: 100vw;
   background: #121216;
   border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.08);
