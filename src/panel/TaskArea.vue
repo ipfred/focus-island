@@ -121,34 +121,30 @@ function onDragEnd() {
       >
         <!-- 正常态 -->
         <template v-if="!(activeTaskId === task.id && running)">
-          <div class="task-info-row">
-            <div class="task-prefix">
-              <span class="crown-icon" v-if="index === 0">👑</span>
-              <span class="silver-icon" v-else>🥈</span>
-              <button class="check-box" @click="handleDoneTask(task.id)"></button>
-            </div>
-            
-            <span class="task-title" :class="{'is-main': index === 0}">{{ task.title }}</span>
+          <div class="task-row">
+            <span class="rank-icon">
+              {{ index === 0 ? '👑' : index === 1 ? '🥇' : '🥈' }}
+            </span>
+            <button class="check-circle" @click="handleDoneTask(task.id)" title="完成"></button>
+            <span class="task-title">{{ task.title }}</span>
             <span class="pomo-count" v-if="task.pomodoroCount > 0">🍅x{{ task.pomodoroCount }}</span>
-            
             <div class="task-actions">
-              <button class="action-btn" @click="handleStartTask(task)" title="开始番茄钟">▶️</button>
-              <button class="action-btn delete" @click="deleteTask(task.id)" title="删除">🗑️</button>
+              <button class="action-btn" @click="handleStartTask(task)" title="开始">▶</button>
+              <button class="action-btn delete" @click="deleteTask(task.id)" title="删除">✕</button>
             </div>
           </div>
         </template>
         
-        <!-- 运行态控制台 -->
+        <!-- 运行态 -->
         <template v-else>
-          <div class="running-console">
-            <div class="running-timer">
-              <span class="timer-icon">⏱️</span> 正在专注：<span class="timer-time">{{ displayTime }}</span>
-            </div>
-            <div class="running-title">{{ task.title }}</div>
-            <div class="running-controls">
-              <button class="ctrl-btn" @click="pause()">⏸️ 暂停</button>
-              <button class="ctrl-btn" @click="handleDoneTask(task.id)">⏹️ 提前完成</button>
-              <button class="ctrl-btn danger" @click="handleAbandon()">⏭️ 放弃</button>
+          <div class="task-row running">
+            <span class="rank-icon running">●</span>
+            <span class="task-title">{{ task.title }}</span>
+            <span class="task-timer">{{ displayTime }}</span>
+            <div class="task-actions">
+              <button class="action-btn" @click="pause()" title="暂停">Ⅱ</button>
+              <button class="action-btn" @click="handleDoneTask(task.id)" title="完成">✓</button>
+              <button class="action-btn delete" @click="handleAbandon()" title="放弃">↷</button>
             </div>
           </div>
         </template>
@@ -242,18 +238,18 @@ function onDragEnd() {
 }
 
 .zone-2 {
-  padding: 16px 20px;
+  padding: 12px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
 }
 
 .focus-task-item {
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 10px;
-  margin-bottom: 8px;
-  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.035);
+  border-radius: 12px;
+  margin-bottom: 6px;
+  padding: 6px 10px;
   transition: all 0.2s;
-  border: 1px solid transparent;
+  border: 1px solid rgba(255, 255, 255, 0.06);
   cursor: grab;
 }
 
@@ -262,66 +258,62 @@ function onDragEnd() {
 }
 
 .focus-task-item:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .focus-task-item.is-running-task {
   background: rgba(232, 93, 58, 0.08);
-  border-color: rgba(232, 93, 58, 0.3);
+  border-color: rgba(232, 93, 58, 0.28);
 }
 
-.task-info-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.task-prefix {
+.task-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 48px;
-  flex-shrink: 0;
+  min-height: 28px;
 }
 
-.crown-icon, .silver-icon {
-  font-size: 14px;
+.task-row.running .task-title {
+  color: #fff;
+  font-weight: 600;
 }
 
-.check-box {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+.check-circle {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.28);
   background: transparent;
   cursor: pointer;
   padding: 0;
   transition: border-color 0.2s, background 0.2s;
 }
 
-.check-box:hover {
+.check-circle:hover {
   border-color: #3a9e6e;
   background: rgba(58, 158, 110, 0.2);
 }
 
 .task-title {
   flex: 1;
-  font-size: 14px;
+  font-size: 13px;
   color: rgba(255, 255, 255, 0.9);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.task-title.is-main {
-  font-size: 15px;
-  font-weight: 600;
-  color: #fff;
+.pomo-count {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
 }
 
-.pomo-count {
+.task-timer {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  font-weight: 700;
+  color: #e85d3a;
+  font-variant-numeric: tabular-nums;
 }
 
 .task-actions {
@@ -336,77 +328,45 @@ function onDragEnd() {
 }
 
 .action-btn {
-  background: transparent;
-  border: none;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   cursor: pointer;
-  font-size: 14px;
-  opacity: 0.7;
-  transition: opacity 0.2s;
-  padding: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.8);
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  padding: 2px 5px;
+  border-radius: 6px;
+  min-width: 22px;
+  text-align: center;
 }
 
 .action-btn:hover {
-  opacity: 1;
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 
 .action-btn.delete {
-  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
 }
 
-/* Running Console */
-.running-console {
-  display: flex;
-  flex-direction: column;
+.rank-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 0;
-  cursor: default;
-}
-
-.running-timer {
+  justify-content: center;
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.7);
+  line-height: 1;
+  flex-shrink: 0;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35));
 }
 
-.timer-time {
-  font-size: 24px;
-  font-weight: 700;
+.rank-icon.running {
+  font-size: 10px;
   color: #e85d3a;
-  font-variant-numeric: tabular-nums;
-  margin-left: 8px;
-}
-
-.running-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #fff;
-}
-
-.running-controls {
-  display: flex;
-  gap: 12px;
-  margin-top: 4px;
-}
-
-.ctrl-btn {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #fff;
-  border-radius: 8px;
-  padding: 6px 12px;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.ctrl-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-}
-
-.ctrl-btn.danger:hover {
-  background: rgba(220, 60, 60, 0.2);
-  border-color: rgba(220, 60, 60, 0.4);
-  color: #f87171;
+  filter: none;
 }
 
 /* Zone 3: Inbox */
