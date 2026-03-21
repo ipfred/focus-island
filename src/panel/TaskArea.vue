@@ -100,7 +100,7 @@ function handleStartTask(task: Task) {
 function handleDoneTask(taskId: string) {
     if (activeTaskId.value === taskId) {
         incrementPomodoro(taskId);
-        skipToBreak();
+        abandon();
         toggleComplete(taskId);
     } else {
         toggleComplete(taskId);

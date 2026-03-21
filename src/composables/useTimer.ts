@@ -33,6 +33,8 @@ function onPhaseDone() {
     const breakSecs = settings.value.breakDuration * 60
     remaining.value = breakSecs
     totalDuration.value = breakSecs
+    running.value = true
+    intervalId = setInterval(tick, 1000)
   } else {
     phase.value = 'focus'
     const focusSecs = settings.value.focusDuration * 60

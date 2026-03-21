@@ -18,6 +18,7 @@ let unlistenSettings: (() => void) | null = null;
 const VISIBLE_HEIGHT = 42.0;
 
 const progressScale = computed(() => {
+    if (state.value === "idle" || state.value === "alert") return 0;
     const v = timer.progress.value;
     if (Number.isNaN(v) || v <= 0) return 0;
     if (v >= 1) return 1;
