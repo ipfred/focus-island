@@ -268,13 +268,6 @@ function onDragEnd() {
                         >
                         <div class="task-actions">
                             <button
-                                class="act-btn"
-                                @click="handleStartTask(task)"
-                                title="开始"
-                            >
-                                ▶
-                            </button>
-                            <button
                                 class="act-btn delete"
                                 @click="deleteTask(task.id)"
                                 title="删除"
@@ -282,6 +275,13 @@ function onDragEnd() {
                                 ✕
                             </button>
                         </div>
+                        <button
+                            class="start-btn"
+                            @click="handleStartTask(task)"
+                            title="开始"
+                        >
+                            ▶
+                        </button>
                     </div>
                 </template>
             </div>
@@ -305,13 +305,6 @@ function onDragEnd() {
                     <div class="inbox-actions">
                         <button
                             class="act-btn"
-                            @click="setTaskPriority(task.id, 1)"
-                            title="移至专注区"
-                        >
-                            ↑
-                        </button>
-                        <button
-                            class="act-btn"
                             @click="toggleComplete(task.id)"
                             title="完成"
                         >
@@ -325,6 +318,13 @@ function onDragEnd() {
                             ✕
                         </button>
                     </div>
+                    <button
+                        class="promote-btn"
+                        @click="setTaskPriority(task.id, 1)"
+                        title="移至专注区"
+                    >
+                        ↑
+                    </button>
                 </div>
             </div>
         </div>
@@ -579,8 +579,8 @@ function onDragEnd() {
     font-size: 12px;
     line-height: 1;
     flex-shrink: 0;
-    color: rgba(255, 255, 255, 0.6);
-    background: rgba(255, 255, 255, 0.08);
+    color: var(--focus-color);
+    background: color-mix(in srgb, var(--focus-color) 15%, transparent);
     border-radius: 50%;
 }
 
@@ -639,11 +639,11 @@ function onDragEnd() {
 
 /* Unified action button */
 .act-btn {
-    min-width: 24px;
-    height: 24px;
-    padding: 2px 6px;
-    border-radius: 6px;
-    font-size: 12px;
+    min-width: 20px;
+    height: 20px;
+    padding: 1px 4px;
+    border-radius: 5px;
+    font-size: 10px;
     font-weight: 600;
     background: rgba(255, 255, 255, 0.06);
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -660,6 +660,30 @@ function onDragEnd() {
     background: rgba(255, 255, 255, 0.14);
     border-color: rgba(255, 255, 255, 0.2);
     color: #fff;
+}
+
+.start-btn {
+    min-width: 20px;
+    height: 20px;
+    padding: 1px 4px;
+    border-radius: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    background: color-mix(in srgb, var(--focus-color) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--focus-color) 30%, transparent);
+    color: var(--focus-color);
+    cursor: pointer;
+    text-align: center;
+    flex-shrink: 0;
+    transition:
+        background 0.2s,
+        color 0.2s,
+        border-color 0.2s;
+}
+
+.start-btn:hover {
+    background: color-mix(in srgb, var(--focus-color) 25%, transparent);
+    border-color: color-mix(in srgb, var(--focus-color) 50%, transparent);
 }
 
 .act-btn.delete {
@@ -710,9 +734,32 @@ function onDragEnd() {
     background: rgba(255, 255, 255, 0.04);
 }
 
+.promote-btn {
+    min-width: 20px;
+    height: 20px;
+    padding: 1px 4px;
+    border-radius: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    background: color-mix(in srgb, var(--focus-color) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--focus-color) 30%, transparent);
+    color: var(--focus-color);
+    cursor: pointer;
+    text-align: center;
+    flex-shrink: 0;
+    transition:
+        background 0.2s,
+        color 0.2s,
+        border-color 0.2s;
+}
+
+.promote-btn:hover {
+    background: color-mix(in srgb, var(--focus-color) 25%, transparent);
+    border-color: color-mix(in srgb, var(--focus-color) 50%, transparent);
+}
+
 .inbox-dot {
-    color: rgba(255, 255, 255, 0.3);
-    font-weight: bold;
+    color: var(--focus-color);
 }
 
 .inbox-title {
