@@ -4,15 +4,10 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 defineEmits<{ close: [] }>()
 
 const win = getCurrentWebviewWindow()
-
-function onMouseDown(e: MouseEvent) {
-  if ((e.target as HTMLElement).closest('button')) return
-  win.startDragging()
-}
 </script>
 
 <template>
-  <div class="titlebar" @mousedown="onMouseDown">
+  <div class="titlebar">
     <span class="titlebar-title">专注清单</span>
     <div class="titlebar-actions">
       <button class="btn-minimize" @click="win.minimize()" title="最小化">−</button>

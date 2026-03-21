@@ -63,27 +63,44 @@ fn get_window_position<R: Runtime>(window: WebviewWindow<R>) -> (i32, i32) {
         .unwrap_or((0, 0))
 }
 
+fn position_panel_under_island_inner<R: Runtime>(app: &AppHandle<R>) {
+    let Some(panel) = app.get_webview_window("panel") else {
+        return;
+    };
+    let Some(main) = app.get_webview_window("main") else {
+        return;
+    };
+    let Ok(main_pos) = main.outer_position() else {
+        return;
+    };
+    let Ok(main_size) = main.outer_size() else {
+        return;
+    };
+    let Ok(panel_size) = panel.outer_size() else {
+        return;
+    };
+
+    let gap_y = 6;
+    let new_x = main_pos.x + ((main_size.width as i32 - panel_size.width as i32) / 2);
+    let new_y = main_pos.y + main_size.height as i32 + gap_y;
+    let _ = panel.set_position(tauri::PhysicalPosition::new(new_x, new_y));
+}
+
+#[tauri::command]
+fn position_panel_under_island<R: Runtime>(app: AppHandle<R>) {
+    position_panel_under_island_inner(&app);
+}
+
 #[tauri::command]
 fn show_panel<R: Runtime>(app: AppHandle<R>) {
     if let Some(panel) = app.get_webview_window("panel") {
         let _ = panel.set_ignore_cursor_events(false);
         if let Some(main) = app.get_webview_window("main") {
-            if let Ok(pos) = main.outer_position() {
-                if let Ok(Some(monitor)) = main.current_monitor() {
-                    let sf = monitor.scale_factor();
-                    // panel is 720 logical wide vs main 360 logical wide
-                    let panel_w = 720.0 * sf;
-                    let main_w = 360.0 * sf;
-                    let new_x = pos.x as f64 - (panel_w - main_w) / 2.0;
-                    let new_y = pos.y as f64 + (38.0 * sf); // slightly below the capsule
-                    let _ = panel
-                        .set_position(tauri::PhysicalPosition::new(new_x as i32, new_y as i32));
-                }
-            }
             // 确保灵动岛也保持置顶显示
             let _ = main.show();
             let _ = main.set_always_on_top(true);
         }
+        position_panel_under_island_inner(&app);
         let _ = panel.show();
         let _ = panel.set_focus();
         let _ = panel.set_always_on_top(true);
@@ -151,6 +168,7 @@ pub fn run() {
             set_click_through,
             set_island_height,
             get_window_position,
+            position_panel_under_island,
             show_panel,
             hide_panel,
             toggle_panel,

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useTimerBridge } from '../composables/useTimerBridge'
 import TaskArea from './TaskArea.vue'
@@ -8,28 +9,56 @@ import PanelTitleBar from './PanelTitleBar.vue'
 
 const { startBridge } = useTimerBridge()
 const isVisible = ref(true)
+const isClosing = ref(false)
+let unlistenResize: (() => void) | null = null
+let resizeTimer: number | null = null
+let closeTimer: number | null = null
 
 onMounted(async () => {
   startBridge()
   await invoke('set_click_through', { ignore: false })
 
   const win = getCurrentWebviewWindow()
+  const appWindow = getCurrentWindow()
   try {
     await win.setBackgroundColor([0, 0, 0, 0])
   } catch {
     // ignore if not supported or denied
   }
+  const scheduleReposition = () => {
+    if (resizeTimer) window.clearTimeout(resizeTimer)
+    resizeTimer = window.setTimeout(() => {
+      invoke('position_panel_under_island')
+    }, 120)
+  }
+  scheduleReposition()
+  unlistenResize = await appWindow.onResized(() => {
+    scheduleReposition()
+  })
   await win.onFocusChanged(({ payload: focused }) => {
     if (focused) {
       isVisible.value = true
+      isClosing.value = false
+      if (closeTimer) {
+        window.clearTimeout(closeTimer)
+        closeTimer = null
+      }
     }
   })
 })
 
+onUnmounted(() => {
+  if (unlistenResize) unlistenResize()
+})
+
 async function closeWindow() {
+  if (isClosing.value) return
+  isClosing.value = true
   isVisible.value = false
-  // 立即通知后端隐藏，让灵动岛能及时响应
-  await invoke('hide_panel')
+  closeTimer = window.setTimeout(() => {
+    invoke('hide_panel')
+    closeTimer = null
+  }, 200)
 }
 </script>
 
@@ -67,13 +96,13 @@ async function closeWindow() {
 }
 
 @keyframes panel-pop-in {
-  0% { transform: scale(0.9) translateY(-40px); opacity: 0; }
+  0% { transform: scale(0.92) translateY(-28px); opacity: 0; }
   100% { transform: scale(1) translateY(0); opacity: 1; }
 }
 
 @keyframes panel-pop-out {
   0% { transform: scale(1) translateY(0); opacity: 1; }
-  100% { transform: scale(0.9) translateY(-40px); opacity: 0; }
+  100% { transform: scale(0.92) translateY(-28px); opacity: 0; }
 }
 
 .panel-body {
