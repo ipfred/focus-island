@@ -128,6 +128,8 @@ onUnmounted(() => {
     border-radius: 17px;
     background: rgba(20, 20, 22, var(--island-opacity, 0.82));
     backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    -webkit-mask-image: -webkit-radial-gradient(white, black);
     box-shadow: 0 4px 32px rgba(0, 0, 0, 0.45);
     transition: box-shadow 0.4s ease;
 }
