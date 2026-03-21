@@ -1,9 +1,14 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useSettings, presetThemes } from '../composables/useSettings'
 
 const emit = defineEmits<{ back: [] }>()
 
 const { settings } = useSettings()
+
+const currentTheme = computed(() =>
+  presetThemes.find(t => t.id === settings.value.activeThemeId) ?? presetThemes[0]
+)
 
 const opacityPercent = (v: number) => Math.round(v * 100) + '%'
 </script>
@@ -73,6 +78,11 @@ const opacityPercent = (v: number) => Math.round(v * 100) + '%'
           <span class="theme-name">{{ theme.name }}</span>
           <span v-if="settings.activeThemeId === theme.id" class="theme-check">✓</span>
         </button>
+      </div>
+      <div class="theme-legend">
+        <span class="legend-item"><span class="color-dot" :style="{ background: currentTheme.focusColor }"></span>专注</span>
+        <span class="legend-item"><span class="color-dot" :style="{ background: currentTheme.breakColor }"></span>休息</span>
+        <span class="legend-item"><span class="color-dot" :style="{ background: currentTheme.idleColor }"></span>空闲</span>
       </div>
     </div>
   </div>
@@ -281,6 +291,21 @@ const opacityPercent = (v: number) => Math.round(v * 100) + '%'
   font-size: 14px;
   color: var(--focus-color);
   font-weight: 700;
+}
+
+.theme-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+  padding-top: 8px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .settings-page::-webkit-scrollbar { width: 4px; }

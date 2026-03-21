@@ -29,6 +29,7 @@ const {
     displayTime,
     abandon,
     skipToBreak,
+    phase,
 } = useTimerBridge();
 
 const newTitle = ref("");
@@ -183,6 +184,7 @@ function cancelEdit() {
                 :key="task.id"
                 class="focus-task-item"
                 :class="{ 'is-running': activeTaskId === task.id }"
+                :style="activeTaskId === task.id ? { '--active-color': phase === 'break' ? 'var(--break-color)' : 'var(--focus-color)' } : undefined"
                 draggable="true"
                 @dragstart="onDragStart(task, $event)"
                 @dragover.prevent
@@ -490,9 +492,9 @@ function cancelEdit() {
 
 /* Running task card */
 .focus-task-item.is-running {
-    background: color-mix(in srgb, var(--focus-color) 10%, transparent);
-    border-color: color-mix(in srgb, var(--focus-color) 30%, transparent);
-    border-left: 3px solid var(--focus-color);
+    background: color-mix(in srgb, var(--active-color) 10%, transparent);
+    border-color: color-mix(in srgb, var(--active-color) 30%, transparent);
+    border-left: 3px solid var(--active-color);
     padding: 8px 10px;
     cursor: default;
 }
@@ -510,7 +512,7 @@ function cancelEdit() {
 }
 
 .running-dot {
-    color: var(--focus-color);
+    color: var(--active-color);
     font-size: 10px;
     flex-shrink: 0;
 }
@@ -594,7 +596,7 @@ function cancelEdit() {
     height: 100%;
     width: 100%;
     border-radius: 2px;
-    background: var(--focus-color);
+    background: var(--active-color);
     transform-origin: left;
 }
 
@@ -681,7 +683,7 @@ function cancelEdit() {
 .task-timer {
     font-size: 13px;
     font-weight: 700;
-    color: var(--focus-color);
+    color: var(--active-color);
     font-variant-numeric: tabular-nums;
     flex-shrink: 0;
 }
