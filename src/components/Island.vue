@@ -40,6 +40,7 @@ onMounted(async () => {
             timer.remaining.value = payload.remaining;
             timer.running.value = payload.running;
             timer.activeTaskId.value = payload.activeTaskId;
+            timer.activeTaskTitle.value = payload.activeTaskTitle ?? null;
             if (payload.phase !== timer.phase.value) {
                 timer.phase.value = payload.phase;
             }

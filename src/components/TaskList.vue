@@ -39,8 +39,8 @@ function handleKeydown(e: KeyboardEvent) {
   if (e.key === 'Enter') handleAdd()
 }
 
-function startTask(taskId: string) {
-  start(taskId)
+function startTask(taskId: string, title: string) {
+  start(taskId, title)
 }
 
 async function startEdit(task: { id: string; title: string }) {
@@ -100,7 +100,7 @@ function handleEditKeydown(e: KeyboardEvent) {
         <!-- Play button -->
         <button
           v-if="!task.completed"
-          @click="startTask(task.id)"
+          @click="startTask(task.id, task.title)"
           class="shrink-0 w-6 h-6 rounded-full flex items-center justify-center transition-all"
           :class="activeTaskId === task.id
             ? 'bg-[var(--focus-color)]'

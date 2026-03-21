@@ -10,7 +10,6 @@ const win = getCurrentWebviewWindow()
   <div class="titlebar">
     <span class="titlebar-title">专注清单</span>
     <div class="titlebar-actions">
-      <button class="btn-minimize" @click="win.minimize()" title="最小化">−</button>
       <button class="btn-close" @click="$emit('close')" title="关闭">✕</button>
     </div>
   </div>
@@ -56,11 +55,6 @@ button {
   align-items: center;
   justify-content: center;
   transition: background 0.15s, color 0.15s;
-}
-
-.btn-minimize:hover {
-  background: rgba(255,255,255,0.1);
-  color: rgba(255,255,255,0.9);
 }
 
 .btn-close:hover {

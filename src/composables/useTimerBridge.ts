@@ -4,18 +4,21 @@
  */
 import { emit } from '@tauri-apps/api/event'
 import { useTimer, type TimerPhase } from './useTimer'
+import { useTasks } from './useTasks'
 
 export interface TimerStatePayload {
   phase: TimerPhase
   remaining: number
   running: boolean
   activeTaskId: string | null
+  activeTaskTitle: string | null
 }
 
 let bridgeStarted = false
 
 export function useTimerBridge() {
   const timer = useTimer()
+  const { tasks } = useTasks()
 
   function startBridge() {
     if (bridgeStarted) return
@@ -28,6 +31,10 @@ export function useTimerBridge() {
         remaining: timer.remaining.value,
         running: timer.running.value,
         activeTaskId: timer.activeTaskId.value,
+        activeTaskTitle:
+          timer.activeTaskTitle.value ??
+          tasks.value.find(t => t.id === timer.activeTaskId.value)?.title ??
+          null,
       }
       emit('timer-state-update', payload)
     }, 500)

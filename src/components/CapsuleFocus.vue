@@ -3,11 +3,14 @@ import { computed } from 'vue'
 import { useTimer } from '../composables/useTimer'
 import { useTasks } from '../composables/useTasks'
 
-const { displayTime, phase, activeTaskId, running } = useTimer()
+const { displayTime, phase, activeTaskId, activeTaskTitle, running } = useTimer()
 const { tasks } = useTasks()
 
 const activeTask = computed(() =>
   tasks.value.find(t => t.id === activeTaskId.value)
+)
+const resolvedTitle = computed(() =>
+  activeTaskTitle.value ?? activeTask.value?.title ?? null
 )
 
 const phaseColor = computed(() =>
@@ -28,7 +31,7 @@ const phaseColor = computed(() =>
     <div class="flex-1 min-w-0">
       <span
         class="text-white/90 text-xs font-medium truncate block"
-      >{{ activeTask?.title ?? (phase === 'break' ? '休息一下' : '专注中') }}</span>
+      >{{ resolvedTitle ?? (phase === 'break' ? '休息一下' : '专注中') }}</span>
     </div>
 
     <!-- Countdown -->

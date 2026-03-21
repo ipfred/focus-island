@@ -33,12 +33,13 @@ async function handleInput(event: KeyboardEvent) {
     if (!t) return
     
     // Add task
-    const newTask = addTask(t, props.category)
+    const newTask = addTask(t, props.category, event.shiftKey ? 1 : undefined)
     newTitle.value = ''
     
     // Shift+Enter to start and close window
     if (event.shiftKey) {
-      start(newTask.id)
+      setTaskPriority(newTask.id, 1)
+      start(newTask.id, newTask.title)
       emit('close')
     }
   }
@@ -50,7 +51,7 @@ function handleStartTask(task: Task) {
     if (running.value) pause()
     else resume()
   } else {
-    start(task.id)
+    start(task.id, task.title)
   }
 }
 

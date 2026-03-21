@@ -9,6 +9,7 @@ const phase = ref<TimerPhase>('focus')
 const remaining = ref(FOCUS_DURATION)
 const running = ref(false)
 const activeTaskId = ref<string | null>(null)
+const activeTaskTitle = ref<string | null>(null)
 let intervalId: ReturnType<typeof setInterval> | null = null
 
 function tick() {
@@ -34,6 +35,7 @@ function onPhaseDone() {
     phase.value = 'focus'
     remaining.value = FOCUS_DURATION
     activeTaskId.value = null
+    activeTaskTitle.value = null
   }
 }
 
@@ -49,8 +51,9 @@ export function useTimer() {
     return `${m}:${s}`
   })
 
-  function start(taskId: string) {
+  function start(taskId: string, taskTitle?: string) {
     activeTaskId.value = taskId
+    activeTaskTitle.value = taskTitle ?? null
     phase.value = 'focus'
     remaining.value = FOCUS_DURATION
     resume()
@@ -81,6 +84,7 @@ export function useTimer() {
     phase.value = 'focus'
     remaining.value = FOCUS_DURATION
     activeTaskId.value = null
+    activeTaskTitle.value = null
   }
 
   function abandon() {
@@ -88,6 +92,7 @@ export function useTimer() {
     phase.value = 'focus'
     remaining.value = FOCUS_DURATION
     activeTaskId.value = null
+    activeTaskTitle.value = null
     running.value = false
   }
 
@@ -100,6 +105,7 @@ export function useTimer() {
     remaining,
     running,
     activeTaskId,
+    activeTaskTitle,
     progress,
     displayTime,
     start,

@@ -1,6 +1,6 @@
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
-    tray::TrayIconBuilder,
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, Runtime, WebviewWindow,
 };
 
@@ -163,6 +163,18 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
+        .on_tray_icon_event(|app, event| {
+            if let TrayIconEvent::Click {
+                button,
+                button_state,
+                ..
+            } = event
+            {
+                if button == MouseButton::Left && button_state == MouseButtonState::Up {
+                    toggle_panel(app.clone());
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             get_mouse_position,
             set_click_through,
