@@ -16,6 +16,7 @@ export interface Settings {
   focusDuration: number
   breakDuration: number
   activeThemeId: string
+  idleMottos: string[]       // 空闲时轮播的激励语，空数组则用内置默认
 }
 
 export const presetThemes: ThemePreset[] = [
@@ -33,6 +34,7 @@ const DEFAULT_SETTINGS: Settings = {
   focusDuration: 25,
   breakDuration: 5,
   activeThemeId: 'classic',
+  idleMottos: [],
 }
 
 const settings = ref<Settings>({ ...DEFAULT_SETTINGS })
