@@ -16,7 +16,7 @@ use windows::Win32::Foundation::POINT;
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 
-const PANEL_MIN_WIDTH: u32 = 600;
+const PANEL_MIN_WIDTH: u32 = 340;
 const PANEL_MIN_HEIGHT: u32 = 480;
 const PANEL_GAP_Y: i32 = 6;
 const PANEL_ANIM_MS: u64 = 320;
@@ -194,7 +194,7 @@ fn animate_panel_open<R: Runtime>(app: AppHandle<R>) {
 
     let fallback_size = panel
         .outer_size()
-        .unwrap_or(tauri::PhysicalSize::new(720, 600));
+        .unwrap_or(tauri::PhysicalSize::new(420, 600));
     let target_size = get_last_panel_size(fallback_size);
     let target_pos = panel_target_position(main_pos, main_size, target_size);
 
@@ -202,9 +202,9 @@ fn animate_panel_open<R: Runtime>(app: AppHandle<R>) {
     let start_size = main_size;
 
     let _ = panel.set_ignore_cursor_events(false);
-    let _ = panel.set_min_size(Some(tauri::PhysicalSize::new(
-        PANEL_ANIM_MIN_W,
-        PANEL_ANIM_MIN_H,
+    let _ = panel.set_min_size(Some(tauri::LogicalSize::new(
+        PANEL_ANIM_MIN_W as f64,
+        PANEL_ANIM_MIN_H as f64,
     )));
     let _ = panel.set_position(start_pos);
     let _ = panel.set_size(start_size);
@@ -247,9 +247,9 @@ fn animate_panel_open<R: Runtime>(app: AppHandle<R>) {
         }
         let _ = panel_clone.set_position(target_pos);
         let _ = panel_clone.set_size(target_size);
-        let _ = panel_clone.set_min_size(Some(tauri::PhysicalSize::new(
-            PANEL_MIN_WIDTH,
-            PANEL_MIN_HEIGHT,
+        let _ = panel_clone.set_min_size(Some(tauri::LogicalSize::new(
+            PANEL_MIN_WIDTH as f64,
+            PANEL_MIN_HEIGHT as f64,
         )));
         let _ = panel_clone.emit("panel-window-anim", false);
     });
@@ -275,9 +275,9 @@ fn animate_panel_close<R: Runtime>(app: AppHandle<R>) {
     let target_pos = main_pos;
     let target_size = main_size;
 
-    let _ = panel.set_min_size(Some(tauri::PhysicalSize::new(
-        PANEL_ANIM_MIN_W,
-        PANEL_ANIM_MIN_H,
+    let _ = panel.set_min_size(Some(tauri::LogicalSize::new(
+        PANEL_ANIM_MIN_W as f64,
+        PANEL_ANIM_MIN_H as f64,
     )));
     let _ = panel.emit("panel-window-anim", true);
     let panel_clone = panel.clone();
@@ -307,9 +307,9 @@ fn animate_panel_close<R: Runtime>(app: AppHandle<R>) {
         let _ = panel_clone.set_position(target_pos);
         let _ = panel_clone.set_size(target_size);
         let _ = panel_clone.hide();
-        let _ = panel_clone.set_min_size(Some(tauri::PhysicalSize::new(
-            PANEL_MIN_WIDTH,
-            PANEL_MIN_HEIGHT,
+        let _ = panel_clone.set_min_size(Some(tauri::LogicalSize::new(
+            PANEL_MIN_WIDTH as f64,
+            PANEL_MIN_HEIGHT as f64,
         )));
         let _ = panel_clone.emit("panel-window-anim", false);
     });

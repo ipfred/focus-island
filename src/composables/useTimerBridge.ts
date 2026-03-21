@@ -18,11 +18,17 @@ let bridgeStarted = false
 
 export function useTimerBridge() {
   const timer = useTimer()
-  const { tasks } = useTasks()
+  const { tasks, incrementPomodoro } = useTasks()
 
   function startBridge() {
     if (bridgeStarted) return
     bridgeStarted = true
+
+    timer.onPhaseDoneCallback((phase, taskId) => {
+      if (phase === 'focus' && taskId) {
+        incrementPomodoro(taskId)
+      }
+    })
 
     // 每 500ms 广播一次状态（比 tick 更频繁，保证灵动岛不滞后超过 1 秒）
     setInterval(() => {

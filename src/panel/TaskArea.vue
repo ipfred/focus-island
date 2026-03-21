@@ -10,7 +10,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ close: [] }>()
 
-const { tasks, addTask, deleteTask, toggleComplete, setTaskPriority, todayStats } = useTasks()
+const { tasks, addTask, deleteTask, toggleComplete, setTaskPriority, todayStats, incrementPomodoro } = useTasks()
 const { start, pause, resume, running, activeTaskId, displayTime, abandon, skipToBreak } = useTimerBridge()
 
 const newTitle = ref('')
@@ -57,6 +57,7 @@ function handleStartTask(task: Task) {
 
 function handleDoneTask(taskId: string) {
   if (activeTaskId.value === taskId) {
+    incrementPomodoro(taskId)
     skipToBreak()
     toggleComplete(taskId)
   } else {
