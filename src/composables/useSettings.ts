@@ -27,7 +27,7 @@ export const presetThemes: ThemePreset[] = [
   { id: 'cyber', name: '赛博朋克', focusColor: '#ff6b9d', breakColor: '#00d2d3', idleColor: '#a29bfe', alertColor: '#feca57' },
 ]
 
-const SETTINGS_FILE = 'pomodoro-island/settings.json'
+const SETTINGS_FILE = 'focus-island/settings.json'
 
 const DEFAULT_SETTINGS: Settings = {
   islandOpacity: 0.18,
@@ -65,7 +65,7 @@ async function load() {
 async function save() {
   if (!loaded.value) return
   try {
-    await mkdir('pomodoro-island', { baseDir: BaseDirectory.AppData, recursive: true })
+    await mkdir('focus-island', { baseDir: BaseDirectory.AppData, recursive: true })
     await writeTextFile(SETTINGS_FILE, JSON.stringify(settings.value), { baseDir: BaseDirectory.AppData })
   } catch (e) {
     console.error('Failed to save settings', e)

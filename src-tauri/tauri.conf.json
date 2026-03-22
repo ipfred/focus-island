@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Pomodoro Island",
+  "productName": "专注岛",
   "version": "0.1.0",
-  "identifier": "com.pomodoro-island.desktop",
+  "identifier": "com.focus-island.desktop",
   "build": {
     "beforeDevCommand": "npm run vite:dev",
     "devUrl": "http://localhost:1420",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Pomodoro Island",
+        "title": "FocusIsland",
         "width": 360,
         "height": 42,
         "minWidth": 4,

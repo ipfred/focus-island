@@ -1,10 +1,10 @@
 [package]
-name = "pomodoro-island"
+name = "focus-island"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "pomodoro_island_lib"
+name = "focus_island_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

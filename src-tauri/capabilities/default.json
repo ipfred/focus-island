@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "Default capabilities for Pomodoro Island",
+  "description": "Default capabilities for FocusIsland",
   "windows": ["main", "panel"],
   "permissions": [
     "core:default",

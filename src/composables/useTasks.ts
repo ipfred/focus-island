@@ -20,7 +20,7 @@ export interface Task {
   updatedAt: number
 }
 
-const TASKS_FILE = 'pomodoro-island/tasks.json'
+const TASKS_FILE = 'focus-island/tasks.json'
 const categories: TaskCategory[] = ['today', 'tomorrow', 'week']
 
 const tasks = ref<Task[]>([])
@@ -95,7 +95,7 @@ let isSyncing = false
 async function save() {
   if (!loaded.value || isSyncing) return
   try {
-    await mkdir('pomodoro-island', { baseDir: BaseDirectory.AppData, recursive: true })
+    await mkdir('focus-island', { baseDir: BaseDirectory.AppData, recursive: true })
     const json = JSON.stringify(tasks.value)
     await writeTextFile(TASKS_FILE, json, { baseDir: BaseDirectory.AppData })
     // Broadcast to other windows
