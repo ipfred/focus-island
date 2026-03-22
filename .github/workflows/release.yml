@@ -107,8 +107,6 @@ jobs:
       - name: Build
         id: build
         uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           args: ${{ matrix.args }}
 
@@ -117,13 +115,19 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
+          APP_NAME=$(node -p "require('./src-tauri/tauri.conf.json').productName || ''")
+          if [ -z "$APP_NAME" ]; then
+            echo "ERROR: productName is empty in src-tauri/tauri.conf.json"
+            exit 1
+          fi
+          echo "Using productName: $APP_NAME"
           # Find all release artifacts and upload with proper naming
           find src-tauri/target -type f \( -name "*.dmg" -o -name "*.AppImage" -o -name "*-setup.exe" \) -print0 | while IFS= read -r -d '' artifact; do
             dir=$(dirname "$artifact")
             base=$(basename "$artifact")
-            # Check if filename starts with version pattern like _0.1.0_
-            if [[ "$base" =~ ^_[0-9]+\.[0-9]+\.[0-9]+_ ]]; then
-              new_name="专注岛${base}"
+            # If filename starts with "_" it means productName was stripped; restore it.
+            if [[ "$base" =~ ^_ ]]; then
+              new_name="${APP_NAME}${base}"
               mv "$artifact" "$dir/$new_name"
               artifact="$dir/$new_name"
               echo "Renamed: $base -> $new_name"
