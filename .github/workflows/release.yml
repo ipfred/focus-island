@@ -12,6 +12,8 @@ on:
 
 env:
   RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || github.event.inputs.version }}
+  LANG: en_US.UTF-8
+  LC_ALL: en_US.UTF-8
 
 jobs:
   create-release:
@@ -115,10 +117,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          artifacts='${{ steps.build.outputs.artifactPaths }}'
-          for artifact in $(echo "$artifacts" | jq -r '.[]'); do
-            if [ -f "$artifact" ]; then
-              echo "Uploading: $artifact"
-              gh release upload "${{ env.RELEASE_TAG }}" "$artifact" --clobber
+          # Find all release artifacts and upload with proper naming
+          find src-tauri/target -type f \( -name "*.dmg" -o -name "*.AppImage" -o -name "*-setup.exe" \) -print0 | while IFS= read -r -d '' artifact; do
+            dir=$(dirname "$artifact")
+            base=$(basename "$artifact")
+            # Check if filename starts with version pattern like _0.1.0_
+            if [[ "$base" =~ ^_[0-9]+\.[0-9]+\.[0-9]+_ ]]; then
+              new_name="专注岛${base}"
+              mv "$artifact" "$dir/$new_name"
+              artifact="$dir/$new_name"
+              echo "Renamed: $base -> $new_name"
             fi
+            echo "Uploading: $artifact"
+            gh release upload "${{ env.RELEASE_TAG }}" "$artifact" --clobber
           done
