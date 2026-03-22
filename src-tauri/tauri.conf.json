@@ -64,7 +64,6 @@
     },
     "windows": {
       "nsis": {
-        "displayName": "专注岛",
         "installerIcon": "icons/icon.ico",
         "installMode": "currentUser"
       }
