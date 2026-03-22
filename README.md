@@ -6,9 +6,10 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 <!-- 建议在此处添加一张应用截图或 GIF 动图 -->
-<img src="image/20260322_110714.gif" width="300" alt="专注岛预览" />
-<img src="image/image-1.png" width="300" alt="专注岛预览" />
-<!-- ![screenshot](screenshots/preview.gif) -->
+<div style="display: flex; gap: 12px;">
+  <img src="image/20260322_110714.gif" width="300" alt="专注岛预览" />
+  <img src="image/image-1.png" width="300" alt="专注岛预览" />
+</div>
 
 ## 为什么选择专注岛
 

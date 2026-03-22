@@ -102,10 +102,23 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build and upload
+      - name: Build
+        id: build
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
+
+      - name: Upload artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          artifacts='${{ steps.build.outputs.artifactPaths }}'
+          for artifact in $(echo "$artifacts" | jq -r '.[]'); do
+            if [ -f "$artifact" ]; then
+              echo "Uploading: $artifact"
+              gh release upload "${{ env.RELEASE_TAG }}" "$artifact" --clobber
+            fi
+          done

@@ -58,7 +58,19 @@
       "icons/128x128@2x.png",
       "icons/icon.ico",
       "icons/icon.icns"
-    ]
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.13"
+    },
+    "windows": {
+      "nsis": {
+        "displayName": "专注岛",
+        "installerIcon": "icons/icon.ico",
+        "installMode": "currentUser"
+      }
+    },
+    "shortDescription": "专注岛 - 灵动岛番茄钟",
+    "longDescription": "屏幕顶部的灵动岛番茄钟，专注时在，需要时隐，从不打扰。"
   },
   "plugins": {
     "fs": {},
