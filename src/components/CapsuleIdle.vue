@@ -108,7 +108,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <div class="relative w-full h-full overflow-hidden">
+    <div class="capsule-idle relative w-full h-full overflow-hidden">
         <TransitionGroup
             tag="div"
             name="carousel"
@@ -124,18 +124,19 @@ onUnmounted(() => {
                 <template v-if="currentItem.type === 'task'">
                     <span
                         v-if="currentItem.pomodoroCount && currentItem.pomodoroCount > 0"
-                        class="text-[var(--idle-color)] text-[10px] shrink-0 opacity-70"
+                        class="text-[var(--idle-color)] shrink-0 opacity-70"
+                        :style="{ fontSize: `calc(10px * var(--island-scale, 1))` }"
                     >
                         {{ "●".repeat(Math.min(currentItem.pomodoroCount, 3))
                         }}{{ currentItem.pomodoroCount > 3 ? "+" : "" }}
                     </span>
-                    <span class="text-white/90 text-xs truncate flex-1">{{
+                    <span class="text-white/90 truncate flex-1" :style="{ fontSize: `calc(12px * var(--island-scale, 1))` }">{{
                         currentItem.text
                     }}</span>
                 </template>
                 <!-- Motto item -->
                 <template v-else>
-                    <span class="text-white/35 text-xs truncate">{{
+                    <span class="text-white/35 truncate" :style="{ fontSize: `calc(12px * var(--island-scale, 1))` }">{{
                         currentItem.text
                     }}</span>
                 </template>

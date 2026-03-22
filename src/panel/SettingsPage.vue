@@ -36,6 +36,22 @@ const opacityPercent = (v: number) => Math.round(v * 100) + '%'
       </div>
     </div>
 
+    <!-- 灵动岛大小 -->
+    <div class="settings-section">
+      <div class="section-title">灵动岛大小</div>
+      <div class="opacity-row">
+        <input
+          type="range"
+          class="opacity-slider"
+          min="0.5"
+          max="1.5"
+          step="0.1"
+          v-model.number="settings.islandScale"
+        />
+        <span class="opacity-value">{{ Math.round(settings.islandScale * 100) }}%</span>
+      </div>
+    </div>
+
     <!-- 番茄钟时间 -->
     <div class="settings-section">
       <div class="section-title">番茄钟时间</div>

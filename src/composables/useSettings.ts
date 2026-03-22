@@ -13,6 +13,7 @@ export interface ThemePreset {
 
 export interface Settings {
   islandOpacity: number      // 透明度 0~0.7，值越大越透明，CSS alpha = 1 - value
+  islandScale: number        // 灵动岛缩放比例 0.5~1.5
   focusDuration: number
   breakDuration: number
   activeThemeId: string
@@ -31,6 +32,7 @@ const SETTINGS_FILE = 'focus-island/settings.json'
 
 const DEFAULT_SETTINGS: Settings = {
   islandOpacity: 0.18,
+  islandScale: 1.0,
   focusDuration: 25,
   breakDuration: 5,
   activeThemeId: 'classic',
@@ -49,6 +51,7 @@ function applyThemeToDOM() {
   root.style.setProperty('--idle-color', theme.idleColor)
   root.style.setProperty('--alert-color', theme.alertColor)
   root.style.setProperty('--island-opacity', String(1 - settings.value.islandOpacity))
+  root.style.setProperty('--island-scale', String(settings.value.islandScale))
 }
 
 async function load() {

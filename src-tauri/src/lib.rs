@@ -100,6 +100,26 @@ fn set_island_height<R: Runtime>(app: AppHandle<R>, height: f64) {
 }
 
 #[tauri::command]
+fn set_island_size<R: Runtime>(app: AppHandle<R>, scale: f64) {
+    if let Some(main) = app.get_webview_window("main") {
+        let base_width = 360.0;
+        let base_height = 42.0;
+        let new_width = base_width * scale;
+        let new_height = base_height * scale;
+        let _ = main.set_size(tauri::LogicalSize::new(new_width, new_height));
+        // 重新计算居中位置
+        if let Ok(Some(monitor)) = main.current_monitor() {
+            let scale_factor = monitor.scale_factor();
+            let screen_width = monitor.size().width as f64;
+            let position = monitor.position();
+            let x = position.x as f64 + (screen_width - new_width * scale_factor) / 2.0;
+            let y = position.y as f64;
+            let _ = main.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
+        }
+    }
+}
+
+#[tauri::command]
 fn get_window_position<R: Runtime>(window: WebviewWindow<R>) -> (i32, i32) {
     window
         .outer_position()
@@ -419,6 +439,7 @@ pub fn run() {
             get_mouse_position,
             set_click_through,
             set_island_height,
+            set_island_size,
             get_window_position,
             position_panel_under_island,
             animate_panel_open,

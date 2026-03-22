@@ -11,11 +11,17 @@ import type { TimerStatePayload } from "../composables/useTimerBridge";
 
 const { state, setState } = useIslandState();
 const timer = useTimer();
-const { applyExternalSettings } = useSettings();
+const { settings, applyExternalSettings } = useSettings();
 
 let unlisten: (() => void) | null = null;
 let unlistenSettings: (() => void) | null = null;
-const VISIBLE_HEIGHT = 42.0;
+
+const BASE_WIDTH = 320;
+const BASE_HEIGHT = 34;
+
+const capsuleWidth = computed(() => BASE_WIDTH * (settings.value.islandScale ?? 1));
+const capsuleHeight = computed(() => BASE_HEIGHT * (settings.value.islandScale ?? 1));
+const capsuleRadius = computed(() => capsuleHeight.value / 2);
 
 const progressScale = computed(() => {
     if (state.value === "idle" || state.value === "alert") return 0;
@@ -34,9 +40,12 @@ const ringColor = computed(() => {
 });
 
 onMounted(async () => {
-    // 灵动岛始终显示，且鼠标穿透
-    invoke("set_island_height", { height: VISIBLE_HEIGHT });
     invoke("set_click_through", { ignore: true });
+    
+    // 初始化时应用当前 scale
+    if (settings.value.islandScale) {
+        invoke("set_island_size", { scale: settings.value.islandScale });
+    }
 
     unlisten = await listen<TimerStatePayload>(
         "timer-state-update",
@@ -67,6 +76,9 @@ onMounted(async () => {
 
     unlistenSettings = await listen<Settings>("settings-changed", ({ payload }) => {
         applyExternalSettings(payload);
+        if (payload.islandScale !== undefined) {
+            invoke("set_island_size", { scale: payload.islandScale });
+        }
     });
 });
 
@@ -90,27 +102,31 @@ onUnmounted(() => {
                 '--ring-progress': progressScale,
                 '--ring-color': ringColor,
                 '--ring-opacity': timer.running.value ? 1 : 0.35,
+                '--island-scale': settings.islandScale ?? 1,
+                width: capsuleWidth + 'px',
+                height: capsuleHeight + 'px',
+                borderRadius: capsuleRadius + 'px',
             }"
         >
             <CapsuleIdle v-if="state === 'idle' || state === 'alert'" />
             <CapsuleFocus v-else-if="state === 'focus' || state === 'break'" />
-            <svg class="progress-ring" viewBox="0 0 320 34" aria-hidden="true">
+            <svg class="progress-ring" :viewBox="`0 0 ${capsuleWidth} ${capsuleHeight}`" aria-hidden="true">
                 <rect
                     class="ring-track"
-                    x="1.5"
-                    y="1.5"
-                    width="317"
-                    height="31"
-                    rx="15.5"
+                    :x="1.5 * settings.islandScale"
+                    :y="1.5 * settings.islandScale"
+                    :width="capsuleWidth - 3 * settings.islandScale"
+                    :height="capsuleHeight - 3 * settings.islandScale"
+                    :rx="capsuleRadius - 1.5 * settings.islandScale"
                     pathLength="1"
                 />
                 <rect
                     class="ring-progress"
-                    x="1.5"
-                    y="1.5"
-                    width="317"
-                    height="31"
-                    rx="15.5"
+                    :x="1.5 * settings.islandScale"
+                    :y="1.5 * settings.islandScale"
+                    :width="capsuleWidth - 3 * settings.islandScale"
+                    :height="capsuleHeight - 3 * settings.islandScale"
+                    :rx="capsuleRadius - 1.5 * settings.islandScale"
                     pathLength="1"
                 />
             </svg>
@@ -124,15 +140,12 @@ onUnmounted(() => {
 }
 
 .capsule-shell {
-    width: 320px;
-    height: 34px;
-    border-radius: 17px;
     background: rgba(20, 20, 22, var(--island-opacity, 0.82));
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     -webkit-mask-image: -webkit-radial-gradient(white, black);
     box-shadow: 0 4px 32px rgba(0, 0, 0, 0.45);
-    transition: box-shadow 0.4s ease;
+    transition: box-shadow 0.4s ease, width 0.3s ease, height 0.3s ease;
 }
 
 .ring-focus {
