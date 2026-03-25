@@ -2,10 +2,9 @@ use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     window::Color,
-    AppHandle, Emitter, Manager, Runtime, WebviewWindow,
+    AppHandle, Emitter, Manager, Runtime, WebviewWindow, WindowEvent,
 };
 use std::sync::{Mutex, OnceLock};
-use std::time::{Duration, Instant};
 
 #[cfg(target_os = "macos")]
 use core_graphics::event::CGEvent;
@@ -20,14 +19,20 @@ use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 use x11::xlib;
 
 const PANEL_GAP_Y: i32 = 6;
-const PANEL_ANIM_MS: u64 = 320;
-const PANEL_ANIM_STEP_MS: u64 = 16;
-const PANEL_ANIM_MIN_W: u32 = 160;
-const PANEL_ANIM_MIN_H: u32 = 28;
-const PANEL_ANIM_ARC_PX: f64 = 24.0;
-const PANEL_ANIM_OVERSHOOT: f64 = 0.08;
 
 static LAST_PANEL_SIZE: OnceLock<Mutex<Option<tauri::PhysicalSize<u32>>>> = OnceLock::new();
+
+#[derive(serde::Serialize, Clone, Copy)]
+struct PanelTransitionMetrics {
+    island_x: i32,
+    island_y: i32,
+    island_width: u32,
+    island_height: u32,
+    panel_x: i32,
+    panel_y: i32,
+    panel_width: u32,
+    panel_height: u32,
+}
 
 #[tauri::command]
 fn get_mouse_position() -> (f64, f64) {
@@ -107,7 +112,6 @@ fn set_island_size<R: Runtime>(app: AppHandle<R>, scale: f64) {
         let new_width = base_width * scale;
         let new_height = base_height * scale;
         let _ = main.set_size(tauri::LogicalSize::new(new_width, new_height));
-        // 重新计算居中位置
         if let Ok(Some(monitor)) = main.current_monitor() {
             let scale_factor = monitor.scale_factor();
             let screen_width = monitor.size().width as f64;
@@ -127,6 +131,13 @@ fn get_window_position<R: Runtime>(window: WebviewWindow<R>) -> (i32, i32) {
         .unwrap_or((0, 0))
 }
 
+#[tauri::command]
+fn emit_island_panel_motion<R: Runtime>(app: AppHandle<R>, phase: String) {
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.emit("island-panel-motion", phase);
+    }
+}
+
 fn last_panel_size_lock() -> &'static Mutex<Option<tauri::PhysicalSize<u32>>> {
     LAST_PANEL_SIZE.get_or_init(|| Mutex::new(None))
 }
@@ -137,9 +148,7 @@ fn set_last_panel_size(size: tauri::PhysicalSize<u32>) {
     }
 }
 
-fn get_last_panel_size(
-    fallback: tauri::PhysicalSize<u32>,
-) -> tauri::PhysicalSize<u32> {
+fn get_last_panel_size(fallback: tauri::PhysicalSize<u32>) -> tauri::PhysicalSize<u32> {
     last_panel_size_lock()
         .lock()
         .ok()
@@ -183,27 +192,6 @@ fn panel_config_values<R: Runtime>(app: &AppHandle<R>) -> (f64, f64, f64, f64) {
     (420.0, 600.0, 340.0, 480.0)
 }
 
-fn ease_out_cubic(t: f64) -> f64 {
-    1.0 - (1.0 - t).powi(3)
-}
-
-fn ease_in_cubic(t: f64) -> f64 {
-    t * t * t
-}
-
-fn ease_in_quart(t: f64) -> f64 {
-    t * t * t * t
-}
-
-fn ease_out_quart(t: f64) -> f64 {
-    1.0 - (1.0 - t).powi(4)
-}
-
-fn ease_in_quint(t: f64) -> f64 {
-    t * t * t * t * t
-}
-
-
 fn position_panel_under_island_inner<R: Runtime>(app: &AppHandle<R>) {
     let Some(panel) = app.get_webview_window("panel") else {
         return;
@@ -224,6 +212,40 @@ fn position_panel_under_island<R: Runtime>(app: AppHandle<R>) {
 }
 
 #[tauri::command]
+fn get_panel_transition_metrics<R: Runtime>(app: AppHandle<R>) -> Option<PanelTransitionMetrics> {
+    let Some(panel) = app.get_webview_window("panel") else {
+        return None;
+    };
+    let Some((main_pos, main_size)) = get_main_rect(&app) else {
+        return None;
+    };
+
+    let (cfg_w, cfg_h, _cfg_min_w, _cfg_min_h) = panel_config_values(&app);
+    let scale = panel.scale_factor().unwrap_or(1.0);
+    let fallback_size = panel.outer_size().unwrap_or(tauri::PhysicalSize::new(
+        (cfg_w * scale).round() as u32,
+        (cfg_h * scale).round() as u32,
+    ));
+    let panel_size = if panel.is_visible().unwrap_or(false) {
+        panel.outer_size().unwrap_or(fallback_size)
+    } else {
+        get_last_panel_size(fallback_size)
+    };
+    let panel_pos = panel_target_position(main_pos, main_size, panel_size);
+
+    Some(PanelTransitionMetrics {
+        island_x: main_pos.x,
+        island_y: main_pos.y,
+        island_width: main_size.width,
+        island_height: main_size.height,
+        panel_x: panel_pos.x,
+        panel_y: panel_pos.y,
+        panel_width: panel_size.width,
+        panel_height: panel_size.height,
+    })
+}
+
+#[tauri::command]
 fn show_panel<R: Runtime>(app: AppHandle<R>) {
     animate_panel_open(app);
 }
@@ -231,6 +253,9 @@ fn show_panel<R: Runtime>(app: AppHandle<R>) {
 #[tauri::command]
 fn hide_panel<R: Runtime>(app: AppHandle<R>) {
     if let Some(panel) = app.get_webview_window("panel") {
+        if let Ok(size) = panel.outer_size() {
+            set_last_panel_size(size);
+        }
         let _ = panel.hide();
     }
 }
@@ -267,61 +292,18 @@ fn animate_panel_open<R: Runtime>(app: AppHandle<R>) {
     let target_size = get_last_panel_size(fallback_size);
     let target_pos = panel_target_position(main_pos, main_size, target_size);
 
-    let start_pos = main_pos;
-    let start_size = main_size;
-
     let _ = panel.set_ignore_cursor_events(false);
-    let _ = panel.set_min_size(Some(tauri::LogicalSize::new(
-        PANEL_ANIM_MIN_W as f64,
-        PANEL_ANIM_MIN_H as f64,
-    )));
-    let _ = panel.set_position(start_pos);
-    let _ = panel.set_size(start_size);
+    let _ = panel.set_position(target_pos);
+    let _ = panel.set_size(target_size);
+    let _ = panel.set_min_size(Some(tauri::LogicalSize::new(cfg_min_w, cfg_min_h)));
+
     if let Some(main) = app.get_webview_window("main") {
         let _ = main.show();
         let _ = main.set_always_on_top(true);
     }
     let _ = panel.show();
-    let _ = panel.set_focus();
     let _ = panel.set_always_on_top(true);
-    let _ = panel.emit("panel-window-anim", true);
-
-    let panel_clone = panel.clone();
-    std::thread::spawn(move || {
-        let start = Instant::now();
-        loop {
-            let t = (start.elapsed().as_millis() as f64) / (PANEL_ANIM_MS as f64);
-            let t = t.min(1.0);
-            let k_pos = ease_out_quart(t);
-            let mut k_size = ease_out_cubic(t);
-            if t > 0.7 {
-                let u = (t - 0.7) / 0.3;
-                let bump = (std::f64::consts::PI * u).sin();
-                k_size = k_size * (1.0 + PANEL_ANIM_OVERSHOOT * bump);
-            }
-            let dir_y = if target_pos.y >= start_pos.y { 1.0 } else { -1.0 };
-            let arc = PANEL_ANIM_ARC_PX * (1.0 - (2.0 * t - 1.0).powi(2)) * dir_y;
-            let x = start_pos.x as f64 + (target_pos.x - start_pos.x) as f64 * k_pos;
-            let y = start_pos.y as f64 + (target_pos.y - start_pos.y) as f64 * k_pos + arc;
-            let w =
-                start_size.width as f64 + (target_size.width as f64 - start_size.width as f64) * k_size;
-            let h =
-                start_size.height as f64 + (target_size.height as f64 - start_size.height as f64) * k_size;
-            let _ = panel_clone.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
-            let _ = panel_clone.set_size(tauri::PhysicalSize::new(w as u32, h as u32));
-            if t >= 1.0 {
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(PANEL_ANIM_STEP_MS));
-        }
-        let _ = panel_clone.set_position(target_pos);
-        let _ = panel_clone.set_size(target_size);
-        let _ = panel_clone.set_min_size(Some(tauri::LogicalSize::new(
-            cfg_min_w,
-            cfg_min_h,
-        )));
-        let _ = panel_clone.emit("panel-window-anim", false);
-    });
+    let _ = panel.emit("panel-window-transition", "open");
 }
 
 #[tauri::command]
@@ -332,57 +314,13 @@ fn animate_panel_close<R: Runtime>(app: AppHandle<R>) {
     if !panel.is_visible().unwrap_or(false) {
         return;
     }
-    let Some((main_pos, main_size)) = get_main_rect(&app) else {
+
+    if let Ok(size) = panel.outer_size() {
+        set_last_panel_size(size);
+    }
+    if panel.emit("panel-window-transition", "close").is_err() {
         let _ = panel.hide();
-        return;
-    };
-
-    let start_pos = panel.outer_position().unwrap_or(main_pos);
-    let start_size = panel.outer_size().unwrap_or(main_size);
-    set_last_panel_size(start_size);
-
-    let target_pos = main_pos;
-    let target_size = main_size;
-
-    let _ = panel.set_min_size(Some(tauri::LogicalSize::new(
-        PANEL_ANIM_MIN_W as f64,
-        PANEL_ANIM_MIN_H as f64,
-    )));
-    let _ = panel.emit("panel-window-anim", true);
-    let panel_clone = panel.clone();
-    let (_cfg_w, _cfg_h, cfg_min_w, cfg_min_h) = panel_config_values(&app);
-    std::thread::spawn(move || {
-        let start = Instant::now();
-        loop {
-            let t = (start.elapsed().as_millis() as f64) / (PANEL_ANIM_MS as f64);
-            let t = t.min(1.0);
-            let k_pos = ease_in_quart(t);
-            let k_w = ease_in_cubic(t);
-            let k_h = ease_in_quint(t);
-            let dir_y = if target_pos.y >= start_pos.y { 1.0 } else { -1.0 };
-            let arc = PANEL_ANIM_ARC_PX * (1.0 - (2.0 * t - 1.0).powi(2)) * dir_y;
-            let x = start_pos.x as f64 + (target_pos.x - start_pos.x) as f64 * k_pos;
-            let y = start_pos.y as f64 + (target_pos.y - start_pos.y) as f64 * k_pos + arc;
-            let w =
-                start_size.width as f64 + (target_size.width as f64 - start_size.width as f64) * k_w;
-            let h =
-                start_size.height as f64 + (target_size.height as f64 - start_size.height as f64) * k_h;
-            let _ = panel_clone.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
-            let _ = panel_clone.set_size(tauri::PhysicalSize::new(w as u32, h as u32));
-            if t >= 1.0 {
-                break;
-            }
-            std::thread::sleep(Duration::from_millis(PANEL_ANIM_STEP_MS));
-        }
-        let _ = panel_clone.set_position(target_pos);
-        let _ = panel_clone.set_size(target_size);
-        let _ = panel_clone.hide();
-        let _ = panel_clone.set_min_size(Some(tauri::LogicalSize::new(
-            cfg_min_w,
-            cfg_min_h,
-        )));
-        let _ = panel_clone.emit("panel-window-anim", false);
-    });
+    }
 }
 
 #[tauri::command]
@@ -406,7 +344,6 @@ fn set_island_visible<R: Runtime>(app: AppHandle<R>, visible: bool) {
 
 #[tauri::command]
 fn get_screen_info<R: Runtime>(app: AppHandle<R>) -> (f64, f64, f64) {
-    // 返回 (屏幕物理宽度, 缩放因子, 屏幕左上角物理X)
     if let Some(main) = app.get_webview_window("main") {
         if let Ok(Some(monitor)) = main.current_monitor() {
             let scale_factor = monitor.scale_factor();
@@ -441,7 +378,9 @@ pub fn run() {
             set_island_height,
             set_island_size,
             get_window_position,
+            emit_island_panel_motion,
             position_panel_under_island,
+            get_panel_transition_metrics,
             animate_panel_open,
             animate_panel_close,
             show_panel,
@@ -452,28 +391,31 @@ pub fn run() {
             get_screen_info,
         ])
         .setup(|app| {
-            // Position main window at top-center
             if let Some(window) = app.get_webview_window("main") {
                 if let Ok(Some(monitor)) = window.current_monitor() {
                     let scale_factor = monitor.scale_factor();
                     let screen_width = monitor.size().width as f64;
                     let win_width = 360.0_f64 * scale_factor;
                     let position = monitor.position();
-                    // Position at top center of the current monitor
                     let x = position.x as f64 + (screen_width - win_width) / 2.0;
                     let y = position.y as f64;
                     let _ = window.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
                 }
                 let _ = window.set_background_color(Some(Color(0, 0, 0, 0)));
-                // 不再默认调用 set_ignore_cursor_events 以免用户觉得“完全鼠标穿透”难以控制
-                // 用户依靠动态窗口高度调整来操作底层元素
             }
 
             if let Some(panel) = app.get_webview_window("panel") {
                 let _ = panel.set_background_color(Some(Color(0, 0, 0, 0)));
+                let _ = panel.set_shadow(false);
+                let app_handle = app.handle().clone();
+                panel.on_window_event(move |event| {
+                    if let WindowEvent::Resized(size) = event {
+                        set_last_panel_size(*size);
+                        position_panel_under_island_inner(&app_handle);
+                    }
+                });
             }
 
-            // 系统托盘菜单
             let open_panel =
                 MenuItem::with_id(app, "open_panel", "打开专注清单", true, None::<&str>)?;
             let toggle_island =

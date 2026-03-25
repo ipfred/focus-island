@@ -1,9 +1,5 @@
 <script setup lang="ts">
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
-
 defineEmits<{ close: [] }>()
-
-const win = getCurrentWebviewWindow()
 </script>
 
 <template>

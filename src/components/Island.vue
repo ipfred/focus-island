@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted } from "vue";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useIslandState } from "../composables/useIslandState";
@@ -15,9 +15,12 @@ const { settings, applyExternalSettings } = useSettings();
 
 let unlisten: (() => void) | null = null;
 let unlistenSettings: (() => void) | null = null;
+let unlistenPanelMotion: (() => void) | null = null;
+let panelMotionTimer: number | null = null;
 
 const BASE_WIDTH = 320;
 const BASE_HEIGHT = 34;
+const panelMotionState = ref<"idle" | "opening" | "closing">("idle");
 
 const capsuleWidth = computed(() => BASE_WIDTH * (settings.value.islandScale ?? 1));
 const capsuleHeight = computed(() => BASE_HEIGHT * (settings.value.islandScale ?? 1));
@@ -38,6 +41,17 @@ const ringColor = computed(() => {
         return "var(--break-color)";
     return "rgba(255,255,255,0.45)";
 });
+
+function runPanelMotion(phase: "open" | "close") {
+    if (panelMotionTimer) {
+        window.clearTimeout(panelMotionTimer);
+    }
+    panelMotionState.value = phase === "open" ? "opening" : "closing";
+    panelMotionTimer = window.setTimeout(() => {
+        panelMotionState.value = "idle";
+        panelMotionTimer = null;
+    }, phase === "open" ? 280 : 240);
+}
 
 onMounted(async () => {
     invoke("set_click_through", { ignore: true });
@@ -80,11 +94,21 @@ onMounted(async () => {
             invoke("set_island_size", { scale: payload.islandScale });
         }
     });
+
+    unlistenPanelMotion = await listen<string>("island-panel-motion", ({ payload }) => {
+        if (payload === "open" || payload === "close") {
+            runPanelMotion(payload);
+        }
+    });
 });
 
 onUnmounted(() => {
     unlisten?.();
     unlistenSettings?.();
+    unlistenPanelMotion?.();
+    if (panelMotionTimer) {
+        window.clearTimeout(panelMotionTimer);
+    }
 });
 </script>
 
@@ -97,6 +121,8 @@ onUnmounted(() => {
                     timer.phase.value === 'focus' && timer.running.value,
                 'ring-break':
                     timer.phase.value === 'break' && timer.running.value,
+                'panel-launching': panelMotionState === 'opening',
+                'panel-receiving': panelMotionState === 'closing',
             }"
             :style="{
                 '--ring-progress': progressScale,
@@ -146,6 +172,38 @@ onUnmounted(() => {
     -webkit-mask-image: -webkit-radial-gradient(white, black);
     box-shadow: 0 4px 32px rgba(0, 0, 0, 0.45);
     transition: box-shadow 0.4s ease, width 0.3s ease, height 0.3s ease;
+    transform-origin: center top;
+    isolation: isolate;
+    will-change: transform, box-shadow;
+}
+
+.capsule-shell::before,
+.capsule-shell::after {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+}
+
+.capsule-shell::before {
+    inset: 1px;
+    border-radius: inherit;
+    background:
+        radial-gradient(circle at 50% 40%, rgba(255, 255, 255, 0.18), transparent 58%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.09), transparent 56%);
+    opacity: 0;
+    transform: scale(0.88, 0.82);
+}
+
+.capsule-shell::after {
+    left: 50%;
+    top: 56%;
+    width: 42%;
+    height: 46%;
+    border-radius: 999px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0));
+    filter: blur(7px);
+    opacity: 0;
+    transform: translate(-50%, -42%) scale(0.42, 0.16);
 }
 
 .ring-focus {
@@ -154,6 +212,126 @@ onUnmounted(() => {
 
 .ring-break {
     box-shadow: 0 4px 32px rgba(0, 0, 0, 0.45);
+}
+
+.panel-launching {
+    animation: island-release 280ms cubic-bezier(0.2, 0.88, 0.26, 1) both;
+}
+
+.panel-launching::before {
+    animation: island-core-open 280ms cubic-bezier(0.2, 0.88, 0.26, 1) both;
+}
+
+.panel-launching::after {
+    animation: island-tail-open 280ms cubic-bezier(0.2, 0.88, 0.26, 1) both;
+}
+
+.panel-receiving {
+    animation: island-receive 240ms cubic-bezier(0.34, 0, 0.72, 0.2) both;
+}
+
+.panel-receiving::before {
+    animation: island-core-close 240ms cubic-bezier(0.34, 0, 0.72, 0.2) both;
+}
+
+.panel-receiving::after {
+    animation: island-tail-close 240ms cubic-bezier(0.34, 0, 0.72, 0.2) both;
+}
+
+@keyframes island-release {
+    0% {
+        transform: scale(1, 1);
+    }
+
+    38% {
+        transform: scale(0.96, 0.9);
+    }
+
+    100% {
+        transform: scale(1, 1);
+    }
+}
+
+@keyframes island-receive {
+    0% {
+        transform: scale(1, 1);
+    }
+
+    42% {
+        transform: scale(0.93, 0.84);
+    }
+
+    100% {
+        transform: scale(1, 1);
+    }
+}
+
+@keyframes island-core-open {
+    0% {
+        opacity: 0;
+        transform: scale(0.86, 0.8);
+    }
+
+    52% {
+        opacity: 1;
+        transform: scale(1.02, 0.96);
+    }
+
+    100% {
+        opacity: 0;
+        transform: scale(1.08, 1.02);
+    }
+}
+
+@keyframes island-core-close {
+    0% {
+        opacity: 0;
+        transform: scale(1.02, 0.96);
+    }
+
+    56% {
+        opacity: 1;
+        transform: scale(0.94, 0.86);
+    }
+
+    100% {
+        opacity: 0;
+        transform: scale(0.82, 0.74);
+    }
+}
+
+@keyframes island-tail-open {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -42%) scale(0.42, 0.16);
+    }
+
+    46% {
+        opacity: 0.78;
+        transform: translate(-50%, -16%) scale(0.8, 0.46);
+    }
+
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -2%) scale(0.96, 0.68);
+    }
+}
+
+@keyframes island-tail-close {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -2%) scale(0.9, 0.62);
+    }
+
+    52% {
+        opacity: 0.82;
+        transform: translate(-50%, -18%) scale(0.72, 0.34);
+    }
+
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -42%) scale(0.38, 0.14);
+    }
 }
 
 .progress-ring {

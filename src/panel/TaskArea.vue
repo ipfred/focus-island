@@ -28,7 +28,6 @@ const {
     activeTaskId,
     displayTime,
     abandon,
-    skipToBreak,
     phase,
 } = useTimerBridge();
 
