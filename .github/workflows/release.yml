@@ -115,43 +115,32 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          APP_NAME=$(node -p "require('./src-tauri/tauri.conf.json').productName || ''")
-          if [ -z "$APP_NAME" ]; then
-            echo "ERROR: productName is empty in src-tauri/tauri.conf.json"
-            exit 1
-          fi
-          echo "Using productName: $APP_NAME"
+          # 使用固定英文前缀，避免中文文件名问题
+          APP_NAME="FocusIsland"
+          echo "Using fixed APP_NAME: $APP_NAME"
           echo "Matrix target: ${{ matrix.target }}"
 
-          # Find all release artifacts
+          # 查找所有 bundle 产物
           artifacts=()
           while IFS= read -r -d '' artifact; do
             artifacts+=("$artifact")
-          done < <(find src-tauri/target -type f \( -name "*.dmg" -o -name "*.AppImage" -o -name "*-setup.exe" \) -print0)
+          done < <(find src-tauri/target -type f \( -name "*.dmg" -o -name "*.AppImage" -o -name "*-setup.exe" \) -print0 2>/dev/null)
 
-          echo "Found ${#artifacts[@]} artifacts:"
-          for artifact in "${artifacts[@]}"; do
-            echo "  - $artifact"
-          done
+          echo "Found ${#artifacts[@]} artifacts"
 
-          # Process and upload each artifact
           for artifact in "${artifacts[@]}"; do
             dir=$(dirname "$artifact")
             base=$(basename "$artifact")
+            echo "Processing: $base"
 
-            # If filename starts with "_", restore productName prefix
-            if [[ "$base" =~ ^_ ]]; then
+            # 如果文件名以下划线开头（丢失了 productName），添加前缀
+            if [[ "$base" == _* ]]; then
               new_name="${APP_NAME}${base}"
               echo "Renaming: $base -> $new_name"
-              mv -v "$artifact" "$dir/$new_name"
+              mv -v "$artifact" "$dir/$new_name" || echo "mv failed"
               artifact="$dir/$new_name"
             fi
 
             echo "Uploading: $artifact"
-            if [ -f "$artifact" ]; then
-              gh release upload "${{ env.RELEASE_TAG }}" "$artifact" --clobber
-            else
-              echo "ERROR: File not found after rename: $artifact"
-              exit 1
-            fi
+            gh release upload "${{ env.RELEASE_TAG }}" "$artifact" --clobber
           done
