@@ -28,6 +28,7 @@ useSettings()
 const REPOSITION_BURST_DELAYS = [0, 90, 220]
 const PANEL_CLOSE_DURATION = 240
 const CLOSE_FALLBACK_BUFFER = 140
+const IS_MACOS = navigator.userAgent.toLowerCase().includes('mac')
 
 const currentView = ref<'tasks' | 'settings' | 'completed'>('tasks')
 const isClosing = ref(false)
@@ -162,10 +163,12 @@ async function onPanelAnimationEnd(event: AnimationEvent) {
   if (event.animationName === 'panel-open' && panelAnimState.value === 'opening') {
     panelAnimState.value = 'steady'
     void repositionPanel()
-    try {
-      await getCurrentWindow().setFocus()
-    } catch {
-      // ignore focus errors during animation completion
+    if (!IS_MACOS) {
+      try {
+        await getCurrentWindow().setFocus()
+      } catch {
+        // ignore focus errors during animation completion
+      }
     }
     return
   }

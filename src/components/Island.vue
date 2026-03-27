@@ -115,47 +115,53 @@ onUnmounted(() => {
 <template>
     <div class="island-container w-full h-full flex items-start justify-center">
         <div
-            class="capsule-shell relative flex items-center justify-center"
+            class="capsule-motion"
             :class="{
-                'ring-focus':
-                    timer.phase.value === 'focus' && timer.running.value,
-                'ring-break':
-                    timer.phase.value === 'break' && timer.running.value,
                 'panel-launching': panelMotionState === 'opening',
                 'panel-receiving': panelMotionState === 'closing',
             }"
-            :style="{
-                '--ring-progress': progressScale,
-                '--ring-color': ringColor,
-                '--ring-opacity': timer.running.value ? 1 : 0.35,
-                '--island-scale': settings.islandScale ?? 1,
-                width: capsuleWidth + 'px',
-                height: capsuleHeight + 'px',
-                borderRadius: capsuleRadius + 'px',
-            }"
         >
-            <CapsuleIdle v-if="state === 'idle' || state === 'alert'" />
-            <CapsuleFocus v-else-if="state === 'focus' || state === 'break'" />
-            <svg class="progress-ring" :viewBox="`0 0 ${capsuleWidth} ${capsuleHeight}`" aria-hidden="true">
-                <rect
-                    class="ring-track"
-                    :x="1.5 * settings.islandScale"
-                    :y="1.5 * settings.islandScale"
-                    :width="capsuleWidth - 3 * settings.islandScale"
-                    :height="capsuleHeight - 3 * settings.islandScale"
-                    :rx="capsuleRadius - 1.5 * settings.islandScale"
-                    pathLength="1"
-                />
-                <rect
-                    class="ring-progress"
-                    :x="1.5 * settings.islandScale"
-                    :y="1.5 * settings.islandScale"
-                    :width="capsuleWidth - 3 * settings.islandScale"
-                    :height="capsuleHeight - 3 * settings.islandScale"
-                    :rx="capsuleRadius - 1.5 * settings.islandScale"
-                    pathLength="1"
-                />
-            </svg>
+            <div
+                class="capsule-shell relative flex items-center justify-center"
+                :class="{
+                    'ring-focus':
+                        timer.phase.value === 'focus' && timer.running.value,
+                    'ring-break':
+                        timer.phase.value === 'break' && timer.running.value,
+                }"
+                :style="{
+                    '--ring-progress': progressScale,
+                    '--ring-color': ringColor,
+                    '--ring-opacity': timer.running.value ? 1 : 0.35,
+                    '--island-scale': settings.islandScale ?? 1,
+                    width: capsuleWidth + 'px',
+                    height: capsuleHeight + 'px',
+                    borderRadius: capsuleRadius + 'px',
+                }"
+            >
+                <CapsuleIdle v-if="state === 'idle' || state === 'alert'" />
+                <CapsuleFocus v-else-if="state === 'focus' || state === 'break'" />
+                <svg class="progress-ring" :viewBox="`0 0 ${capsuleWidth} ${capsuleHeight}`" aria-hidden="true">
+                    <rect
+                        class="ring-track"
+                        :x="1.5 * settings.islandScale"
+                        :y="1.5 * settings.islandScale"
+                        :width="capsuleWidth - 3 * settings.islandScale"
+                        :height="capsuleHeight - 3 * settings.islandScale"
+                        :rx="capsuleRadius - 1.5 * settings.islandScale"
+                        pathLength="1"
+                    />
+                    <rect
+                        class="ring-progress"
+                        :x="1.5 * settings.islandScale"
+                        :y="1.5 * settings.islandScale"
+                        :width="capsuleWidth - 3 * settings.islandScale"
+                        :height="capsuleHeight - 3 * settings.islandScale"
+                        :rx="capsuleRadius - 1.5 * settings.islandScale"
+                        pathLength="1"
+                    />
+                </svg>
+            </div>
         </div>
     </div>
 </template>
@@ -165,6 +171,11 @@ onUnmounted(() => {
     /* items-start justify-center to stick to top edge */
 }
 
+.capsule-motion {
+    transform-origin: center top;
+    will-change: transform;
+}
+
 .capsule-shell {
     background: rgba(20, 20, 22, var(--island-opacity, 0.82));
     backdrop-filter: blur(16px);
@@ -172,9 +183,8 @@ onUnmounted(() => {
     -webkit-mask-image: -webkit-radial-gradient(white, black);
     box-shadow: 0 4px 32px rgba(0, 0, 0, 0.45);
     transition: box-shadow 0.4s ease, width 0.3s ease, height 0.3s ease;
-    transform-origin: center top;
     isolation: isolate;
-    will-change: transform, box-shadow;
+    will-change: box-shadow;
 }
 
 .capsule-shell::before,
@@ -218,11 +228,11 @@ onUnmounted(() => {
     animation: island-release 280ms cubic-bezier(0.2, 0.88, 0.26, 1) both;
 }
 
-.panel-launching::before {
+.panel-launching .capsule-shell::before {
     animation: island-core-open 280ms cubic-bezier(0.2, 0.88, 0.26, 1) both;
 }
 
-.panel-launching::after {
+.panel-launching .capsule-shell::after {
     animation: island-tail-open 280ms cubic-bezier(0.2, 0.88, 0.26, 1) both;
 }
 
@@ -230,11 +240,11 @@ onUnmounted(() => {
     animation: island-receive 240ms cubic-bezier(0.34, 0, 0.72, 0.2) both;
 }
 
-.panel-receiving::before {
+.panel-receiving .capsule-shell::before {
     animation: island-core-close 240ms cubic-bezier(0.34, 0, 0.72, 0.2) both;
 }
 
-.panel-receiving::after {
+.panel-receiving .capsule-shell::after {
     animation: island-tail-close 240ms cubic-bezier(0.34, 0, 0.72, 0.2) both;
 }
 

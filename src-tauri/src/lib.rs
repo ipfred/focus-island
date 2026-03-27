@@ -298,11 +298,11 @@ fn animate_panel_open<R: Runtime>(app: AppHandle<R>) {
     let _ = panel.set_min_size(Some(tauri::LogicalSize::new(cfg_min_w, cfg_min_h)));
 
     if let Some(main) = app.get_webview_window("main") {
-        let _ = main.show();
-        let _ = main.set_always_on_top(true);
+        if !main.is_visible().unwrap_or(true) {
+            let _ = main.show();
+        }
     }
     let _ = panel.show();
-    let _ = panel.set_always_on_top(true);
     let _ = panel.emit("panel-window-transition", "open");
 }
 
