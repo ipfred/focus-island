@@ -121,17 +121,37 @@ jobs:
             exit 1
           fi
           echo "Using productName: $APP_NAME"
-          # Find all release artifacts and upload with proper naming
-          find src-tauri/target -type f \( -name "*.dmg" -o -name "*.AppImage" -o -name "*-setup.exe" \) -print0 | while IFS= read -r -d '' artifact; do
+          echo "Matrix target: ${{ matrix.target }}"
+
+          # Find all release artifacts
+          artifacts=()
+          while IFS= read -r -d '' artifact; do
+            artifacts+=("$artifact")
+          done < <(find src-tauri/target -type f \( -name "*.dmg" -o -name "*.AppImage" -o -name "*-setup.exe" \) -print0)
+
+          echo "Found ${#artifacts[@]} artifacts:"
+          for artifact in "${artifacts[@]}"; do
+            echo "  - $artifact"
+          done
+
+          # Process and upload each artifact
+          for artifact in "${artifacts[@]}"; do
             dir=$(dirname "$artifact")
             base=$(basename "$artifact")
-            # If filename starts with "_" it means productName was stripped; restore it.
+
+            # If filename starts with "_", restore productName prefix
             if [[ "$base" =~ ^_ ]]; then
               new_name="${APP_NAME}${base}"
-              mv "$artifact" "$dir/$new_name"
+              echo "Renaming: $base -> $new_name"
+              mv -v "$artifact" "$dir/$new_name"
               artifact="$dir/$new_name"
-              echo "Renamed: $base -> $new_name"
             fi
+
             echo "Uploading: $artifact"
-            gh release upload "${{ env.RELEASE_TAG }}" "$artifact" --clobber
+            if [ -f "$artifact" ]; then
+              gh release upload "${{ env.RELEASE_TAG }}" "$artifact" --clobber
+            else
+              echo "ERROR: File not found after rename: $artifact"
+              exit 1
+            fi
           done
