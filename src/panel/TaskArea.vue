@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, nextTick } from "vue";
+import { ref, computed, nextTick, onBeforeUnmount } from "vue";
 import { useTasks } from "../composables/useTasks";
 import { useTimerBridge } from "../composables/useTimerBridge";
 import type { Task, TaskCategory } from "../composables/useTasks";
@@ -32,6 +32,23 @@ const {
 } = useTimerBridge();
 
 const newTitle = ref("");
+
+type ScrollPhase = "start" | "scroll" | "end";
+
+interface ScrollState {
+    taskId: string;
+    container: HTMLElement;
+    text: HTMLElement;
+    frameId: number | null;
+    offset: number;
+    waitFrames: number;
+    phase: ScrollPhase;
+}
+
+const SCROLL_SPEED = 0.5;
+const START_WAIT_FRAMES = 30;
+const END_WAIT_FRAMES = 60;
+let activeScroll: ScrollState | null = null;
 
 const activeTasks = computed(() =>
     tasks.value.filter((t) => !t.completed && t.category === props.category),
@@ -136,6 +153,7 @@ const editingTaskId = ref<string | null>(null);
 const editingTitle = ref("");
 
 function startEdit(task: Task) {
+    stopScroll(task.id);
     editingTaskId.value = task.id;
     editingTitle.value = task.title;
     nextTick(() => {
@@ -157,6 +175,96 @@ function saveEdit() {
 function cancelEdit() {
     editingTaskId.value = null;
 }
+
+// 任务标题滚动效果
+function startScroll(taskId: string, eventTarget: EventTarget | null) {
+    const containerEl = eventTarget as HTMLElement | null;
+    if (!containerEl) return;
+
+    const textEl = containerEl.querySelector(".task-title-text") as HTMLElement | null;
+    if (!textEl) return;
+
+    const overflow = textEl.scrollWidth - containerEl.clientWidth;
+    if (overflow <= 0) return; // 不需要滚动
+
+    stopScroll();
+    textEl.style.transform = "translateX(0)";
+
+    activeScroll = {
+        taskId,
+        container: containerEl,
+        text: textEl,
+        frameId: null,
+        offset: 0,
+        waitFrames: START_WAIT_FRAMES,
+        phase: "start",
+    };
+
+    scheduleNextScrollFrame();
+}
+
+function scheduleNextScrollFrame() {
+    if (!activeScroll) return;
+    activeScroll.frameId = requestAnimationFrame(runScrollFrame);
+}
+
+function runScrollFrame() {
+    const state = activeScroll;
+    if (!state) return;
+
+    // 节点被替换/卸载时立即停止，避免 RAF 空转
+    if (!state.container.isConnected || !state.text.isConnected) {
+        stopScroll(state.taskId);
+        return;
+    }
+
+    const overflow = state.text.scrollWidth - state.container.clientWidth;
+    if (overflow <= 0) {
+        stopScroll(state.taskId);
+        return;
+    }
+
+    if (state.phase !== "scroll") {
+        state.waitFrames -= 1;
+        if (state.waitFrames <= 0) {
+            if (state.phase === "end") {
+                state.offset = 0;
+                state.text.style.transform = "translateX(0)";
+            }
+            state.phase = "scroll";
+        }
+        scheduleNextScrollFrame();
+        return;
+    }
+
+    state.offset += SCROLL_SPEED;
+    if (state.offset >= overflow) {
+        state.offset = overflow;
+        state.text.style.transform = `translateX(-${overflow}px)`;
+        state.phase = "end";
+        state.waitFrames = END_WAIT_FRAMES;
+    } else {
+        state.text.style.transform = `translateX(-${state.offset}px)`;
+    }
+
+    scheduleNextScrollFrame();
+}
+
+function stopScroll(taskId?: string) {
+    if (!activeScroll) return;
+    if (taskId && activeScroll.taskId !== taskId) return;
+
+    if (activeScroll.frameId !== null) {
+        cancelAnimationFrame(activeScroll.frameId);
+    }
+
+    activeScroll.text.style.transform = "translateX(0)";
+    activeScroll = null;
+}
+
+onBeforeUnmount(() => {
+    stopScroll();
+});
 </script>
 
 <template>
@@ -197,9 +305,13 @@ function cancelEdit() {
                         <div class="running-card">
                             <div class="running-header">
                                 <span class="running-dot">●</span>
-                                <span class="task-title running-title">{{
-                                    task.title
-                                }}</span>
+                                <span 
+                                    class="task-title running-title"
+                                    @mouseenter="startScroll(task.id, $event.currentTarget)"
+                                    @mouseleave="stopScroll(task.id)"
+                                >
+                                    <span class="task-title-text">{{ task.title }}</span>
+                                </span>
                                 <span class="task-timer">{{
                                     displayTime
                                 }}</span>
@@ -235,9 +347,13 @@ function cancelEdit() {
                         <div class="running-card paused">
                             <div class="running-header">
                                 <span class="running-dot paused-dot">●</span>
-                                <span class="task-title running-title">{{
-                                    task.title
-                                }}</span>
+                                <span 
+                                    class="task-title running-title"
+                                    @mouseenter="startScroll(task.id, $event.currentTarget)"
+                                    @mouseleave="stopScroll(task.id)"
+                                >
+                                    <span class="task-title-text">{{ task.title }}</span>
+                                </span>
                                 <span class="task-timer">{{
                                     displayTime
                                 }}</span>
@@ -292,7 +408,14 @@ function cancelEdit() {
                             @keydown.esc="cancelEdit"
                             @blur="saveEdit"
                         />
-                        <span v-else class="task-title" @dblclick="startEdit(task)">{{ task.title }}</span>
+                        <span v-else 
+                            class="task-title" 
+                            @dblclick="startEdit(task)"
+                            @mouseenter="startScroll(task.id, $event.currentTarget)"
+                            @mouseleave="stopScroll(task.id)"
+                        >
+                            <span class="task-title-text">{{ task.title }}</span>
+                        </span>
                         <span class="pomo-count" v-if="task.pomodoroCount > 0"
                             >● {{ task.pomodoroCount }}</span
                         >
@@ -341,7 +464,14 @@ function cancelEdit() {
                         @keydown.esc="cancelEdit"
                         @blur="saveEdit"
                     />
-                    <span v-else class="inbox-title" @dblclick="startEdit(task)">{{ task.title }}</span>
+                    <span v-else 
+                        class="inbox-title" 
+                        @dblclick="startEdit(task)"
+                        @mouseenter="startScroll(task.id, $event.currentTarget)"
+                        @mouseleave="stopScroll(task.id)"
+                    >
+                        <span class="task-title-text">{{ task.title }}</span>
+                    </span>
                     <span class="task-time">{{
                         formatTime(task.createdAt)
                     }}</span>
@@ -655,6 +785,24 @@ function cancelEdit() {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    position: relative;
+    min-width: 0;
+    cursor: default;
+}
+
+.task-title-text {
+    display: inline-block;
+    will-change: transform;
+}
+
+.running-title {
+    color: #fff !important;
+    font-weight: 600 !important;
+}
+
+.running-title .task-title-text {
+    color: #fff !important;
+    font-weight: 600 !important;
 }
 
 .edit-title-input {
@@ -824,6 +972,9 @@ function cancelEdit() {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    position: relative;
+    min-width: 0;
+    cursor: default;
 }
 
 .inbox-actions {
