@@ -33,3 +33,6 @@ desktop.ini
 
 # TypeScript
 *.tsbuildinfo
+
+# Worktrees
+.worktrees/
