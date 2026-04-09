@@ -9,6 +9,7 @@ import { useSettings } from '../composables/useSettings'
 import TaskArea from './TaskArea.vue'
 import SettingsPage from './SettingsPage.vue'
 import CompletedPage from './CompletedPage.vue'
+import MemoPage from './MemoPage.vue'
 import PanelTitleBar from './PanelTitleBar.vue'
 
 interface PanelTransitionMetrics {
@@ -30,7 +31,7 @@ const PANEL_CLOSE_DURATION = 240
 const CLOSE_FALLBACK_BUFFER = 140
 const IS_MACOS = navigator.userAgent.toLowerCase().includes('mac')
 
-const currentView = ref<'tasks' | 'settings' | 'completed'>('tasks')
+const currentView = ref<'tasks' | 'settings' | 'completed' | 'memos'>('tasks')
 const isClosing = ref(false)
 const panelRootRef = ref<HTMLElement | null>(null)
 const panelAnimState = ref<'hidden' | 'steady' | 'opening-ready' | 'opening' | 'closing'>('hidden')
@@ -243,8 +244,9 @@ async function closeWindow() {
       <PanelTitleBar @close="closeWindow" />
       <div class="panel-body">
         <transition name="slide-right" mode="out-in">
-          <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" @settings="currentView = 'settings'" @completed="currentView = 'completed'" />
+          <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" @settings="currentView = 'settings'" @completed="currentView = 'completed'" @memos="currentView = 'memos'" />
           <SettingsPage v-else-if="currentView === 'settings'" @back="currentView = 'tasks'" />
+          <MemoPage v-else-if="currentView === 'memos'" @back="currentView = 'tasks'" />
           <CompletedPage v-else @back="currentView = 'tasks'" />
         </transition>
       </div>

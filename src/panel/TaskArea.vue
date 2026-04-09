@@ -8,7 +8,7 @@ const props = defineProps<{
     category: TaskCategory;
 }>();
 
-const emit = defineEmits<{ close: []; settings: []; completed: [] }>();
+const emit = defineEmits<{ close: []; settings: []; completed: []; memos: [] }>();
 
 const {
     tasks,
@@ -510,6 +510,13 @@ onBeforeUnmount(() => {
                 {{ todayStats.focusMinutes }} 分钟
             </div>
             <div class="footer-actions">
+                <button
+                    class="footer-btn"
+                    title="备忘录"
+                    @click="emit('memos')"
+                >
+                    📝 备忘录
+                </button>
                 <button
                     class="footer-btn"
                     title="已完成任务"
