@@ -1,10 +1,13 @@
 <script setup lang="ts">
+defineProps<{
+  title?: string
+}>()
 defineEmits<{ close: [] }>()
 </script>
 
 <template>
   <div class="titlebar">
-    <span class="titlebar-title">专注清单</span>
+    <span class="titlebar-title">{{ title || '专注清单' }}</span>
     <div class="titlebar-actions">
       <button class="btn-close" @click="$emit('close')" title="关闭">✕</button>
     </div>

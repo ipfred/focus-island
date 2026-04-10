@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -32,6 +32,16 @@ const CLOSE_FALLBACK_BUFFER = 140
 const IS_MACOS = navigator.userAgent.toLowerCase().includes('mac')
 
 const currentView = ref<'tasks' | 'settings' | 'completed' | 'memos'>('tasks')
+
+// 根据当前视图计算标题栏标题
+const pageTitle = computed(() => {
+  switch (currentView.value) {
+    case 'memos': return '📝 备忘录'
+    case 'settings': return '⚙️ 设置'
+    case 'completed': return '✓ 已完成'
+    default: return '专注清单'
+  }
+})
 const isClosing = ref(false)
 const panelRootRef = ref<HTMLElement | null>(null)
 const panelAnimState = ref<'hidden' | 'steady' | 'opening-ready' | 'opening' | 'closing'>('hidden')
@@ -241,7 +251,7 @@ async function closeWindow() {
     <div class="panel-sheen" />
     <div class="panel-vignette" />
     <div class="panel-inner">
-      <PanelTitleBar @close="closeWindow" />
+      <PanelTitleBar :title="pageTitle" @close="closeWindow" />
       <div class="panel-body">
         <transition name="slide-right" mode="out-in">
           <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" @settings="currentView = 'settings'" @completed="currentView = 'completed'" @memos="currentView = 'memos'" />

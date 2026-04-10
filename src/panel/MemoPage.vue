@@ -118,28 +118,17 @@ function handleCloseCategoryDialog() {
   <div class="memo-page">
     <!-- List View -->
     <template v-if="view === 'list'">
-      <!-- Top Bar -->
-      <div class="memo-top-bar">
-        <h1 class="memo-title">📝 备忘录</h1>
-        <button class="new-memo-btn" @click="handleNewMemo" title="新建备忘录">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="12" y1="5" x2="12" y2="19"/>
-            <line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-        </button>
-      </div>
-
-      <!-- Search Box (Disabled) -->
+      <!-- Search Box -->
       <div class="memo-search-box">
-        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <circle cx="11" cy="11" r="8"/>
           <line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
         <input type="text" class="search-input" placeholder="搜索备忘录（即将上线）" disabled />
       </div>
 
-      <!-- Category Bar -->
-      <div class="memo-category-bar">
+      <!-- New Memo & Category Bar (合并一行) -->
+      <div class="memo-toolbar">
         <div class="category-select-wrapper">
           <select v-model="currentCategoryId" class="category-select">
             <option v-for="category in categories" :key="category.id" :value="category.id">
@@ -157,7 +146,14 @@ function handleCloseCategoryDialog() {
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
         </button>
-        <span class="memo-count">共 {{ memoCount }} 条</span>
+        <!-- 新建按钮放在分类栏右侧 -->
+        <button class="new-memo-btn-compact" @click="handleNewMemo" title="新建备忘录">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <span>新建</span>
+        </button>
       </div>
 
       <!-- Memo List -->
@@ -246,55 +242,18 @@ function handleCloseCategoryDialog() {
   overflow: hidden;
 }
 
-/* Top Bar */
-.memo-top-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  flex-shrink: 0;
-}
-
-.memo-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #fff;
-  margin: 0;
-}
-
-.new-memo-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--focus-color) 15%, transparent);
-  border: 1px solid color-mix(in srgb, var(--focus-color) 30%, transparent);
-  color: var(--focus-color);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-}
-
-.new-memo-btn:hover {
-  background: color-mix(in srgb, var(--focus-color) 25%, transparent);
-  border-color: color-mix(in srgb, var(--focus-color) 50%, transparent);
-  transform: scale(1.05);
-}
-
-/* Search Box */
+/* Search Box - 紧凑样式 */
 .memo-search-box {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
+  gap: 8px;
+  padding: 8px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   flex-shrink: 0;
 }
 
 .search-icon {
-  color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.25);
   flex-shrink: 0;
 }
 
@@ -303,25 +262,25 @@ function handleCloseCategoryDialog() {
   background: transparent;
   border: none;
   padding: 0;
-  font-size: 13px;
+  font-size: 12px;
   color: rgba(255, 255, 255, 0.5);
   outline: none;
 }
 
 .search-input::placeholder {
-  color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.25);
 }
 
 .search-input:disabled {
   cursor: not-allowed;
 }
 
-/* Category Bar */
-.memo-category-bar {
+/* Toolbar - 合并分类和新建按钮 */
+.memo-toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 16px;
+  padding: 8px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
 }
@@ -340,15 +299,15 @@ function handleCloseCategoryDialog() {
 }
 
 .category-display {
-  font-size: 13px;
-  padding: 6px 12px;
-  border-radius: 8px;
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.9);
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   transition: all 0.2s;
 }
 
@@ -358,9 +317,9 @@ function handleCloseCategoryDialog() {
 }
 
 .manage-categories-btn {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.6);
@@ -378,12 +337,31 @@ function handleCloseCategoryDialog() {
   color: #fff;
 }
 
-.memo-count {
+/* 紧凑的新建按钮 */
+.new-memo-btn-compact {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  height: 28px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--focus-color) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--focus-color) 30%, transparent);
+  color: var(--focus-color);
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.4);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
   flex-shrink: 0;
-  min-width: 50px;
-  text-align: right;
+}
+
+.new-memo-btn-compact:hover {
+  background: color-mix(in srgb, var(--focus-color) 25%, transparent);
+  border-color: color-mix(in srgb, var(--focus-color) 50%, transparent);
+}
+
+.new-memo-btn-compact span {
+  line-height: 1;
 }
 
 /* Memo List */
