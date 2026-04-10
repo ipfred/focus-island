@@ -29,6 +29,9 @@ const showColorPicker = ref(false)
 // Track active formatting states
 const activeFormats = ref<{ bold: boolean; italic: boolean }>({ bold: false, italic: false })
 
+// Store last selection to restore after toolbar button clicks
+let lastSelectionRange: Range | null = null
+
 // Sync local state when memo changes
 watch(() => props.memo, (newMemo) => {
   localTitle.value = newMemo.title
@@ -107,29 +110,47 @@ function updateActiveFormats() {
   }
 }
 
+// Save current selection for restoring after toolbar clicks
+function saveSelection() {
+  const selection = window.getSelection()
+  if (selection && selection.rangeCount > 0) {
+    lastSelectionRange = selection.getRangeAt(0).cloneRange()
+  }
+}
+
+// Restore saved selection
+function restoreSelection(): boolean {
+  if (!lastSelectionRange) return false
+
+  const selection = window.getSelection()
+  if (!selection) return false
+
+  selection.removeAllRanges()
+  selection.addRange(lastSelectionRange)
+  return true
+}
+
 // Rich text editing commands
 function execCommand(command: string, value: string | undefined = undefined) {
-  // Focus editor first to ensure execCommand works
-  editorRef.value?.focus()
-
-  // Save current selection
+  // Restore selection if it was lost (e.g., after clicking toolbar)
   const selection = window.getSelection()
-  const range = selection?.rangeCount ? selection.getRangeAt(0) : null
+  const hasSelection = selection && selection.rangeCount > 0 && editorRef.value?.contains(selection.anchorNode as Node)
+
+  if (!hasSelection) {
+    // Try to restore last saved selection
+    if (!restoreSelection()) {
+      // If no saved selection, focus editor (for initial state)
+      editorRef.value?.focus()
+    }
+  }
 
   // Execute command
-  const success = document.execCommand(command, false, value)
-
-  // Restore selection if needed (for color changes)
-  if (range && selection && command === 'foreColor') {
-    selection.removeAllRanges()
-    selection.addRange(range)
-  }
+  document.execCommand(command, false, value)
 
   // Update active states
   updateActiveFormats()
 
   onContentChange()
-  return success
 }
 
 function toggleBold() {
@@ -146,10 +167,17 @@ function setTextColor(color: string) {
 }
 
 function insertCheckbox() {
-  editorRef.value?.focus()
-
-  // Get current selection
+  // Restore selection if it was lost (e.g., after clicking toolbar)
   const selection = window.getSelection()
+  const hasSelection = selection && selection.rangeCount > 0 && editorRef.value?.contains(selection.anchorNode as Node)
+
+  if (!hasSelection) {
+    if (!restoreSelection()) {
+      // If no saved selection, focus editor and use end position
+      editorRef.value?.focus()
+    }
+  }
+
   if (!selection || selection.rangeCount === 0) return
 
   const range = selection.getRangeAt(0)
@@ -204,10 +232,17 @@ function onEditorClick(e: MouseEvent) {
 }
 
 function insertDivider() {
-  editorRef.value?.focus()
-
-  // Get current selection
+  // Restore selection if it was lost (e.g., after clicking toolbar)
   const selection = window.getSelection()
+  const hasSelection = selection && selection.rangeCount > 0 && editorRef.value?.contains(selection.anchorNode as Node)
+
+  if (!hasSelection) {
+    if (!restoreSelection()) {
+      // If no saved selection, focus editor
+      editorRef.value?.focus()
+    }
+  }
+
   if (!selection || selection.rangeCount === 0) return
 
   const range = selection.getRangeAt(0)
@@ -542,6 +577,7 @@ function getCategoryName(categoryId: string): string {
         @paste="onPaste"
         @keydown="onEditorKeydown"
         @click="onEditorClick"
+        @blur="saveSelection"
         spellcheck="false"
       ></div>
     </div>
