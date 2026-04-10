@@ -23,6 +23,7 @@ const editorRef = ref<HTMLDivElement | null>(null)
 const titleInputRef = ref<HTMLInputElement | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const saveTimeout = ref<number | null>(null)
+const showDeleteConfirm = ref(false)
 
 // Sync local state when memo changes
 watch(() => props.memo, (newMemo) => {
@@ -167,11 +168,18 @@ function onPaste(e: ClipboardEvent) {
   onContentChange()
 }
 
-// Delete handler
+// Delete confirmation
 function handleDelete() {
-  if (confirm('确定要删除这条备忘录吗？')) {
-    emit('delete')
-  }
+  showDeleteConfirm.value = true
+}
+
+function confirmDelete() {
+  showDeleteConfirm.value = false
+  emit('delete')
+}
+
+function cancelDelete() {
+  showDeleteConfirm.value = false
 }
 
 // Back handler
@@ -362,6 +370,18 @@ function getCategoryName(categoryId: string): string {
       style="display: none"
       @change="handleImageSelected"
     />
+
+    <!-- Delete Confirmation Dialog -->
+    <div v-if="showDeleteConfirm" class="delete-dialog-overlay" @click="cancelDelete">
+      <div class="delete-dialog" @click.stop>
+        <div class="delete-dialog-title">🗑️ 删除备忘录</div>
+        <div class="delete-dialog-content">确定要删除这条备忘录吗？此操作无法撤销。</div>
+        <div class="delete-dialog-actions">
+          <button class="dialog-btn cancel-btn" @click="cancelDelete">取消</button>
+          <button class="dialog-btn confirm-btn" @click="confirmDelete">删除</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -372,6 +392,7 @@ function getCategoryName(categoryId: string): string {
   display: flex;
   flex-direction: column;
   height: 100%;
+  width: 100%;
   background: transparent;
   color: #e8e8ea;
   overflow: hidden;
@@ -750,5 +771,99 @@ function getCategoryName(categoryId: string): string {
 
 .editor-content :deep(a:hover) {
   text-decoration: underline;
+}
+
+/* Delete Confirmation Dialog */
+.delete-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.delete-dialog {
+  background: rgba(28, 28, 32, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 20px 24px;
+  min-width: 280px;
+  max-width: 320px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.delete-dialog-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 12px;
+}
+
+.delete-dialog-content {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.delete-dialog-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.dialog-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+
+.cancel-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.confirm-btn {
+  background: rgba(248, 113, 113, 0.15);
+  border-color: rgba(248, 113, 113, 0.3);
+  color: #f87171;
+}
+
+.confirm-btn:hover {
+  background: rgba(248, 113, 113, 0.25);
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
+/* Dark select dropdown styling */
+.category-select {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  width: 100%;
+  opacity: 0;
+  /* Ensure dark appearance */
+  color-scheme: dark;
+  background: rgba(28, 28, 32, 0.98);
+}
+
+.category-select option {
+  background: rgba(28, 28, 32, 0.98);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  padding: 8px;
 }
 </style>

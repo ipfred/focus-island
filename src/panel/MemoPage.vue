@@ -240,6 +240,7 @@ function handleCloseCategoryDialog() {
   display: flex;
   flex-direction: column;
   height: 100%;
+  width: 100%;
   background: transparent;
   color: #e8e8ea;
   overflow: hidden;
@@ -585,5 +586,24 @@ function handleCloseCategoryDialog() {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.15);
   color: #fff;
+}
+
+/* Dark select dropdown styling */
+.category-select {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  width: 100%;
+  opacity: 0;
+  /* Ensure dark appearance */
+  color-scheme: dark;
+  background: rgba(28, 28, 32, 0.98);
+}
+
+.category-select option {
+  background: rgba(28, 28, 32, 0.98);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  padding: 8px;
 }
 </style>
