@@ -29,6 +29,20 @@ const showColorPicker = ref(false)
 // Track active formatting states
 const activeFormats = ref<{ bold: boolean; italic: boolean }>({ bold: false, italic: false })
 
+// Track current font color
+const currentColor = ref('#ffffff')
+
+// Available colors
+const colors = [
+  { value: '#ffffff', label: '白色' },
+  { value: '#f87171', label: '红色' },
+  { value: '#fbbf24', label: '黄色' },
+  { value: '#4ade80', label: '绿色' },
+  { value: '#60a5fa', label: '蓝色' },
+  { value: '#a78bfa', label: '紫色' },
+  { value: '#f472b6', label: '粉色' },
+]
+
 // Store last selection to restore after toolbar button clicks
 let lastSelectionRange: Range | null = null
 
@@ -108,6 +122,39 @@ function updateActiveFormats() {
     bold: document.queryCommandState('bold'),
     italic: document.queryCommandState('italic'),
   }
+
+  // Get current font color
+  const colorValue = document.queryCommandValue('foreColor')
+  if (colorValue) {
+    // Convert rgb() to hex if needed
+    currentColor.value = rgbToHex(colorValue)
+  }
+}
+
+// Convert rgb() color to hex
+function rgbToHex(rgb: string): string {
+  // If already hex, return as-is
+  if (rgb.startsWith('#')) return rgb
+
+  // Parse rgb(r, g, b) format
+  const match = rgb.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/)
+  if (match) {
+    const r = parseInt(match[1], 10)
+    const g = parseInt(match[2], 10)
+    const b = parseInt(match[3], 10)
+    return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('')
+  }
+
+  // Try rgba format
+  const rgbaMatch = rgb.match(/rgba\((\d+),\s*(\d+),\s*(\d+)/)
+  if (rgbaMatch) {
+    const r = parseInt(rgbaMatch[1], 10)
+    const g = parseInt(rgbaMatch[2], 10)
+    const b = parseInt(rgbaMatch[3], 10)
+    return '#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join('')
+  }
+
+  return '#ffffff'
 }
 
 // Save current selection for restoring after toolbar clicks
@@ -528,18 +575,29 @@ function getCategoryName(categoryId: string): string {
       <div class="toolbar-divider"></div>
 
       <div class="color-picker" :class="{ active: showColorPicker }">
-        <button class="toolbar-btn color-btn" title="文字颜色" @click="showColorPicker = !showColorPicker">
+        <button
+          class="toolbar-btn color-btn"
+          title="文字颜色"
+          @click="showColorPicker = !showColorPicker"
+          :style="{ '--current-color': currentColor }"
+        >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M9 3v6M15 3v6M9 9h6M8 21h8M12 9v12"/>
           </svg>
+          <span class="color-indicator" :style="{ backgroundColor: currentColor }"></span>
         </button>
         <div v-show="showColorPicker" class="color-dropdown">
-          <button class="color-option" style="color: #fff" @click.stop="setTextColor('#ffffff')">A</button>
-          <button class="color-option" style="color: #f87171" @click.stop="setTextColor('#f87171')">A</button>
-          <button class="color-option" style="color: #60a5fa" @click.stop="setTextColor('#60a5fa')">A</button>
-          <button class="color-option" style="color: #4ade80" @click.stop="setTextColor('#4ade80')">A</button>
-          <button class="color-option" style="color: #fbbf24" @click.stop="setTextColor('#fbbf24')">A</button>
-          <button class="color-option" style="color: #a78bfa" @click.stop="setTextColor('#a78bfa')">A</button>
+          <button
+            v-for="color in colors"
+            :key="color.value"
+            class="color-option"
+            :class="{ active: currentColor === color.value }"
+            :style="{ color: color.value }"
+            :title="color.label"
+            @click.stop="setTextColor(color.value)"
+          >
+            A
+          </button>
         </div>
       </div>
 
@@ -828,10 +886,32 @@ function getCategoryName(categoryId: string): string {
   transform: scale(1.05);
 }
 
+.color-option.active {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: currentColor;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
+}
+
 .color-picker.active .color-btn {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(255, 255, 255, 0.2);
   color: #fff;
+}
+
+/* Color indicator on toolbar button */
+.color-btn {
+  position: relative;
+}
+
+.color-indicator {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  transition: background-color 0.2s;
 }
 
 /* Editor Content */
