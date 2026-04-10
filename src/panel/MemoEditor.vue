@@ -24,6 +24,7 @@ const titleInputRef = ref<HTMLInputElement | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const saveTimeout = ref<number | null>(null)
 const showDeleteConfirm = ref(false)
+const showColorPicker = ref(false)
 
 // Sync local state when memo changes
 watch(() => props.memo, (newMemo) => {
@@ -33,15 +34,29 @@ watch(() => props.memo, (newMemo) => {
   localIsPinned.value = newMemo.isPinned
 }, { deep: true })
 
-// Auto-save on changes
+// Auto-save on changes - 10s debounce to reduce flickering
+const SAVE_DEBOUNCE_MS = 10000
+
 function scheduleSave() {
-  saveStatus.value = 'unsaved'
+  // Don't show 'unsaved' immediately - only show after a delay if user stops typing
   if (saveTimeout.value) {
     clearTimeout(saveTimeout.value)
   }
-  saveTimeout.value = window.setTimeout(() => {
-    doSave()
-  }, 800)
+  // Show 'unsaved' after 2 seconds of inactivity, then save after 10 seconds total
+  if (saveStatus.value === 'saved') {
+    saveTimeout.value = window.setTimeout(() => {
+      saveStatus.value = 'unsaved'
+      // Schedule actual save after additional delay
+      saveTimeout.value = window.setTimeout(() => {
+        doSave()
+      }, SAVE_DEBOUNCE_MS - 2000)
+    }, 2000)
+  } else {
+    // Already unsaved, just schedule the save
+    saveTimeout.value = window.setTimeout(() => {
+      doSave()
+    }, SAVE_DEBOUNCE_MS)
+  }
 }
 
 function doSave() {
@@ -83,9 +98,13 @@ function togglePin() {
 
 // Rich text editing commands
 function execCommand(command: string, value: string | undefined = undefined) {
-  document.execCommand(command, false, value)
+  // Focus editor first to ensure execCommand works
   editorRef.value?.focus()
-  onContentChange()
+  // Small delay to ensure focus is applied
+  requestAnimationFrame(() => {
+    document.execCommand(command, false, value)
+    onContentChange()
+  })
 }
 
 function toggleBold() {
@@ -98,11 +117,28 @@ function toggleItalic() {
 
 function setTextColor(color: string) {
   execCommand('foreColor', color)
+  showColorPicker.value = false
 }
 
 function insertCheckbox() {
-  const checkboxHtml = '<div class="memo-checkbox-item"><input type="checkbox" class="memo-checkbox" onclick="this.setAttribute(\'checked\', this.checked ? \'\' : null)"><span class="memo-checkbox-text">&nbsp;</span></div><div><br></div>'
+  // Use data-attribute instead of inline onclick for better compatibility
+  const checkboxHtml = '<div class="memo-checkbox-item"><input type="checkbox" class="memo-checkbox" data-memo-checkbox="true"><span class="memo-checkbox-text">&nbsp;</span></div><div><br></div>'
   execCommand('insertHTML', checkboxHtml)
+}
+
+// Handle checkbox clicks via event delegation
+function onEditorClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (target.classList.contains('memo-checkbox')) {
+    // Toggle the checked attribute for styling
+    const checkbox = target as HTMLInputElement
+    if (checkbox.checked) {
+      checkbox.setAttribute('checked', '')
+    } else {
+      checkbox.removeAttribute('checked')
+    }
+    onContentChange()
+  }
 }
 
 function insertDivider() {
@@ -207,12 +243,21 @@ function onEditorKeydown(e: KeyboardEvent) {
   }
 }
 
+// Close color picker when clicking outside
+function onDocumentClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (!target.closest('.color-picker')) {
+    showColorPicker.value = false
+  }
+}
+
 // Initialize editor content
 onMounted(() => {
   if (editorRef.value) {
     editorRef.value.innerHTML = localContent.value || '<div><br></div>'
   }
   titleInputRef.value?.focus()
+  document.addEventListener('click', onDocumentClick)
 })
 
 // Cleanup
@@ -220,6 +265,8 @@ onBeforeUnmount(() => {
   if (saveTimeout.value) {
     clearTimeout(saveTimeout.value)
   }
+  document.removeEventListener('click', onDocumentClick)
+  // Final save before leaving
   doSave()
 })
 
@@ -309,19 +356,19 @@ function getCategoryName(categoryId: string): string {
 
       <div class="toolbar-divider"></div>
 
-      <div class="color-picker">
-        <button class="toolbar-btn color-btn" title="文字颜色">
+      <div class="color-picker" :class="{ active: showColorPicker }">
+        <button class="toolbar-btn color-btn" title="文字颜色" @click="showColorPicker = !showColorPicker">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M9 3v6M15 3v6M9 9h6M8 21h8M12 9v12"/>
           </svg>
         </button>
-        <div class="color-dropdown">
-          <button class="color-option" style="color: #fff" @click="setTextColor('#ffffff')">A</button>
-          <button class="color-option" style="color: #f87171" @click="setTextColor('#f87171')">A</button>
-          <button class="color-option" style="color: #60a5fa" @click="setTextColor('#60a5fa')">A</button>
-          <button class="color-option" style="color: #4ade80" @click="setTextColor('#4ade80')">A</button>
-          <button class="color-option" style="color: #fbbf24" @click="setTextColor('#fbbf24')">A</button>
-          <button class="color-option" style="color: #a78bfa" @click="setTextColor('#a78bfa')">A</button>
+        <div v-show="showColorPicker" class="color-dropdown">
+          <button class="color-option" style="color: #fff" @click.stop="setTextColor('#ffffff')">A</button>
+          <button class="color-option" style="color: #f87171" @click.stop="setTextColor('#f87171')">A</button>
+          <button class="color-option" style="color: #60a5fa" @click.stop="setTextColor('#60a5fa')">A</button>
+          <button class="color-option" style="color: #4ade80" @click.stop="setTextColor('#4ade80')">A</button>
+          <button class="color-option" style="color: #fbbf24" @click.stop="setTextColor('#fbbf24')">A</button>
+          <button class="color-option" style="color: #a78bfa" @click.stop="setTextColor('#a78bfa')">A</button>
         </div>
       </div>
 
@@ -358,6 +405,7 @@ function getCategoryName(categoryId: string): string {
         @input="onContentChange"
         @paste="onPaste"
         @keydown="onEditorKeydown"
+        @click="onEditorClick"
         spellcheck="false"
       ></div>
     </div>
@@ -578,17 +626,7 @@ function getCategoryName(categoryId: string): string {
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(-4px);
-  transition: all 0.15s;
   z-index: 100;
-}
-
-.color-picker:hover .color-dropdown {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
 }
 
 .color-option {
@@ -610,6 +648,12 @@ function getCategoryName(categoryId: string): string {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(255, 255, 255, 0.2);
   transform: scale(1.05);
+}
+
+.color-picker.active .color-btn {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 
 /* Editor Content */
