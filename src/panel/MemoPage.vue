@@ -118,42 +118,40 @@ function handleCloseCategoryDialog() {
   <div class="memo-page">
     <!-- List View -->
     <template v-if="view === 'list'">
-      <!-- Search Box -->
-      <div class="memo-search-box">
-        <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-        <input type="text" class="search-input" placeholder="搜索备忘录（即将上线）" disabled />
-      </div>
-
-      <!-- New Memo & Category Bar (合并一行) -->
-      <div class="memo-toolbar">
-        <div class="category-select-wrapper">
-          <select v-model="currentCategoryId" class="category-select">
-            <option v-for="category in categories" :key="category.id" :value="category.id">
-              {{ category.icon }} {{ category.name }}
-            </option>
-          </select>
-          <span class="category-display">
-            {{ categories.find(c => c.id === currentCategoryId)?.icon }}
-            {{ categories.find(c => c.id === currentCategoryId)?.name }}
-          </span>
+      <!-- Header: 返回 + 功能按钮 -->
+      <div class="memo-header">
+        <button class="back-btn" @click="emit('back')">←</button>
+        <div class="header-actions">
+          <!-- 分类选择 -->
+          <div class="category-select-wrapper header-select">
+            <select v-model="currentCategoryId" class="category-select">
+              <option v-for="category in categories" :key="category.id" :value="category.id">
+                {{ category.icon }} {{ category.name }}
+              </option>
+            </select>
+            <span class="category-display">
+              {{ categories.find(c => c.id === currentCategoryId)?.icon }}
+              {{ categories.find(c => c.id === currentCategoryId)?.name }}
+            </span>
+          </div>
+          <!-- 条数显示 -->
+          <span class="memo-count-badge">{{ memoCount }} 条</span>
+          <!-- 分类设置 -->
+          <button class="header-icon-btn" @click="handleManageCategories" title="管理分类">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l-.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
+          <!-- 新建 -->
+          <button class="header-new-btn" @click="handleNewMemo" title="新建备忘录">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            <span>新建</span>
+          </button>
         </div>
-        <button class="manage-categories-btn" @click="handleManageCategories" title="管理分类">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-          </svg>
-        </button>
-        <!-- 新建按钮放在分类栏右侧 -->
-        <button class="new-memo-btn-compact" @click="handleNewMemo" title="新建备忘录">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="12" y1="5" x2="12" y2="19"/>
-            <line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          <span>新建</span>
-        </button>
       </div>
 
       <!-- Memo List -->
@@ -199,15 +197,6 @@ function handleCloseCategoryDialog() {
         </div>
       </div>
 
-      <!-- Bottom Bar -->
-      <div class="memo-bottom-bar">
-        <button class="back-to-tasks-btn" @click="emit('back')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M19 12H5M12 19l-7-7 7-7"/>
-          </svg>
-          返回任务列表
-        </button>
-      </div>
     </template>
 
     <!-- Edit View -->
@@ -241,66 +230,55 @@ function handleCloseCategoryDialog() {
   color: #e8e8ea;
   overflow: hidden;
 }
-
-/* Search Box - 紧凑样式 */
-.memo-search-box {
+/* Header - 返回 + 功能按钮 */
+.memo-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  flex-shrink: 0;
-}
-
-.search-icon {
-  color: rgba(255, 255, 255, 0.25);
-  flex-shrink: 0;
-}
-
-.search-input {
-  flex: 1;
-  background: transparent;
-  border: none;
-  padding: 0;
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
-  outline: none;
-}
-
-.search-input::placeholder {
-  color: rgba(255, 255, 255, 0.25);
-}
-
-.search-input:disabled {
-  cursor: not-allowed;
-}
-
-/* Toolbar - 合并分类和新建按钮 */
-.memo-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  justify-content: space-between;
+  padding: 10px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
+  gap: 12px;
 }
 
-.category-select-wrapper {
-  position: relative;
-  flex: 1;
-}
-
-.category-select {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
+.back-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
   cursor: pointer;
-  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
 }
 
-.category-display {
+.back-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.header-select {
+  flex: 0 1 auto;
+  max-width: 120px;
+}
+
+.header-select .category-display {
   font-size: 12px;
-  padding: 5px 10px;
+  padding: 4px 10px;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -309,14 +287,19 @@ function handleCloseCategoryDialog() {
   align-items: center;
   gap: 4px;
   transition: all 0.2s;
+  white-space: nowrap;
 }
 
-.category-select-wrapper:hover .category-display {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.15);
+.memo-count-badge {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 4px;
+  white-space: nowrap;
 }
 
-.manage-categories-btn {
+.header-icon-btn {
   width: 28px;
   height: 28px;
   border-radius: 6px;
@@ -331,18 +314,17 @@ function handleCloseCategoryDialog() {
   flex-shrink: 0;
 }
 
-.manage-categories-btn:hover {
+.header-icon-btn:hover {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.2);
   color: #fff;
 }
 
-/* 紧凑的新建按钮 */
-.new-memo-btn-compact {
+.header-new-btn {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 5px 10px;
+  padding: 0 10px;
   height: 28px;
   border-radius: 6px;
   background: color-mix(in srgb, var(--focus-color) 15%, transparent);
@@ -355,13 +337,35 @@ function handleCloseCategoryDialog() {
   flex-shrink: 0;
 }
 
-.new-memo-btn-compact:hover {
+.header-new-btn:hover {
   background: color-mix(in srgb, var(--focus-color) 25%, transparent);
   border-color: color-mix(in srgb, var(--focus-color) 50%, transparent);
 }
 
-.new-memo-btn-compact span {
+.header-new-btn span {
   line-height: 1;
+}
+
+/* Category select base styles */
+.category-select-wrapper {
+  position: relative;
+}
+
+.category-select {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  width: 100%;
+  opacity: 0;
+  color-scheme: dark;
+  background: rgba(28, 28, 32, 0.98);
+}
+
+.category-select option {
+  background: rgba(28, 28, 32, 0.98);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  padding: 8px;
 }
 
 /* Memo List */
@@ -535,53 +539,5 @@ function handleCloseCategoryDialog() {
   background: color-mix(in srgb, var(--focus-color) 25%, transparent);
   border-color: color-mix(in srgb, var(--focus-color) 50%, transparent);
   transform: scale(1.02);
-}
-
-/* Bottom Bar */
-.memo-bottom-bar {
-  padding: 12px 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  flex-shrink: 0;
-}
-
-.back-to-tasks-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  padding: 10px 16px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.back-to-tasks-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.15);
-  color: #fff;
-}
-
-/* Dark select dropdown styling */
-.category-select {
-  position: absolute;
-  inset: 0;
-  cursor: pointer;
-  width: 100%;
-  opacity: 0;
-  /* Ensure dark appearance */
-  color-scheme: dark;
-  background: rgba(28, 28, 32, 0.98);
-}
-
-.category-select option {
-  background: rgba(28, 28, 32, 0.98);
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 13px;
-  padding: 8px;
 }
 </style>
