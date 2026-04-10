@@ -25,6 +25,7 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const saveTimeout = ref<number | null>(null)
 const showDeleteConfirm = ref(false)
 const showColorPicker = ref(false)
+const showCategoryPicker = ref(false)
 
 // Track active formatting states
 const activeFormats = ref<{ bold: boolean; italic: boolean }>({ bold: false, italic: false })
@@ -556,6 +557,14 @@ function getCategoryName(categoryId: string): string {
   const category = props.categories.find(c => c.id === categoryId)
   return category?.name || '未分类'
 }
+
+// Format update time display
+function formatUpdateTime(timestamp: number): string {
+  const date = new Date(timestamp)
+  const h = date.getHours().toString().padStart(2, '0')
+  const m = date.getMinutes().toString().padStart(2, '0')
+  return `${h}:${m}`
+}
 </script>
 
 <template>
@@ -567,6 +576,10 @@ function getCategoryName(categoryId: string): string {
           <path d="M19 12H5M12 19l-7-7 7-7"/>
         </svg>
       </button>
+
+      <div class="top-bar-spacer"></div>
+
+      <span class="save-time">{{ formatUpdateTime(props.memo.updatedAt) }}</span>
 
       <div class="top-bar-actions">
         <button
@@ -590,6 +603,14 @@ function getCategoryName(categoryId: string): string {
 
     <!-- Title Input -->
     <div class="editor-title-area">
+      <div class="category-select-wrapper">
+        <button class="category-trigger" @click="showCategoryPicker = !showCategoryPicker" type="button">
+          <span class="category-trigger-text">{{ getCategoryName(localCategoryId) }}</span>
+          <svg class="category-trigger-arrow" :class="{ open: showCategoryPicker }" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </button>
+      </div>
       <input
         ref="titleInputRef"
         v-model="localTitle"
@@ -598,24 +619,37 @@ function getCategoryName(categoryId: string): string {
         @input="onTitleInput"
         @keydown="onTitleKeydown"
       />
-    </div>
 
-    <!-- Category & Save Status -->
-    <div class="editor-meta-bar">
-      <div class="category-select-wrapper">
-        <select v-model="localCategoryId" class="category-select" @change="onCategoryChange">
-          <option v-for="category in categories" :key="category.id" :value="category.id">
-            {{ category.icon }} {{ category.name }}
-          </option>
-        </select>
-        <span class="category-icon">{{ getCategoryName(localCategoryId) }}</span>
-      </div>
-
-      <div class="save-status" :class="saveStatus">
-        <span v-if="saveStatus === 'saved'">已保存</span>
-        <span v-else-if="saveStatus === 'saving'">保存中...</span>
-        <span v-else>未保存</span>
-      </div>
+      <!-- Category Bottom Sheet -->
+      <Transition name="sheet">
+        <div v-if="showCategoryPicker" class="category-overlay" @click="showCategoryPicker = false">
+          <div class="category-sheet" @click.stop>
+            <div class="sheet-header">
+              <span class="sheet-title">选择分类</span>
+              <button class="sheet-close" @click="showCategoryPicker = false">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 6L6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+            <div class="sheet-list">
+              <button
+                v-for="category in categories"
+                :key="category.id"
+                class="sheet-item"
+                :class="{ active: localCategoryId === category.id }"
+                @click="localCategoryId = category.id; onCategoryChange(); showCategoryPicker = false"
+              >
+                <span class="sheet-item-icon">{{ category.icon }}</span>
+                <span class="sheet-item-name">{{ category.name }}</span>
+                <svg v-if="localCategoryId === category.id" class="sheet-item-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path d="M20 6L9 17l-5-5"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
     </div>
 
     <!-- Rich Text Toolbar -->
@@ -757,6 +791,18 @@ function getCategoryName(categoryId: string): string {
   padding: 10px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
+  gap: 8px;
+}
+
+.top-bar-spacer {
+  flex: 1;
+}
+
+.save-time {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+  margin-right: 8px;
+  font-variant-numeric: tabular-nums;
 }
 
 .top-bar-btn {
@@ -798,12 +844,16 @@ function getCategoryName(categoryId: string): string {
 
 /* Title Area */
 .editor-title-area {
-  padding: 16px 16px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px 4px;
   flex-shrink: 0;
 }
 
 .title-input {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   background: transparent;
   border: none;
   padding: 0;
@@ -818,15 +868,7 @@ function getCategoryName(categoryId: string): string {
   color: rgba(255, 255, 255, 0.3);
 }
 
-/* Meta Bar */
-.editor-meta-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 16px;
-  flex-shrink: 0;
-}
-
+/* Category select (in top bar) */
 .category-select-wrapper {
   position: relative;
 }
@@ -855,24 +897,6 @@ function getCategoryName(categoryId: string): string {
 .category-select-wrapper:hover .category-icon {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.15);
-}
-
-.save-status {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
-  transition: color 0.2s;
-}
-
-.save-status.saved {
-  color: #4ade80;
-}
-
-.save-status.saving {
-  color: #60a5fa;
-}
-
-.save-status.unsaved {
-  color: #fbbf24;
 }
 
 /* Toolbar */
@@ -1013,6 +1037,7 @@ function getCategoryName(categoryId: string): string {
   line-height: 1.7;
   color: rgba(255, 255, 255, 0.9);
   outline: none;
+  caret-color: #fff;
 }
 
 .editor-content :deep(p) {
