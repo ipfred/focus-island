@@ -38,7 +38,11 @@ function formatTime(ts: number) {
 <template>
     <div class="completed-page">
         <div class="page-header">
-            <button class="back-btn" @click="emit('back')">←</button>
+            <button class="back-btn" @click="emit('back')">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+            </button>
             <span class="header-title">已完成 ({{ completedTasks.length }})</span>
             <div class="header-spacer"></div>
             <button
@@ -93,7 +97,7 @@ function formatTime(ts: number) {
 }
 
 .page-header {
-    padding: 8px 12px;
+    padding: 10px 12px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     display: flex;
     align-items: center;
@@ -102,16 +106,22 @@ function formatTime(ts: number) {
 }
 
 .back-btn {
-    background: transparent;
-    border: none;
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 13px;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.7);
     cursor: pointer;
-    padding: 0 4px;
-    transition: color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
 }
 
 .back-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.2);
     color: #fff;
 }
 

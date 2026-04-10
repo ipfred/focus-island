@@ -69,10 +69,10 @@ jobs:
             args: '--bundles nsis'
             target: ''
           - platform: 'ubuntu-22.04'
-            args: '--bundles appimage'
+            args: '--bundles appimage,deb'
             target: ''
           - platform: 'ubuntu-22.04-arm'
-            args: '--bundles appimage --target aarch64-unknown-linux-gnu'
+            args: '--bundles appimage,deb --target aarch64-unknown-linux-gnu'
             target: 'aarch64-unknown-linux-gnu'
 
     runs-on: ${{ matrix.platform }}
@@ -99,7 +99,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libx11-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libx11-dev fakeroot
 
       - name: Install frontend dependencies
         run: npm ci
@@ -118,7 +118,7 @@ jobs:
           # 用于 Release 文件名的 ASCII 名称（可单独维护，不影响安装后的中文名）
           ARTIFACT_NAME="FocusIsland"
 
-          find src-tauri/target -type f \( -name "*.dmg" -o -name "*.AppImage" -o -name "*-setup.exe" \) -print0 | \
+          find src-tauri/target -type f \( -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" -o -name "*-setup.exe" \) -print0 | \
           while IFS= read -r -d '' artifact; do
             dir=$(dirname "$artifact")
             base=$(basename "$artifact")

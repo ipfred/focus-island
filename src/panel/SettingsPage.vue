@@ -16,8 +16,11 @@ const opacityPercent = (v: number) => Math.round(v * 100) + '%'
 <template>
   <div class="settings-page">
     <div class="settings-header">
-      <button class="back-btn" @click="emit('back')">← 返回</button>
-      <span class="header-title">设置</span>
+      <button class="back-btn" @click="emit('back')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+      </button>
     </div>
 
     <!-- 透明度 -->
@@ -118,32 +121,29 @@ const opacityPercent = (v: number) => Math.round(v * 100) + '%'
 .settings-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 14px 20px;
+  padding: 10px 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
 }
 
 .back-btn {
-  background: none;
-  border: none;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 14px;
-  cursor: pointer;
-  padding: 4px 8px;
+  width: 28px;
+  height: 28px;
   border-radius: 6px;
-  transition: color 0.2s, background 0.2s;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
 }
 
 .back-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
   color: #fff;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.header-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
 }
 
 .settings-section {
