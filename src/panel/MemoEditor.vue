@@ -240,7 +240,7 @@ function insertCheckbox() {
 
   const textSpan = document.createElement('span')
   textSpan.className = 'memo-checkbox-text'
-  textSpan.innerHTML = '&nbsp;'
+  textSpan.innerHTML = '\u200B' // Zero-width space for cursor placement
 
   wrapper.appendChild(checkbox)
   wrapper.appendChild(textSpan)
@@ -249,14 +249,9 @@ function insertCheckbox() {
   range.deleteContents()
   range.insertNode(wrapper)
 
-  // Add line break after
-  const br = document.createElement('div')
-  br.innerHTML = '<br>'
-  wrapper.after(br)
-
-  // Move cursor after checkbox
-  range.setStartAfter(wrapper)
-  range.setEndAfter(wrapper)
+  // Move cursor inside textSpan (after the zero-width space)
+  range.selectNodeContents(textSpan)
+  range.collapse(false) // Collapse to end
   selection.removeAllRanges()
   selection.addRange(range)
 
@@ -428,16 +423,94 @@ function onEditorKeydown(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
     e.preventDefault()
     toggleBold()
+    return
   }
   // Ctrl/Cmd + I for italic
   if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
     e.preventDefault()
     toggleItalic()
+    return
   }
   // Ctrl/Cmd + S for save
   if ((e.ctrlKey || e.metaKey) && e.key === 's') {
     e.preventDefault()
     doSave()
+    return
+  }
+
+  // Handle Enter in checkbox item - create new checkbox below
+  if (e.key === 'Enter' && !e.shiftKey) {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) return
+
+    const range = selection.getRangeAt(0)
+    const node = range.startContainer
+    const checkboxItem = (node instanceof Element ? node : node.parentElement)?.closest('.memo-checkbox-item')
+
+    if (checkboxItem) {
+      e.preventDefault()
+
+      // Create new checkbox
+      const newWrapper = document.createElement('div')
+      newWrapper.className = 'memo-checkbox-item'
+
+      const newCheckbox = document.createElement('input')
+      newCheckbox.type = 'checkbox'
+      newCheckbox.className = 'memo-checkbox'
+      newCheckbox.setAttribute('data-memo-checkbox', 'true')
+
+      const newTextSpan = document.createElement('span')
+      newTextSpan.className = 'memo-checkbox-text'
+      newTextSpan.innerHTML = '\u200B'
+
+      newWrapper.appendChild(newCheckbox)
+      newWrapper.appendChild(newTextSpan)
+
+      // Insert after current checkbox
+      checkboxItem.after(newWrapper)
+
+      // Move cursor to new checkbox text
+      const newRange = document.createRange()
+      newRange.selectNodeContents(newTextSpan)
+      newRange.collapse(false)
+      selection.removeAllRanges()
+      selection.addRange(newRange)
+
+      onContentChange()
+    }
+  }
+
+  // Handle Backspace to easily delete checkbox
+  if (e.key === 'Backspace') {
+    const selection = window.getSelection()
+    if (!selection || selection.rangeCount === 0) return
+
+    const range = selection.getRangeAt(0)
+    const node = range.startContainer
+    const checkboxItem = (node instanceof Element ? node : node.parentElement)?.closest('.memo-checkbox-item')
+
+    if (checkboxItem) {
+      const textSpan = checkboxItem.querySelector('.memo-checkbox-text')
+      const textContent = textSpan?.textContent || ''
+
+      // If at start of checkbox text and text is empty or only zero-width space, delete the checkbox
+      if (range.startOffset === 0 && (!textContent || textContent === '\u200B' || textContent === '')) {
+        e.preventDefault()
+
+        // Move cursor before checkbox
+        const newRange = document.createRange()
+        newRange.setStartBefore(checkboxItem)
+        newRange.collapse(true)
+
+        // Remove checkbox
+        checkboxItem.remove()
+
+        selection.removeAllRanges()
+        selection.addRange(newRange)
+
+        onContentChange()
+      }
+    }
   }
 }
 
@@ -984,6 +1057,7 @@ function getCategoryName(categoryId: string): string {
   align-items: center;
   gap: 8px;
   margin: 4px 0;
+  min-height: 24px;
 }
 
 .editor-content :deep(.memo-checkbox) {
@@ -1017,6 +1091,13 @@ function getCategoryName(categoryId: string): string {
 
 .editor-content :deep(.memo-checkbox-text) {
   color: rgba(255, 255, 255, 0.9);
+  flex: 1;
+  min-width: 1px;
+  outline: none;
+}
+
+.editor-content :deep(.memo-checkbox-text:empty::before) {
+  content: '\200B';
 }
 
 .editor-content :deep(.memo-checkbox:checked + .memo-checkbox-text) {
