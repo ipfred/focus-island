@@ -26,6 +26,9 @@ const saveTimeout = ref<number | null>(null)
 const showDeleteConfirm = ref(false)
 const showColorPicker = ref(false)
 
+// Track active formatting states
+const activeFormats = ref<{ bold: boolean; italic: boolean }>({ bold: false, italic: false })
+
 // Sync local state when memo changes
 watch(() => props.memo, (newMemo) => {
   localTitle.value = newMemo.title
@@ -96,15 +99,37 @@ function togglePin() {
   scheduleSave()
 }
 
+// Update active format states based on current selection
+function updateActiveFormats() {
+  activeFormats.value = {
+    bold: document.queryCommandState('bold'),
+    italic: document.queryCommandState('italic'),
+  }
+}
+
 // Rich text editing commands
 function execCommand(command: string, value: string | undefined = undefined) {
   // Focus editor first to ensure execCommand works
   editorRef.value?.focus()
-  // Small delay to ensure focus is applied
-  requestAnimationFrame(() => {
-    document.execCommand(command, false, value)
-    onContentChange()
-  })
+
+  // Save current selection
+  const selection = window.getSelection()
+  const range = selection?.rangeCount ? selection.getRangeAt(0) : null
+
+  // Execute command
+  const success = document.execCommand(command, false, value)
+
+  // Restore selection if needed (for color changes)
+  if (range && selection && command === 'foreColor') {
+    selection.removeAllRanges()
+    selection.addRange(range)
+  }
+
+  // Update active states
+  updateActiveFormats()
+
+  onContentChange()
+  return success
 }
 
 function toggleBold() {
@@ -121,9 +146,46 @@ function setTextColor(color: string) {
 }
 
 function insertCheckbox() {
-  // Use data-attribute instead of inline onclick for better compatibility
-  const checkboxHtml = '<div class="memo-checkbox-item"><input type="checkbox" class="memo-checkbox" data-memo-checkbox="true"><span class="memo-checkbox-text">&nbsp;</span></div><div><br></div>'
-  execCommand('insertHTML', checkboxHtml)
+  editorRef.value?.focus()
+
+  // Get current selection
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) return
+
+  const range = selection.getRangeAt(0)
+
+  // Create checkbox HTML element
+  const wrapper = document.createElement('div')
+  wrapper.className = 'memo-checkbox-item'
+
+  const checkbox = document.createElement('input')
+  checkbox.type = 'checkbox'
+  checkbox.className = 'memo-checkbox'
+  checkbox.setAttribute('data-memo-checkbox', 'true')
+
+  const textSpan = document.createElement('span')
+  textSpan.className = 'memo-checkbox-text'
+  textSpan.innerHTML = '&nbsp;'
+
+  wrapper.appendChild(checkbox)
+  wrapper.appendChild(textSpan)
+
+  // Insert at cursor position
+  range.deleteContents()
+  range.insertNode(wrapper)
+
+  // Add line break after
+  const br = document.createElement('div')
+  br.innerHTML = '<br>'
+  wrapper.after(br)
+
+  // Move cursor after checkbox
+  range.setStartAfter(wrapper)
+  range.setEndAfter(wrapper)
+  selection.removeAllRanges()
+  selection.addRange(range)
+
+  onContentChange()
 }
 
 // Handle checkbox clicks via event delegation
@@ -142,7 +204,34 @@ function onEditorClick(e: MouseEvent) {
 }
 
 function insertDivider() {
-  execCommand('insertHTML', '<hr class="memo-divider"><div><br></div>')
+  editorRef.value?.focus()
+
+  // Get current selection
+  const selection = window.getSelection()
+  if (!selection || selection.rangeCount === 0) return
+
+  const range = selection.getRangeAt(0)
+
+  // Create hr element
+  const hr = document.createElement('hr')
+  hr.className = 'memo-divider'
+
+  // Create line break after
+  const br = document.createElement('div')
+  br.innerHTML = '<br>'
+
+  // Insert at cursor position
+  range.deleteContents()
+  range.insertNode(hr)
+  hr.after(br)
+
+  // Move cursor after hr
+  range.setStartAfter(hr)
+  range.setEndAfter(hr)
+  selection.removeAllRanges()
+  selection.addRange(range)
+
+  onContentChange()
 }
 
 function triggerImageUpload() {
@@ -154,13 +243,6 @@ function handleImageSelected(e: Event) {
   const file = input.files?.[0]
   if (!file) return
 
-  // Check file size (2MB limit)
-  if (file.size > 2 * 1024 * 1024) {
-    alert('图片大小不能超过 2MB')
-    input.value = ''
-    return
-  }
-
   // Check file type
   const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp']
   if (!allowedTypes.includes(file.type)) {
@@ -169,13 +251,7 @@ function handleImageSelected(e: Event) {
     return
   }
 
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    const base64 = e.target?.result as string
-    const imgHtml = `<img src="${base64}" class="memo-image" style="max-width: 100%; border-radius: 8px; margin: 8px 0;"><div><br></div>`
-    execCommand('insertHTML', imgHtml)
-  }
-  reader.readAsDataURL(file)
+  insertImageFromFile(file)
 
   // Reset input
   input.value = ''
@@ -189,11 +265,31 @@ function onContentChange() {
   scheduleSave()
 }
 
-// Handle paste (strip formatting optionally)
-function onPaste(e: ClipboardEvent) {
+// Handle paste - support text, HTML, and images (screenshots)
+async function onPaste(e: ClipboardEvent) {
   e.preventDefault()
-  const text = e.clipboardData?.getData('text/plain') || ''
-  const html = e.clipboardData?.getData('text/html') || ''
+
+  const clipboardData = e.clipboardData
+  if (!clipboardData) return
+
+  // Check for images first (screenshots)
+  const items = clipboardData.items
+  if (items) {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type.indexOf('image') !== -1) {
+        const blob = item.getAsFile()
+        if (blob) {
+          await insertImageFromFile(blob)
+          return
+        }
+      }
+    }
+  }
+
+  // Fall back to text/HTML paste
+  const text = clipboardData.getData('text/plain') || ''
+  const html = clipboardData.getData('text/html') || ''
 
   // If HTML is available and not too complex, use it
   if (html && !html.includes('<script')) {
@@ -202,6 +298,26 @@ function onPaste(e: ClipboardEvent) {
     document.execCommand('insertText', false, text)
   }
   onContentChange()
+}
+
+// Insert image from File/Blob
+async function insertImageFromFile(file: File) {
+  // Check file size (2MB limit)
+  if (file.size > 2 * 1024 * 1024) {
+    alert('图片大小不能超过 2MB')
+    return
+  }
+
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const base64 = e.target?.result as string
+    const imgHtml = `<img src="${base64}" class="memo-image" style="max-width: 100%; border-radius: 8px; margin: 8px 0;">`
+
+    editorRef.value?.focus()
+    document.execCommand('insertHTML', false, imgHtml)
+    onContentChange()
+  }
+  reader.readAsDataURL(file)
 }
 
 // Delete confirmation
@@ -251,6 +367,14 @@ function onDocumentClick(e: MouseEvent) {
   }
 }
 
+// Handle selection change to update active formats
+function onSelectionChange() {
+  // Only update if editor is focused
+  if (document.activeElement === editorRef.value) {
+    updateActiveFormats()
+  }
+}
+
 // Initialize editor content
 onMounted(() => {
   if (editorRef.value) {
@@ -258,6 +382,7 @@ onMounted(() => {
   }
   titleInputRef.value?.focus()
   document.addEventListener('click', onDocumentClick)
+  document.addEventListener('selectionchange', onSelectionChange)
 })
 
 // Cleanup
@@ -266,6 +391,7 @@ onBeforeUnmount(() => {
     clearTimeout(saveTimeout.value)
   }
   document.removeEventListener('click', onDocumentClick)
+  document.removeEventListener('selectionchange', onSelectionChange)
   // Final save before leaving
   doSave()
 })
@@ -339,14 +465,24 @@ function getCategoryName(categoryId: string): string {
 
     <!-- Rich Text Toolbar -->
     <div class="editor-toolbar">
-      <button class="toolbar-btn" @click="toggleBold" title="粗体 (Ctrl+B)">
+      <button
+        class="toolbar-btn"
+        :class="{ active: activeFormats.bold }"
+        @click="toggleBold"
+        title="粗体 (Ctrl+B)"
+      >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/>
           <path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/>
         </svg>
       </button>
 
-      <button class="toolbar-btn" @click="toggleItalic" title="斜体 (Ctrl+I)">
+      <button
+        class="toolbar-btn"
+        :class="{ active: activeFormats.italic }"
+        @click="toggleItalic"
+        title="斜体 (Ctrl+I)"
+      >
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <line x1="19" y1="4" x2="10" y2="4"/>
           <line x1="14" y1="20" x2="5" y2="20"/>
@@ -600,6 +736,12 @@ function getCategoryName(categoryId: string): string {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.12);
   color: #fff;
+}
+
+.toolbar-btn.active {
+  background: color-mix(in srgb, var(--focus-color) 20%, transparent);
+  border-color: color-mix(in srgb, var(--focus-color) 50%, transparent);
+  color: var(--focus-color);
 }
 
 .toolbar-divider {
