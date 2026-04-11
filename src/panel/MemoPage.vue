@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useMemos, type Memo } from '../composables/useMemos'
 import MemoEditor from './MemoEditor.vue'
 import MemoCategoryDialog from './MemoCategoryDialog.vue'
+import MemoCategoryDropdown from './MemoCategoryDropdown.vue'
+import MemoCategoryTag from './MemoCategoryTag.vue'
 
 const emit = defineEmits<{
   back: []
@@ -123,17 +125,12 @@ function handleCloseCategoryDialog() {
         <button class="back-btn" @click="emit('back')">←</button>
         <div class="header-actions">
           <!-- 分类选择 -->
-          <div class="category-select-wrapper header-select">
-            <select v-model="currentCategoryId" class="category-select">
-              <option v-for="category in categories" :key="category.id" :value="category.id">
-                {{ category.icon }} {{ category.name }}
-              </option>
-            </select>
-            <span class="category-display">
-              {{ categories.find(c => c.id === currentCategoryId)?.icon }}
-              {{ categories.find(c => c.id === currentCategoryId)?.name }}
-            </span>
-          </div>
+          <MemoCategoryDropdown
+            v-model="currentCategoryId"
+            :categories="categories"
+            size="small"
+            @new-category="handleManageCategories"
+          />
           <!-- 条数显示 -->
           <span class="memo-count-badge">{{ memoCount }} 条</span>
           <!-- 分类设置 -->
@@ -177,7 +174,7 @@ function handleCloseCategoryDialog() {
             </button>
           </div>
           <div class="memo-item-meta">
-            <span class="memo-item-category">{{ getCategoryName(memo.categoryId) }}</span>
+            <MemoCategoryTag :category-id="memo.categoryId" />
             <span class="memo-item-time">{{ formatTime(memo.updatedAt) }}</span>
           </div>
           <div class="memo-item-preview">{{ getContentPreview(memo.content) }}</div>
@@ -271,25 +268,6 @@ function handleCloseCategoryDialog() {
   justify-content: flex-end;
 }
 
-.header-select {
-  flex: 0 1 auto;
-  max-width: 120px;
-}
-
-.header-select .category-display {
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.9);
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  transition: all 0.2s;
-  white-space: nowrap;
-}
-
 .memo-count-badge {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.4);
@@ -344,28 +322,6 @@ function handleCloseCategoryDialog() {
 
 .header-new-btn span {
   line-height: 1;
-}
-
-/* Category select base styles */
-.category-select-wrapper {
-  position: relative;
-}
-
-.category-select {
-  position: absolute;
-  inset: 0;
-  cursor: pointer;
-  width: 100%;
-  opacity: 0;
-  color-scheme: dark;
-  background: rgba(28, 28, 32, 0.98);
-}
-
-.category-select option {
-  background: rgba(28, 28, 32, 0.98);
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 13px;
-  padding: 8px;
 }
 
 /* Memo List */
@@ -474,14 +430,6 @@ function handleCloseCategoryDialog() {
   align-items: center;
   gap: 10px;
   margin-bottom: 6px;
-}
-
-.memo-item-category {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.5);
 }
 
 .memo-item-time {

@@ -17,6 +17,7 @@ export interface MemoCategory {
   id: string
   name: string
   icon: string
+  color: string
   isDefault: boolean
   order: number
 }
@@ -24,11 +25,30 @@ export interface MemoCategory {
 const MEMOS_FILE = 'focus-island/memos.json'
 const CATEGORIES_FILE = 'focus-island/memo-categories.json'
 
+// Available category colors - use const object for stable references
+export const CATEGORY_COLOR_MAP = {
+  yellow: { id: 'yellow', bg: 'rgba(251, 191, 36, 0.15)', border: 'rgba(251, 191, 36, 0.4)', icon: '#fbbf24' },
+  green: { id: 'green', bg: 'rgba(74, 222, 128, 0.15)', border: 'rgba(74, 222, 128, 0.4)', icon: '#4ade80' },
+  blue: { id: 'blue', bg: 'rgba(96, 165, 250, 0.15)', border: 'rgba(96, 165, 250, 0.4)', icon: '#60a5fa' },
+  purple: { id: 'purple', bg: 'rgba(167, 139, 250, 0.15)', border: 'rgba(167, 139, 250, 0.4)', icon: '#a78bfa' },
+  pink: { id: 'pink', bg: 'rgba(244, 114, 182, 0.15)', border: 'rgba(244, 114, 182, 0.4)', icon: '#f472b6' },
+  orange: { id: 'orange', bg: 'rgba(251, 146, 60, 0.15)', border: 'rgba(251, 146, 60, 0.4)', icon: '#fb923c' },
+  teal: { id: 'teal', bg: 'rgba(45, 212, 191, 0.15)', border: 'rgba(45, 212, 191, 0.4)', icon: '#2dd4bf' },
+  slate: { id: 'slate', bg: 'rgba(148, 163, 184, 0.15)', border: 'rgba(148, 163, 184, 0.4)', icon: '#94a3b8' },
+} as const
+
+export const CATEGORY_COLORS = Object.values(CATEGORY_COLOR_MAP)
+
+// Stable getter function
+export function getCategoryColor(colorId: string) {
+  return CATEGORY_COLOR_MAP[colorId as keyof typeof CATEGORY_COLOR_MAP] || CATEGORY_COLOR_MAP.yellow
+}
+
 const DEFAULT_CATEGORIES: MemoCategory[] = [
-  { id: 'all', name: '全部', icon: '📋', isDefault: true, order: 0 },
-  { id: 'work', name: '工作', icon: '💼', isDefault: true, order: 1 },
-  { id: 'personal', name: '个人', icon: '🏠', isDefault: true, order: 2 },
-  { id: 'study', name: '学习', icon: '📚', isDefault: true, order: 3 },
+  { id: 'all', name: '全部', icon: 'folder', color: 'slate', isDefault: true, order: 0 },
+  { id: 'work', name: '工作', icon: 'folder', color: 'blue', isDefault: true, order: 1 },
+  { id: 'personal', name: '个人', icon: 'folder', color: 'green', isDefault: true, order: 2 },
+  { id: 'study', name: '学习', icon: 'folder', color: 'purple', isDefault: true, order: 3 },
 ]
 
 const memos = ref<Memo[]>([])
@@ -159,7 +179,7 @@ export function useMemos() {
     memo.updatedAt = Date.now()
   }
 
-  function addCategory(name: string): MemoCategory | null {
+  function addCategory(name: string, color: string = 'yellow'): MemoCategory | null {
     const trimmedName = name.trim()
     if (!trimmedName) return null
     const existing = categories.value.find(c => c.name === trimmedName)
@@ -168,7 +188,8 @@ export function useMemos() {
     const category: MemoCategory = {
       id: crypto.randomUUID(),
       name: trimmedName,
-      icon: '📝',
+      icon: 'folder',
+      color,
       isDefault: false,
       order: maxOrder + 1,
     }

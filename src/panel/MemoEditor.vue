@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import type { Memo, MemoCategory } from '../composables/useMemos'
+import MemoCategoryDropdown from './MemoCategoryDropdown.vue'
 
 const props = defineProps<{
   memo: Memo
@@ -25,7 +26,6 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const saveTimeout = ref<number | null>(null)
 const showDeleteConfirm = ref(false)
 const showColorPicker = ref(false)
-const showCategoryPicker = ref(false)
 
 // Track active formatting states
 const activeFormats = ref<{ bold: boolean; italic: boolean }>({ bold: false, italic: false })
@@ -552,12 +552,6 @@ onBeforeUnmount(() => {
   doSave()
 })
 
-// Get category name by id
-function getCategoryName(categoryId: string): string {
-  const category = props.categories.find(c => c.id === categoryId)
-  return category?.name || '未分类'
-}
-
 // Format update time display
 function formatUpdateTime(timestamp: number): string {
   const date = new Date(timestamp)
@@ -603,14 +597,13 @@ function formatUpdateTime(timestamp: number): string {
 
     <!-- Title Input -->
     <div class="editor-title-area">
-      <div class="category-select-wrapper">
-        <button class="category-trigger" @click="showCategoryPicker = !showCategoryPicker" type="button">
-          <span class="category-trigger-text">{{ getCategoryName(localCategoryId) }}</span>
-          <svg class="category-trigger-arrow" :class="{ open: showCategoryPicker }" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="M6 9l6 6 6-6"/>
-          </svg>
-        </button>
-      </div>
+      <MemoCategoryDropdown
+        v-model="localCategoryId"
+        :categories="categories"
+        size="medium"
+        :showNewButton="false"
+        @change="onCategoryChange"
+      />
       <input
         ref="titleInputRef"
         v-model="localTitle"
@@ -619,37 +612,6 @@ function formatUpdateTime(timestamp: number): string {
         @input="onTitleInput"
         @keydown="onTitleKeydown"
       />
-
-      <!-- Category Bottom Sheet -->
-      <Transition name="sheet">
-        <div v-if="showCategoryPicker" class="category-overlay" @click="showCategoryPicker = false">
-          <div class="category-sheet" @click.stop>
-            <div class="sheet-header">
-              <span class="sheet-title">选择分类</span>
-              <button class="sheet-close" @click="showCategoryPicker = false">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M18 6L6 18M6 6l12 12"/>
-                </svg>
-              </button>
-            </div>
-            <div class="sheet-list">
-              <button
-                v-for="category in categories"
-                :key="category.id"
-                class="sheet-item"
-                :class="{ active: localCategoryId === category.id }"
-                @click="localCategoryId = category.id; onCategoryChange(); showCategoryPicker = false"
-              >
-                <span class="sheet-item-icon">{{ category.icon }}</span>
-                <span class="sheet-item-name">{{ category.name }}</span>
-                <svg v-if="localCategoryId === category.id" class="sheet-item-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <path d="M20 6L9 17l-5-5"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
     </div>
 
     <!-- Rich Text Toolbar -->
@@ -866,37 +828,6 @@ function formatUpdateTime(timestamp: number): string {
 
 .title-input::placeholder {
   color: rgba(255, 255, 255, 0.3);
-}
-
-/* Category select (in top bar) */
-.category-select-wrapper {
-  position: relative;
-}
-
-.category-select {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-  width: 100%;
-}
-
-.category-icon {
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.7);
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  transition: all 0.2s;
-}
-
-.category-select-wrapper:hover .category-icon {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.15);
 }
 
 /* Toolbar */
@@ -1254,24 +1185,5 @@ function formatUpdateTime(timestamp: number): string {
 .confirm-btn:hover {
   background: rgba(248, 113, 113, 0.25);
   border-color: rgba(248, 113, 113, 0.5);
-}
-
-/* Dark select dropdown styling */
-.category-select {
-  position: absolute;
-  inset: 0;
-  cursor: pointer;
-  width: 100%;
-  opacity: 0;
-  /* Ensure dark appearance */
-  color-scheme: dark;
-  background: rgba(28, 28, 32, 0.98);
-}
-
-.category-select option {
-  background: rgba(28, 28, 32, 0.98);
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 13px;
-  padding: 8px;
 }
 </style>
