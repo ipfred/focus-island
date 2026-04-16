@@ -1,4 +1,5 @@
 use tauri::{
+    image::Image,
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     window::Color,
@@ -19,6 +20,7 @@ use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
 use x11::xlib;
 
 const PANEL_GAP_Y: i32 = 6;
+const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/32x32.png");
 
 static LAST_PANEL_SIZE: OnceLock<Mutex<Option<tauri::PhysicalSize<u32>>>> = OnceLock::new();
 
@@ -425,8 +427,10 @@ pub fn run() {
 
             let menu = Menu::with_items(app, &[&open_panel, &toggle_island, &separator, &quit])?;
 
+            let tray_icon = Image::from_bytes(TRAY_ICON_BYTES)?;
+
             TrayIconBuilder::new()
-                .icon(app.default_window_icon().unwrap().clone())
+                .icon(tray_icon)
                 .menu(&menu)
                 .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
