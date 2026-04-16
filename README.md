@@ -127,7 +127,10 @@ npm run build
 
 ```bash
 # 升级版本并自动同步 Cargo.toml
-npm version patch   # 或 npm version minor / npm version major
+npm version patch   # 末位版本号 +1 
+npm version minor   # 升级中间位 充值末位
+npm version major  # 首位升级 重置后两位
+npm version 1.8.3 --no-git-tag-version  # 指定版本 不提交到git上
 ```
 
 运行 `npm version` 时会触发 `package.json` 里的 `version` 钩子：
