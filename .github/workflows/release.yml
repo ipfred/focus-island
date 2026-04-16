@@ -62,20 +62,27 @@ jobs:
           - platform: 'macos-latest'
             args: '--bundles dmg --target aarch64-apple-darwin'
             target: 'aarch64-apple-darwin'
+            platform_name: 'darwin-aarch64'
           - platform: 'macos-latest'
             args: '--bundles dmg --target x86_64-apple-darwin'
             target: 'x86_64-apple-darwin'
+            platform_name: 'darwin-x86_64'
           - platform: 'windows-latest'
             args: '--bundles nsis'
             target: ''
+            platform_name: 'windows-x86_64'
           - platform: 'ubuntu-22.04'
             args: '--bundles appimage,deb'
             target: ''
+            platform_name: 'linux-x86_64'
           - platform: 'ubuntu-22.04-arm'
             args: '--bundles appimage,deb --target aarch64-unknown-linux-gnu'
             target: 'aarch64-unknown-linux-gnu'
+            platform_name: 'linux-aarch64'
 
     runs-on: ${{ matrix.platform }}
+    outputs:
+      artifact_name: ${{ steps.upload.outputs.artifact_name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -111,21 +118,20 @@ jobs:
           args: ${{ matrix.args }}
 
       - name: Upload artifacts
+        id: upload
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          # 用于 Release 文件名的 ASCII 名称（可单独维护，不影响安装后的中文名）
           ARTIFACT_NAME="FocusIsland"
+          VERSION="${RELEASE_TAG#v}"
+          UPLOADED_ARTIFACT=""
 
           find src-tauri/target -type f \( -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" -o -name "*-setup.exe" \) -print0 | \
           while IFS= read -r -d '' artifact; do
             dir=$(dirname "$artifact")
             base=$(basename "$artifact")
 
-            # 关键：截掉文件名中版本号之前的所有字符（中文或下划线均适用）
-            # 专注岛_1.0.0_x64-setup.exe  →  1.0.0_x64-setup.exe
-            # ___1.0.0_x64-setup.exe       →  1.0.0_x64-setup.exe
             stripped=$(echo "$base" | sed 's/^[^0-9]*//')
 
             if [ -z "$stripped" ]; then
@@ -139,4 +145,57 @@ jobs:
 
             echo "Uploading: $base → $new_name"
             gh release upload "${{ env.RELEASE_TAG }}" "$new_path" --clobber
+
+            # 保存第一个上传的文件名用于 latest.json
+            if [ -z "$UPLOADED_ARTIFACT" ]; then
+              UPLOADED_ARTIFACT="$new_name"
+            fi
           done
+
+          echo "artifact_name=$UPLOADED_ARTIFACT" >> $GITHUB_OUTPUT
+
+  generate-latest-json:
+    needs: build
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate latest.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${RELEASE_TAG#v}"
+          REPO="ipfred/focus-island"
+
+          # 获取发布日期
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # 构建 latest.json
+          cat > latest.json << EOF
+          {
+            "version": "${VERSION}",
+            "notes": "See https://github.com/${REPO}/releases/tag/${RELEASE_TAG} for release notes.",
+            "pub_date": "${PUB_DATE}",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "",
+                "url": "https://github.com/${REPO}/releases/download/${RELEASE_TAG}/FocusIsland_${VERSION}_aarch64.dmg"
+              },
+              "darwin-x86_64": {
+                "signature": "",
+                "url": "https://github.com/${REPO}/releases/download/${RELEASE_TAG}/FocusIsland_${VERSION}_x64.dmg"
+              },
+              "windows-x86_64": {
+                "signature": "",
+                "url": "https://github.com/${REPO}/releases/download/${RELEASE_TAG}/FocusIsland_${VERSION}_x64-setup.exe"
+              }
+            }
+          }
+          EOF
+
+          echo "Generated latest.json:"
+          cat latest.json
+
+          gh release upload "${RELEASE_TAG}" latest.json --clobber

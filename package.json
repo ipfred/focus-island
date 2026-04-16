@@ -14,8 +14,11 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-app": "^2.0.0-alpha.1",
     "@tauri-apps/plugin-fs": "^2.0.0",
+    "@tauri-apps/plugin-process": "^2.3.1",
     "@tauri-apps/plugin-shell": "^2.0.0",
+    "@tauri-apps/plugin-updater": "^2.10.1",
     "@vueuse/core": "^14.2.1",
     "@vueuse/motion": "^3.0.3",
     "vue": "^3.5.13"

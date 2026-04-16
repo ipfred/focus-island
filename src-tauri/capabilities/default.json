@@ -10,6 +10,8 @@
     "fs:allow-mkdir",
     "fs:allow-appdata-read-recursive",
     "fs:allow-appdata-write-recursive",
-    "shell:default"
+    "shell:default",
+    "updater:default",
+    "process:default"
   ]
 }

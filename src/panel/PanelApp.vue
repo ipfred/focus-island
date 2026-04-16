@@ -253,12 +253,10 @@ async function closeWindow() {
     <div class="panel-inner">
       <PanelTitleBar :title="pageTitle" @close="closeWindow" />
       <div class="panel-body">
-        <transition name="slide-right" mode="out-in">
-          <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" @settings="currentView = 'settings'" @completed="currentView = 'completed'" @memos="currentView = 'memos'" />
-          <SettingsPage v-else-if="currentView === 'settings'" @back="currentView = 'tasks'" />
-          <MemoPage v-else-if="currentView === 'memos'" @back="currentView = 'tasks'" />
-          <CompletedPage v-else @back="currentView = 'tasks'" />
-        </transition>
+        <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" @settings="currentView = 'settings'" @completed="currentView = 'completed'" @memos="currentView = 'memos'" />
+        <SettingsPage v-else-if="currentView === 'settings'" @back="currentView = 'tasks'" />
+        <MemoPage v-else-if="currentView === 'memos'" @back="currentView = 'tasks'" />
+        <CompletedPage v-else @back="currentView = 'tasks'" />
       </div>
     </div>
   </div>
