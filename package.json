@@ -1,7 +1,7 @@
 {
   "name": "focus-island",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "type": "module",
   "scripts": {
     "tauri": "tauri",
@@ -31,4 +31,3 @@
     "vue-tsc": "^2.2.8"
   }
 }
-
