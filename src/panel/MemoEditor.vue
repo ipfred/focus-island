@@ -46,6 +46,65 @@ const colors = [
 
 // Store last selection to restore after toolbar button clicks
 let lastSelectionRange: Range | null = null
+const ZERO_WIDTH_SPACE = '\u200B'
+
+function isNodeInEditor(node: Node | null): boolean {
+  if (!node || !editorRef.value) return false
+  return editorRef.value === node || editorRef.value.contains(node)
+}
+
+function getEditorSelectionRange(selection: Selection | null = window.getSelection()): Range | null {
+  if (!selection || selection.rangeCount === 0) return null
+  const range = selection.getRangeAt(0)
+  if (!isNodeInEditor(range.commonAncestorContainer)) return null
+  return range
+}
+
+function placeCaretAtEnd(node: Node) {
+  const selection = window.getSelection()
+  if (!selection) return
+
+  const range = document.createRange()
+  range.selectNodeContents(node)
+  range.collapse(false)
+  selection.removeAllRanges()
+  selection.addRange(range)
+}
+
+function ensureEditorSelection(): Selection | null {
+  const selection = window.getSelection()
+  if (getEditorSelectionRange(selection)) return selection
+
+  if (!restoreSelection()) {
+    editorRef.value?.focus()
+    if (editorRef.value) {
+      placeCaretAtEnd(editorRef.value)
+    }
+  }
+  return window.getSelection()
+}
+
+function normalizeCheckboxText(text: string): string {
+  return text.replaceAll(ZERO_WIDTH_SPACE, '').trim()
+}
+
+function createCheckboxItem(): HTMLDivElement {
+  const wrapper = document.createElement('div')
+  wrapper.className = 'memo-checkbox-item'
+
+  const checkbox = document.createElement('input')
+  checkbox.type = 'checkbox'
+  checkbox.className = 'memo-checkbox'
+  checkbox.setAttribute('data-memo-checkbox', 'true')
+
+  const textSpan = document.createElement('span')
+  textSpan.className = 'memo-checkbox-text'
+  textSpan.textContent = ZERO_WIDTH_SPACE
+
+  wrapper.appendChild(checkbox)
+  wrapper.appendChild(textSpan)
+  return wrapper
+}
 
 // Sync local state when memo changes
 watch(() => props.memo, (newMemo) => {
@@ -103,6 +162,9 @@ function onTitleKeydown(e: KeyboardEvent) {
   if (e.key === 'Enter') {
     e.preventDefault()
     editorRef.value?.focus()
+    if (!restoreSelection() && editorRef.value) {
+      placeCaretAtEnd(editorRef.value)
+    }
   }
 }
 
@@ -161,36 +223,37 @@ function rgbToHex(rgb: string): string {
 // Save current selection for restoring after toolbar clicks
 function saveSelection() {
   const selection = window.getSelection()
-  if (selection && selection.rangeCount > 0) {
-    lastSelectionRange = selection.getRangeAt(0).cloneRange()
+  const range = getEditorSelectionRange(selection)
+  if (range) {
+    lastSelectionRange = range.cloneRange()
   }
 }
 
 // Restore saved selection
 function restoreSelection(): boolean {
-  if (!lastSelectionRange) return false
+  if (!lastSelectionRange || !editorRef.value) return false
+  const commonNode = lastSelectionRange.commonAncestorContainer
+  if (!document.contains(commonNode) || !isNodeInEditor(commonNode)) {
+    lastSelectionRange = null
+    return false
+  }
 
   const selection = window.getSelection()
   if (!selection) return false
 
-  selection.removeAllRanges()
-  selection.addRange(lastSelectionRange)
-  return true
+  try {
+    selection.removeAllRanges()
+    selection.addRange(lastSelectionRange)
+    return true
+  } catch {
+    lastSelectionRange = null
+    return false
+  }
 }
 
 // Rich text editing commands
 function execCommand(command: string, value: string | undefined = undefined) {
-  // Restore selection if it was lost (e.g., after clicking toolbar)
-  const selection = window.getSelection()
-  const hasSelection = selection && selection.rangeCount > 0 && editorRef.value?.contains(selection.anchorNode as Node)
-
-  if (!hasSelection) {
-    // Try to restore last saved selection
-    if (!restoreSelection()) {
-      // If no saved selection, focus editor (for initial state)
-      editorRef.value?.focus()
-    }
-  }
+  ensureEditorSelection()
 
   // Execute command
   document.execCommand(command, false, value)
@@ -215,46 +278,21 @@ function setTextColor(color: string) {
 }
 
 function insertCheckbox() {
-  // Restore selection if it was lost (e.g., after clicking toolbar)
-  const selection = window.getSelection()
-  const hasSelection = selection && selection.rangeCount > 0 && editorRef.value?.contains(selection.anchorNode as Node)
+  const selection = ensureEditorSelection()
+  const range = getEditorSelectionRange(selection)
+  if (!selection || !range) return
 
-  if (!hasSelection) {
-    if (!restoreSelection()) {
-      // If no saved selection, focus editor and use end position
-      editorRef.value?.focus()
-    }
-  }
-
-  if (!selection || selection.rangeCount === 0) return
-
-  const range = selection.getRangeAt(0)
-
-  // Create checkbox HTML element
-  const wrapper = document.createElement('div')
-  wrapper.className = 'memo-checkbox-item'
-
-  const checkbox = document.createElement('input')
-  checkbox.type = 'checkbox'
-  checkbox.className = 'memo-checkbox'
-  checkbox.setAttribute('data-memo-checkbox', 'true')
-
-  const textSpan = document.createElement('span')
-  textSpan.className = 'memo-checkbox-text'
-  textSpan.innerHTML = '\u200B' // Zero-width space for cursor placement
-
-  wrapper.appendChild(checkbox)
-  wrapper.appendChild(textSpan)
+  const wrapper = createCheckboxItem()
+  const textSpan = wrapper.querySelector('.memo-checkbox-text')
+  if (!textSpan) return
 
   // Insert at cursor position
   range.deleteContents()
   range.insertNode(wrapper)
 
-  // Move cursor inside textSpan (after the zero-width space)
-  range.selectNodeContents(textSpan)
-  range.collapse(false) // Collapse to end
-  selection.removeAllRanges()
-  selection.addRange(range)
+  // Move cursor inside textSpan
+  placeCaretAtEnd(textSpan)
+  saveSelection()
 
   onContentChange()
 }
@@ -270,25 +308,22 @@ function onEditorClick(e: MouseEvent) {
     } else {
       checkbox.removeAttribute('checked')
     }
+
+    // Keep focus inside editor to avoid "Enter no response" after clicking checkbox
+    const textSpan = checkbox.closest('.memo-checkbox-item')?.querySelector('.memo-checkbox-text')
+    if (textSpan) {
+      editorRef.value?.focus()
+      placeCaretAtEnd(textSpan)
+      saveSelection()
+    }
     onContentChange()
   }
 }
 
 function insertDivider() {
-  // Restore selection if it was lost (e.g., after clicking toolbar)
-  const selection = window.getSelection()
-  const hasSelection = selection && selection.rangeCount > 0 && editorRef.value?.contains(selection.anchorNode as Node)
-
-  if (!hasSelection) {
-    if (!restoreSelection()) {
-      // If no saved selection, focus editor
-      editorRef.value?.focus()
-    }
-  }
-
-  if (!selection || selection.rangeCount === 0) return
-
-  const range = selection.getRangeAt(0)
+  const selection = ensureEditorSelection()
+  const range = getEditorSelectionRange(selection)
+  if (!selection || !range) return
 
   // Create hr element
   const hr = document.createElement('hr')
@@ -303,11 +338,9 @@ function insertDivider() {
   range.insertNode(hr)
   hr.after(br)
 
-  // Move cursor after hr
-  range.setStartAfter(hr)
-  range.setEndAfter(hr)
-  selection.removeAllRanges()
-  selection.addRange(range)
+  // Move cursor to the new empty line
+  placeCaretAtEnd(br)
+  saveSelection()
 
   onContentChange()
 }
@@ -420,6 +453,8 @@ function handleBack() {
 
 // Keyboard shortcuts
 function onEditorKeydown(e: KeyboardEvent) {
+  if (e.isComposing || e.keyCode === 229) return
+
   // Ctrl/Cmd + B for bold
   if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
     e.preventDefault()
@@ -442,75 +477,71 @@ function onEditorKeydown(e: KeyboardEvent) {
   // Handle Enter in checkbox item - create new checkbox below
   if (e.key === 'Enter' && !e.shiftKey) {
     const selection = window.getSelection()
-    if (!selection || selection.rangeCount === 0) return
+    const range = getEditorSelectionRange(selection)
+    if (!range || !range.collapsed) return
 
-    const range = selection.getRangeAt(0)
     const node = range.startContainer
-    const checkboxItem = (node instanceof Element ? node : node.parentElement)?.closest('.memo-checkbox-item')
+    const checkboxText = (node instanceof Element ? node : node.parentElement)?.closest('.memo-checkbox-text')
+    const checkboxItem = checkboxText?.closest('.memo-checkbox-item')
+    if (!checkboxText || !checkboxItem) return
 
-    if (checkboxItem) {
-      e.preventDefault()
+    e.preventDefault()
 
-      // Create new checkbox
-      const newWrapper = document.createElement('div')
-      newWrapper.className = 'memo-checkbox-item'
-
-      const newCheckbox = document.createElement('input')
-      newCheckbox.type = 'checkbox'
-      newCheckbox.className = 'memo-checkbox'
-      newCheckbox.setAttribute('data-memo-checkbox', 'true')
-
-      const newTextSpan = document.createElement('span')
-      newTextSpan.className = 'memo-checkbox-text'
-      newTextSpan.innerHTML = '\u200B'
-
-      newWrapper.appendChild(newCheckbox)
-      newWrapper.appendChild(newTextSpan)
-
-      // Insert after current checkbox
+    const hasText = normalizeCheckboxText(checkboxText.textContent || '').length > 0
+    if (hasText) {
+      const newWrapper = createCheckboxItem()
+      const newTextSpan = newWrapper.querySelector('.memo-checkbox-text')
       checkboxItem.after(newWrapper)
-
-      // Move cursor to new checkbox text
-      const newRange = document.createRange()
-      newRange.selectNodeContents(newTextSpan)
-      newRange.collapse(false)
-      selection.removeAllRanges()
-      selection.addRange(newRange)
-
-      onContentChange()
+      if (newTextSpan) {
+        placeCaretAtEnd(newTextSpan)
+      }
+    } else {
+      // Mainstream behavior: Enter on empty checkbox exits checklist.
+      const nextLine = document.createElement('div')
+      nextLine.innerHTML = '<br>'
+      checkboxItem.after(nextLine)
+      checkboxItem.remove()
+      placeCaretAtEnd(nextLine)
     }
+
+    saveSelection()
+    onContentChange()
+    return
   }
 
   // Handle Backspace to easily delete checkbox
   if (e.key === 'Backspace') {
     const selection = window.getSelection()
-    if (!selection || selection.rangeCount === 0) return
+    const range = getEditorSelectionRange(selection)
+    if (!selection || !range || !range.collapsed) return
 
-    const range = selection.getRangeAt(0)
     const node = range.startContainer
-    const checkboxItem = (node instanceof Element ? node : node.parentElement)?.closest('.memo-checkbox-item')
+    const checkboxText = (node instanceof Element ? node : node.parentElement)?.closest('.memo-checkbox-text')
+    const checkboxItem = checkboxText?.closest('.memo-checkbox-item')
+    if (!checkboxText || !checkboxItem) return
 
-    if (checkboxItem) {
-      const textSpan = checkboxItem.querySelector('.memo-checkbox-text')
-      const textContent = textSpan?.textContent || ''
+    const textContent = normalizeCheckboxText(checkboxText.textContent || '')
+    const caretAtStart = (() => {
+      const startRange = document.createRange()
+      startRange.selectNodeContents(checkboxText)
+      startRange.collapse(true)
+      return range.compareBoundaryPoints(Range.START_TO_START, startRange) === 0
+    })()
 
-      // If at start of checkbox text and text is empty or only zero-width space, delete the checkbox
-      if (range.startOffset === 0 && (!textContent || textContent === '\u200B' || textContent === '')) {
-        e.preventDefault()
+    // If at start of checkbox text and text is empty, delete the checkbox
+    if (caretAtStart && textContent.length === 0) {
+      e.preventDefault()
 
-        // Move cursor before checkbox
-        const newRange = document.createRange()
-        newRange.setStartBefore(checkboxItem)
-        newRange.collapse(true)
+      const newRange = document.createRange()
+      newRange.setStartBefore(checkboxItem)
+      newRange.collapse(true)
 
-        // Remove checkbox
-        checkboxItem.remove()
+      checkboxItem.remove()
 
-        selection.removeAllRanges()
-        selection.addRange(newRange)
-
-        onContentChange()
-      }
+      selection.removeAllRanges()
+      selection.addRange(newRange)
+      saveSelection()
+      onContentChange()
     }
   }
 }

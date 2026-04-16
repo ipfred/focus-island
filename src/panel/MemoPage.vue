@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { useMemos, type Memo } from '../composables/useMemos'
 import MemoEditor from './MemoEditor.vue'
 import MemoCategoryDialog from './MemoCategoryDialog.vue'
@@ -48,12 +48,6 @@ function formatTime(timestamp: number): string {
   const month = (date.getMonth() + 1).toString().padStart(2, '0')
   const day = date.getDate().toString().padStart(2, '0')
   return `${month}-${day}`
-}
-
-// Get category name by id
-function getCategoryName(categoryId: string): string {
-  const category = categories.value.find(c => c.id === categoryId)
-  return category?.name || '未分类'
 }
 
 // Extract plain text preview from HTML content
