@@ -99,6 +99,29 @@ function handleTogglePin(memo: Memo, event: Event) {
   togglePin(memo.id)
 }
 
+// Delete memo - show confirmation dialog
+const showDeleteConfirm = ref(false)
+const pendingDeleteMemoId = ref<string | null>(null)
+
+function handleDeleteMemo(memo: Memo, event: Event) {
+  event.stopPropagation()
+  pendingDeleteMemoId.value = memo.id
+  showDeleteConfirm.value = true
+}
+
+function confirmDeleteMemo() {
+  if (pendingDeleteMemoId.value) {
+    deleteMemo(pendingDeleteMemoId.value)
+  }
+  showDeleteConfirm.value = false
+  pendingDeleteMemoId.value = null
+}
+
+function cancelDeleteMemo() {
+  showDeleteConfirm.value = false
+  pendingDeleteMemoId.value = null
+}
+
 // Open category dialog
 function handleManageCategories() {
   showCategoryDialog.value = true
@@ -156,16 +179,28 @@ function handleCloseCategoryDialog() {
         >
           <div class="memo-item-header">
             <span class="memo-item-title">{{ getDisplayTitle(memo) }}</span>
-            <button
-              class="pin-btn"
-              :class="{ 'is-pinned': memo.isPinned }"
-              @click="(e) => handleTogglePin(memo, e)"
-              :title="memo.isPinned ? '取消置顶' : '置顶'"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-              </svg>
-            </button>
+            <div class="memo-item-actions">
+              <button
+                class="action-btn pin-btn"
+                :class="{ 'is-pinned': memo.isPinned }"
+                @click="(e) => handleTogglePin(memo, e)"
+                :title="memo.isPinned ? '取消置顶' : '置顶'"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+              </button>
+              <button
+                class="action-btn delete-btn"
+                @click="(e) => handleDeleteMemo(memo, e)"
+                title="删除"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+              </button>
+            </div>
           </div>
           <div class="memo-item-meta">
             <MemoCategoryTag :category-id="memo.categoryId" />
@@ -200,6 +235,18 @@ function handleCloseCategoryDialog() {
         @back="handleBackToList"
       />
     </template>
+
+    <!-- Delete Confirmation Dialog -->
+    <div v-if="showDeleteConfirm" class="delete-dialog-overlay" @click="cancelDeleteMemo">
+      <div class="delete-dialog" @click.stop>
+        <div class="delete-dialog-title">🗑️ 删除备忘录</div>
+        <div class="delete-dialog-content">确定要删除这条备忘录吗？此操作无法撤销。</div>
+        <div class="delete-dialog-actions">
+          <button class="dialog-btn cancel-btn" @click="cancelDeleteMemo">取消</button>
+          <button class="dialog-btn confirm-btn" @click="confirmDeleteMemo">删除</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Category Dialog -->
     <MemoCategoryDialog
@@ -382,7 +429,21 @@ function handleCloseCategoryDialog() {
   flex: 1;
 }
 
-.pin-btn {
+.memo-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  flex-shrink: 0;
+}
+
+.memo-item:hover .memo-item-actions,
+.memo-item.is-pinned .memo-item-actions {
+  opacity: 1;
+}
+
+.action-btn {
   width: 22px;
   height: 22px;
   border-radius: 5px;
@@ -393,27 +454,27 @@ function handleCloseCategoryDialog() {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
-  opacity: 0;
-  flex-shrink: 0;
+  transition: all 0.15s;
 }
 
-.memo-item:hover .pin-btn {
-  opacity: 1;
-}
-
-.pin-btn:hover {
+.action-btn:hover {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.15);
   color: rgba(255, 255, 255, 0.7);
 }
 
+/* Pin button: highlighted when pinned */
 .pin-btn.is-pinned {
-  opacity: 1;
   color: var(--focus-color);
 }
 
 .pin-btn.is-pinned:hover {
+  background: rgba(248, 113, 113, 0.15);
+  border-color: rgba(248, 113, 113, 0.25);
+  color: #f87171;
+}
+
+.delete-btn:hover {
   background: rgba(248, 113, 113, 0.15);
   border-color: rgba(248, 113, 113, 0.25);
   color: #f87171;
@@ -481,5 +542,80 @@ function handleCloseCategoryDialog() {
   background: color-mix(in srgb, var(--focus-color) 25%, transparent);
   border-color: color-mix(in srgb, var(--focus-color) 50%, transparent);
   transform: scale(1.02);
+}
+
+/* Delete Confirmation Dialog */
+.delete-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.delete-dialog {
+  background: rgba(28, 28, 32, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 20px 24px;
+  min-width: 280px;
+  max-width: 320px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.delete-dialog-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 12px;
+}
+
+.delete-dialog-content {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.delete-dialog-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.dialog-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid transparent;
+}
+
+.cancel-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.confirm-btn {
+  background: rgba(248, 113, 113, 0.15);
+  border-color: rgba(248, 113, 113, 0.3);
+  color: #f87171;
+}
+
+.confirm-btn:hover {
+  background: rgba(248, 113, 113, 0.25);
+  border-color: rgba(248, 113, 113, 0.5);
 }
 </style>
