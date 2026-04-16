@@ -119,8 +119,39 @@ npm run dev
 npm run build
 ```
 
+## 🔖 版本号同步（package.json -> Cargo.toml）
+
+项目内置脚本 `scripts/sync-version.mjs`，会读取 `package.json` 中的 `version` 并同步到 `src-tauri/Cargo.toml`。
+
+### 推荐发布流程
+
+```bash
+# 升级版本并自动同步 Cargo.toml
+npm version patch   # 或 npm version minor / npm version major
+```
+
+运行 `npm version` 时会触发 `package.json` 里的 `version` 钩子：
+
+```bash
+node scripts/sync-version.mjs && git add src-tauri/Cargo.toml
+```
+
+这样生成的版本提交和 tag 会包含：
+- `package.json`
+- `package-lock.json`
+- `src-tauri/Cargo.toml`
+
+### 单独执行脚本（可选）
+
+```bash
+node scripts/sync-version.mjs
+git add src-tauri/Cargo.toml
+```
+
+当你手动修改了 `package.json` 的版本号后，可用这组命令补做同步。
 ---
 
 ## 📄 License
 
 MIT
+

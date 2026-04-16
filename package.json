@@ -10,7 +10,7 @@
     "vite:build": "vite build",
     "vite:dev": "vite",
     "preview": "vite preview",
-    "postversion": "node scripts/sync-version.mjs && git add src-tauri/Cargo.toml"
+    "version": "node scripts/sync-version.mjs && git add src-tauri/Cargo.toml"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.10.1",
@@ -31,3 +31,4 @@
     "vue-tsc": "^2.2.8"
   }
 }
+
