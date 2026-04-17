@@ -20,6 +20,7 @@ const updateInfo = ref<{ version: string; body?: string } | null>(null)
 const checked = ref(false)  // 是否已检查过
 
 const githubUrl = 'https://github.com/ipfred/focus-island'
+import appIcon from '../../src-tauri/icons/128x128.png'
 
 onMounted(async () => {
   try {
@@ -112,7 +113,7 @@ async function downloadAndInstall() {
     <div class="dialog-container" @click.stop>
       <!-- 应用图标 -->
       <div class="app-icon-wrapper">
-        <img src="/icon.png" :alt="appName" class="app-icon" />
+        <img :src="appIcon" :alt="appName" class="app-icon" />
       </div>
 
       <!-- 应用名称和版本 -->
