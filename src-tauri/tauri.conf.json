@@ -33,7 +33,7 @@
         "title": "专注清单",
         "width": 420,
         "height": 600,
-        "minWidth": 340,
+        "minWidth": 400,
         "minHeight": 480,
         "resizable": true,
         "decorations": false,

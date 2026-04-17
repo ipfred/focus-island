@@ -191,7 +191,7 @@ fn panel_config_values<R: Runtime>(app: &AppHandle<R>) -> (f64, f64, f64, f64) {
         let min_height = cfg.min_height.unwrap_or(height);
         return (width, height, min_width, min_height);
     }
-    (420.0, 600.0, 340.0, 480.0)
+    (420.0, 600.0, 400.0, 480.0)
 }
 
 fn position_panel_under_island_inner<R: Runtime>(app: &AppHandle<R>) {
@@ -222,7 +222,7 @@ fn get_panel_transition_metrics<R: Runtime>(app: AppHandle<R>) -> Option<PanelTr
         return None;
     };
 
-    let (cfg_w, cfg_h, _cfg_min_w, _cfg_min_h) = panel_config_values(&app);
+    let (cfg_w, cfg_h, cfg_min_w, cfg_min_h) = panel_config_values(&app);
     let scale = panel.scale_factor().unwrap_or(1.0);
     let fallback_size = panel.outer_size().unwrap_or(tauri::PhysicalSize::new(
         (cfg_w * scale).round() as u32,
@@ -233,6 +233,12 @@ fn get_panel_transition_metrics<R: Runtime>(app: AppHandle<R>) -> Option<PanelTr
     } else {
         get_last_panel_size(fallback_size)
     };
+    let min_width = (cfg_min_w * scale).round() as u32;
+    let min_height = (cfg_min_h * scale).round() as u32;
+    let panel_size = tauri::PhysicalSize::new(
+        panel_size.width.max(min_width),
+        panel_size.height.max(min_height),
+    );
     let panel_pos = panel_target_position(main_pos, main_size, panel_size);
 
     Some(PanelTransitionMetrics {
@@ -292,6 +298,12 @@ fn animate_panel_open<R: Runtime>(app: AppHandle<R>) {
         (cfg_h * scale).round() as u32,
     ));
     let target_size = get_last_panel_size(fallback_size);
+    let min_width = (cfg_min_w * scale).round() as u32;
+    let min_height = (cfg_min_h * scale).round() as u32;
+    let target_size = tauri::PhysicalSize::new(
+        target_size.width.max(min_width),
+        target_size.height.max(min_height),
+    );
     let target_pos = panel_target_position(main_pos, main_size, target_size);
 
     let _ = panel.set_ignore_cursor_events(false);

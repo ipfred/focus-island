@@ -8,7 +8,7 @@ const props = defineProps<{
     category: TaskCategory;
 }>();
 
-const emit = defineEmits<{ close: []; settings: []; completed: []; memos: [] }>();
+const emit = defineEmits<{ close: [] }>();
 
 const {
     tasks,
@@ -16,7 +16,6 @@ const {
     deleteTask,
     toggleComplete,
     setTaskPriority,
-    todayStats,
     incrementPomodoro,
     updateTask,
 } = useTasks();
@@ -52,12 +51,6 @@ let activeScroll: ScrollState | null = null;
 
 const activeTasks = computed(() =>
     tasks.value.filter((t) => !t.completed && t.category === props.category),
-);
-
-const completedCount = computed(
-    () =>
-        tasks.value.filter((t) => t.completed && t.category === props.category)
-            .length,
 );
 
 const top3Tasks = computed(() => {
@@ -502,39 +495,6 @@ onBeforeUnmount(() => {
             </div>
         </div>
 
-        <!-- Zone 4: Footer -->
-        <div class="zone-4">
-            <div class="footer-stats">
-                <span class="footer-dot">●</span> 今日:
-                {{ todayStats.completedToday }} 任务 ·
-                {{ todayStats.focusMinutes }} 分钟
-            </div>
-            <div class="footer-actions">
-                <button
-                    class="footer-btn"
-                    title="备忘录"
-                    @click="emit('memos')"
-                >
-                    📝 备忘录
-                </button>
-                <button
-                    class="footer-btn"
-                    title="已完成任务"
-                    @click="emit('completed')"
-                >
-                    ✓ 已完成{{
-                        completedCount > 0 ? ` (${completedCount})` : ""
-                    }}
-                </button>
-                <button
-                    class="footer-btn"
-                    title="设置"
-                    @click="emit('settings')"
-                >
-                    ⚙
-                </button>
-            </div>
-        </div>
     </div>
 </template>
 
@@ -1004,51 +964,4 @@ onBeforeUnmount(() => {
     text-align: right;*/
 }
 
-/* Zone 4: Footer */
-.zone-4 {
-    padding: 10px 16px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: rgba(0, 0, 0, 0.1);
-    flex-shrink: 0;
-}
-
-.footer-stats {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.45);
-}
-
-.footer-dot {
-    color: var(--focus-color);
-    font-size: 10px;
-}
-
-.footer-actions {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-.footer-btn {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
-    color: rgba(255, 255, 255, 0.55);
-    font-size: 11px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s;
-    padding: 4px 10px;
-    height: 26px;
-    display: inline-flex;
-    align-items: center;
-}
-
-.footer-btn:hover {
-    background: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.2);
-    color: #fff;
-}
 </style>

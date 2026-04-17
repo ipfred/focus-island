@@ -10,6 +10,7 @@ import TaskArea from './TaskArea.vue'
 import SettingsPage from './SettingsPage.vue'
 import CompletedPage from './CompletedPage.vue'
 import MemoPage from './MemoPage.vue'
+import StatsPage from './StatsPage.vue'
 import PanelTitleBar from './PanelTitleBar.vue'
 
 interface PanelTransitionMetrics {
@@ -31,7 +32,7 @@ const PANEL_CLOSE_DURATION = 240
 const CLOSE_FALLBACK_BUFFER = 140
 const IS_MACOS = navigator.userAgent.toLowerCase().includes('mac')
 
-const currentView = ref<'tasks' | 'settings' | 'completed' | 'memos'>('tasks')
+const currentView = ref<'tasks' | 'settings' | 'completed' | 'memos' | 'stats'>('tasks')
 
 // 根据当前视图计算标题栏标题
 const pageTitle = computed(() => {
@@ -39,9 +40,41 @@ const pageTitle = computed(() => {
     case 'memos': return '📝 备忘录'
     case 'settings': return '⚙️ 设置'
     case 'completed': return '✓ 已完成'
+    case 'stats': return '📊 统计'
     default: return '专注清单'
   }
 })
+
+const navItems = [
+  {
+    key: 'tasks',
+    label: '任务',
+    iconPaths: ['M4 6h2', 'M4 12h2', 'M4 18h2', 'M9 6h11', 'M9 12h11', 'M9 18h11'],
+  },
+  {
+    key: 'completed',
+    label: '完成',
+    iconPaths: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z', 'M9 12l2 2 4-4'],
+  },
+  {
+    key: 'memos',
+    label: '备忘',
+    iconPaths: ['M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z', 'M14 2v6h6', 'M9 13h6', 'M9 17h6', 'M9 9h1'],
+  },
+  {
+    key: 'stats',
+    label: '统计',
+    iconPaths: ['M3 3v18h18', 'M8 16v-6', 'M13 16V8', 'M18 16v-3'],
+  },
+  {
+    key: 'settings',
+    label: '设置',
+    iconPaths: [
+      'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
+      'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c0 .66.39 1.26 1 1.51.16.07.33.1.51.1H21a2 2 0 1 1 0 4h-.09c-.66 0-1.26.39-1.51 1Z',
+    ],
+  },
+] as const
 const isClosing = ref(false)
 const panelRootRef = ref<HTMLElement | null>(null)
 const panelAnimState = ref<'hidden' | 'steady' | 'opening-ready' | 'opening' | 'closing'>('hidden')
@@ -253,11 +286,32 @@ async function closeWindow() {
     <div class="panel-inner">
       <PanelTitleBar :title="pageTitle" @close="closeWindow" />
       <div class="panel-body">
-        <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" @settings="currentView = 'settings'" @completed="currentView = 'completed'" @memos="currentView = 'memos'" />
+        <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" />
         <SettingsPage v-else-if="currentView === 'settings'" @back="currentView = 'tasks'" />
         <MemoPage v-else-if="currentView === 'memos'" @back="currentView = 'tasks'" />
+        <StatsPage v-else-if="currentView === 'stats'" @back="currentView = 'tasks'" />
         <CompletedPage v-else @back="currentView = 'tasks'" />
       </div>
+      <nav class="panel-nav">
+        <button
+          v-for="item in navItems"
+          :key="item.key"
+          class="nav-btn"
+          :class="{ active: currentView === item.key }"
+          @click="currentView = item.key"
+        >
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+              <path
+                v-for="(path, pathIndex) in item.iconPaths"
+                :key="`${item.key}-icon-${pathIndex}`"
+                :d="path"
+              />
+            </svg>
+          </span>
+          <span class="nav-label">{{ item.label }}</span>
+        </button>
+      </nav>
     </div>
   </div>
 </template>
@@ -430,6 +484,71 @@ async function closeWindow() {
   min-height: 0;
   overflow: hidden;
   background: transparent;
+}
+
+.panel-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.12);
+  flex-shrink: 0;
+}
+
+.nav-btn {
+  display: inline-flex;
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.18s ease, background 0.18s ease;
+  font-family: inherit;
+  letter-spacing: 0.02em;
+}
+
+.nav-btn:hover {
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.nav-btn.active {
+  color: var(--focus-color);
+  background: transparent;
+}
+
+.nav-btn.active:hover {
+  background: color-mix(in srgb, var(--focus-color) 8%, transparent);
+}
+
+.nav-icon {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.nav-icon svg {
+  width: 100%;
+  height: 100%;
+  stroke-width: 1.8;
+}
+
+.nav-label {
+  line-height: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {
