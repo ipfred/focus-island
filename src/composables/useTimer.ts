@@ -11,16 +11,32 @@ const activeTaskId = ref<string | null>(null)
 const activeTaskTitle = ref<string | null>(null)
 const focusStartedAt = ref<number | null>(null)
 let intervalId: ReturnType<typeof setInterval> | null = null
+let phaseEndAtMs: number | null = null
+
+function syncRemainingFromEndAt() {
+  if (phaseEndAtMs === null) return
+  const next = Math.max(0, Math.ceil((phaseEndAtMs - Date.now()) / 1000))
+  remaining.value = next
+}
+
+function startTicking() {
+  if (intervalId) {
+    clearInterval(intervalId)
+    intervalId = null
+  }
+  intervalId = setInterval(tick, 200)
+}
 
 function tick() {
+  syncRemainingFromEndAt()
   if (remaining.value <= 0) {
     clearInterval(intervalId!)
     intervalId = null
+    phaseEndAtMs = null
     running.value = false
     onPhaseDone()
     return
   }
-  remaining.value--
 }
 
 type PhaseCallback = (phase: TimerPhase, taskId: string | null) => void
@@ -36,10 +52,12 @@ function onPhaseDone() {
     remaining.value = breakSecs
     totalDuration.value = breakSecs
     running.value = true
-    intervalId = setInterval(tick, 1000)
+    phaseEndAtMs = Date.now() + breakSecs * 1000
+    startTicking()
   } else {
     phase.value = 'focus'
     focusStartedAt.value = null
+    phaseEndAtMs = null
     const focusSecs = settings.value.focusDuration * 60
     remaining.value = focusSecs
     totalDuration.value = focusSecs
@@ -69,20 +87,24 @@ export function useTimer() {
     const focusSecs = settings.value.focusDuration * 60
     remaining.value = focusSecs
     totalDuration.value = focusSecs
+    phaseEndAtMs = Date.now() + focusSecs * 1000
     resume()
   }
 
   function resume() {
     if (running.value) return
     running.value = true
-    intervalId = setInterval(tick, 1000)
+    phaseEndAtMs = Date.now() + remaining.value * 1000
+    startTicking()
   }
 
   function pause() {
     if (!running.value) return
+    syncRemainingFromEndAt()
     running.value = false
     clearInterval(intervalId!)
     intervalId = null
+    phaseEndAtMs = null
   }
 
   function skipToBreak() {
@@ -92,6 +114,7 @@ export function useTimer() {
     const breakSecs = settings.value.breakDuration * 60
     remaining.value = breakSecs
     totalDuration.value = breakSecs
+    phaseEndAtMs = Date.now() + breakSecs * 1000
     resume()
   }
 
@@ -99,6 +122,7 @@ export function useTimer() {
     pause()
     phase.value = 'focus'
     focusStartedAt.value = null
+    phaseEndAtMs = null
     const focusSecs = settings.value.focusDuration * 60
     remaining.value = focusSecs
     totalDuration.value = focusSecs
@@ -110,6 +134,7 @@ export function useTimer() {
     pause()
     phase.value = 'focus'
     focusStartedAt.value = null
+    phaseEndAtMs = null
     const focusSecs = settings.value.focusDuration * 60
     remaining.value = focusSecs
     totalDuration.value = focusSecs
