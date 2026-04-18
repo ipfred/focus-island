@@ -13,8 +13,10 @@ on:
 
 env:
   RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || github.event.inputs.version }}
-  LANG: en_US.UTF-8
-  LC_ALL: en_US.UTF-8
+  # 英文产品名，用于 Release 文件名
+  PRODUCT_NAME_EN: FocusIsland
+  # 中文产品名，需与 tauri.conf.json 中的 productName 一致
+  PRODUCT_NAME_CN: 专注岛
 
 jobs:
   create-release:
@@ -78,6 +80,9 @@ jobs:
             target: ''
             args: --bundles appimage,deb
     runs-on: ${{ matrix.runner }}
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -111,25 +116,34 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Inject updater public key into tauri config
+      - name: Verify updater signing secrets
         shell: bash
-        env:
-          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
         run: |
-          if [ -z "$TAURI_SIGNING_PUBLIC_KEY" ]; then
-            echo "::error::Missing secret TAURI_SIGNING_PUBLIC_KEY"
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::Missing secret TAURI_SIGNING_PRIVATE_KEY"
             exit 1
           fi
-          node -e 'const fs=require("fs");const p="src-tauri/tauri.conf.json";const c=JSON.parse(fs.readFileSync(p,"utf8"));c.plugins=c.plugins||{};c.plugins.updater=c.plugins.updater||{};c.plugins.updater.pubkey=process.env.TAURI_SIGNING_PUBLIC_KEY;fs.writeFileSync(p,JSON.stringify(c,null,2)+"\n");'
+          echo "TAURI_SIGNING_PRIVATE_KEY is set"
 
       - name: Build signed bundles
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           args: ${{ matrix.args }}
+
+      - name: List bundle artifacts (debug)
+        if: always()
+        shell: bash
+        run: |
+          echo "=== .sig files ==="
+          find src-tauri/target -type f -name '*.sig' 2>/dev/null || true
+          echo "=== bundle directories ==="
+          find src-tauri/target -type d -name 'bundle' 2>/dev/null || true
+          for d in $(find src-tauri/target -type d -name 'bundle' 2>/dev/null); do
+            echo "--- $d ---"
+            ls -lAR "$d" 2>/dev/null || true
+          done
 
       - name: Upload release assets and collect updater metadata
         env:
@@ -137,6 +151,8 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           PLATFORM_NAME: ${{ matrix.platform_name }}
           RELEASE_TAG: ${{ env.RELEASE_TAG }}
+          PRODUCT_NAME_CN: ${{ env.PRODUCT_NAME_CN }}
+          PRODUCT_NAME_EN: ${{ env.PRODUCT_NAME_EN }}
           METADATA_OUT: release-metadata/${{ matrix.platform_name }}.json
         run: node scripts/collect-release-assets.mjs
 

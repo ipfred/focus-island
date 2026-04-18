@@ -8,6 +8,8 @@ const repo = process.env.GITHUB_REPOSITORY
 const platformName = process.env.PLATFORM_NAME
 const targetDir = path.resolve(process.env.TARGET_DIR ?? 'src-tauri/target')
 const metadataOut = path.resolve(process.env.METADATA_OUT ?? `release-metadata/${platformName}.json`)
+const productNameCn = process.env.PRODUCT_NAME_CN ?? '专注岛'
+const productNameEn = process.env.PRODUCT_NAME_EN ?? 'FocusIsland'
 
 if (!releaseTag) throw new Error('RELEASE_TAG is required')
 if (!repo) throw new Error('GITHUB_REPOSITORY is required')
@@ -100,6 +102,41 @@ async function readSignature(filePath) {
   }
 }
 
+/**
+ * 重命名文件：将中文产品名替换为英文产品名
+ * 同时处理对应的 .sig 文件
+ */
+async function renameAssetToEnglish(filePath) {
+  const dir = path.dirname(filePath)
+  const basename = path.basename(filePath)
+
+  // 如果文件名已经不包含中文产品名，直接返回
+  if (!basename.includes(productNameCn)) {
+    return filePath
+  }
+
+  // 替换中文为英文
+  const newBasename = basename.replace(productNameCn, productNameEn)
+  const newPath = path.join(dir, newBasename)
+
+  // 重命名主文件
+  await fs.rename(filePath, newPath)
+  console.log(`Renamed: ${basename} -> ${newBasename}`)
+
+  // 重命名对应的 .sig 文件
+  const sigPath = `${filePath}.sig`
+  try {
+    await fs.access(sigPath)
+    const newSigPath = `${newPath}.sig`
+    await fs.rename(sigPath, newSigPath)
+    console.log(`Renamed: ${basename}.sig -> ${newBasename}.sig`)
+  } catch {
+    // .sig 文件可能不存在，忽略
+  }
+
+  return newPath
+}
+
 const files = (await walk(targetDir)).sort()
 if (files.length === 0) {
   throw new Error(`no release assets found under ${targetDir}`)
@@ -109,14 +146,18 @@ const entries = []
 const uploadedAssets = []
 
 for (const file of files) {
-  const basename = path.basename(file)
-  runGhUpload(file)
+  // 重命名文件（中文 -> 英文）
+  const renamedFile = await renameAssetToEnglish(file)
+  const basename = path.basename(renamedFile)
+
+  // 上传重命名后的文件
+  runGhUpload(renamedFile)
   uploadedAssets.push(basename)
 
   const updaterKey = updaterKeyForAsset(basename, platformName)
   if (!updaterKey) continue
 
-  const signature = await readSignature(file)
+  const signature = await readSignature(renamedFile)
   entries.push({
     key: updaterKey,
     url: `https://github.com/${repo}/releases/download/${releaseTag}/${basename}`,
