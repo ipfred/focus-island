@@ -81,7 +81,6 @@
     },
     "updater": {
       "endpoints": [
-        "https://github.com/ipfred/focus-island/releases/download/v1.3.3/latest.json",
         "https://github.com/ipfred/focus-island/releases/latest/download/latest.json"
       ],
       "pubkey": "",

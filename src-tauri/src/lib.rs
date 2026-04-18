@@ -36,6 +36,13 @@ struct PanelTransitionMetrics {
     panel_height: u32,
 }
 
+#[derive(serde::Serialize)]
+struct MacosUpdateHealth {
+    app_path: String,
+    quarantined: bool,
+    repair_command: String,
+}
+
 #[tauri::command]
 fn get_mouse_position() -> (f64, f64) {
     #[cfg(target_os = "macos")]
@@ -369,6 +376,41 @@ fn get_screen_info<R: Runtime>(app: AppHandle<R>) -> (f64, f64, f64) {
     (1920.0, 1.0, 0.0)
 }
 
+#[tauri::command]
+fn get_macos_update_health<R: Runtime>(_app: AppHandle<R>) -> Option<MacosUpdateHealth> {
+    #[cfg(target_os = "macos")]
+    {
+        let executable = std::env::current_exe().ok()?;
+        let mut app_bundle = None;
+        for parent in executable.ancestors() {
+            if parent.extension().and_then(|e| e.to_str()) == Some("app") {
+                app_bundle = Some(parent.to_path_buf());
+                break;
+            }
+        }
+        let app_bundle = app_bundle?;
+        let app_path = app_bundle.to_string_lossy().into_owned();
+        let quarantined = std::process::Command::new("xattr")
+            .arg("-p")
+            .arg("com.apple.quarantine")
+            .arg(&app_bundle)
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false);
+
+        return Some(MacosUpdateHealth {
+            repair_command: format!("xattr -dr com.apple.quarantine \"{app_path}\""),
+            app_path,
+            quarantined,
+        });
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        None
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -405,6 +447,7 @@ pub fn run() {
             is_panel_visible,
             set_island_visible,
             get_screen_info,
+            get_macos_update_health,
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {

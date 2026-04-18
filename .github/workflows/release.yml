@@ -2,11 +2,12 @@ name: Release
 
 on:
   push:
-    tags: ['v*']
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version (e.g., v1.0.0)'
+        description: 'Release version (e.g. v2.2.0)'
         required: true
         type: string
 
@@ -20,8 +21,6 @@ jobs:
     permissions:
       contents: write
     runs-on: ubuntu-latest
-    outputs:
-      release_id: ${{ steps.create_release.outputs.id }}
     steps:
       - uses: actions/checkout@v4
 
@@ -37,16 +36,15 @@ jobs:
           if [ -z "$NOTES" ]; then
             NOTES="Release ${VERSION}"
           fi
-          echo "notes<<EOF" >> $GITHUB_OUTPUT
-          echo "$NOTES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "notes<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$NOTES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
 
       - name: Create draft release
-        id: create_release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          name: 'FocusIsland ${{ env.RELEASE_TAG }}'
+          name: FocusIsland ${{ env.RELEASE_TAG }}
           body: ${{ steps.changelog.outputs.notes }}
           draft: true
           prerelease: false
@@ -59,40 +57,38 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest'
-            args: '--bundles dmg --target aarch64-apple-darwin'
-            target: 'aarch64-apple-darwin'
-            platform_name: 'darwin-aarch64'
-          - platform: 'macos-latest'
-            args: '--bundles dmg --target x86_64-apple-darwin'
-            target: 'x86_64-apple-darwin'
-            platform_name: 'darwin-x86_64'
-          - platform: 'windows-latest'
-            args: '--bundles nsis'
+          - runner: macos-latest
+            platform_name: darwin-aarch64
+            target: aarch64-apple-darwin
+            args: --bundles app,dmg --target aarch64-apple-darwin
+          - runner: macos-latest
+            platform_name: darwin-x86_64
+            target: x86_64-apple-darwin
+            args: --bundles app,dmg --target x86_64-apple-darwin
+          - runner: windows-latest
+            platform_name: windows-x86_64
             target: ''
-            platform_name: 'windows-x86_64'
-          - platform: 'ubuntu-22.04'
-            args: '--bundles appimage,deb'
+            args: --bundles nsis
+          - runner: ubuntu-22.04
+            platform_name: linux-x86_64
             target: ''
-            platform_name: 'linux-x86_64'
-          - platform: 'ubuntu-22.04-arm'
-            args: '--bundles appimage,deb --target aarch64-unknown-linux-gnu'
-            target: 'aarch64-unknown-linux-gnu'
-            platform_name: 'linux-aarch64'
-
-    runs-on: ${{ matrix.platform }}
-    outputs:
-      artifact_name: ${{ steps.upload.outputs.artifact_name }}
+            args: --bundles appimage,deb
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 'lts/*'
-          cache: 'npm'
+          node-version: lts/*
+          cache: npm
 
       - name: Install Rust stable
+        if: matrix.target == ''
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust stable (with target)
+        if: matrix.target != ''
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -100,7 +96,7 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: ./src-tauri -> target
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -111,48 +107,41 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build
-        id: build
+      - name: Inject updater public key into tauri config
+        shell: bash
+        env:
+          TAURI_SIGNING_PUBLIC_KEY: ${{ secrets.TAURI_SIGNING_PUBLIC_KEY }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PUBLIC_KEY" ]; then
+            echo "::error::Missing secret TAURI_SIGNING_PUBLIC_KEY"
+            exit 1
+          fi
+          node -e 'const fs=require("fs");const p="src-tauri/tauri.conf.json";const c=JSON.parse(fs.readFileSync(p,"utf8"));c.plugins=c.plugins||{};c.plugins.updater=c.plugins.updater||{};c.plugins.updater.pubkey=process.env.TAURI_SIGNING_PUBLIC_KEY;fs.writeFileSync(p,JSON.stringify(c,null,2)+"\n");'
+
+      - name: Build signed bundles
         uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           args: ${{ matrix.args }}
 
-      - name: Upload artifacts
-        id: upload
+      - name: Upload release assets and collect updater metadata
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          ARTIFACT_NAME="FocusIsland"
-          VERSION="${RELEASE_TAG#v}"
-          UPLOADED_ARTIFACT=""
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PLATFORM_NAME: ${{ matrix.platform_name }}
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+          METADATA_OUT: release-metadata/${{ matrix.platform_name }}.json
+        run: node scripts/collect-release-assets.mjs
 
-          find src-tauri/target -type f \( -name "*.dmg" -o -name "*.AppImage" -o -name "*.deb" -o -name "*-setup.exe" \) -print0 | \
-          while IFS= read -r -d '' artifact; do
-            dir=$(dirname "$artifact")
-            base=$(basename "$artifact")
-
-            stripped=$(echo "$base" | sed 's/^[^0-9]*//')
-
-            if [ -z "$stripped" ]; then
-              echo "WARN: could not strip prefix from $base, skipping"
-              continue
-            fi
-
-            new_name="${ARTIFACT_NAME}_${stripped}"
-            new_path="$dir/$new_name"
-            cp "$artifact" "$new_path"
-
-            echo "Uploading: $base → $new_name"
-            gh release upload "${{ env.RELEASE_TAG }}" "$new_path" --clobber
-
-            # 保存第一个上传的文件名用于 latest.json
-            if [ -z "$UPLOADED_ARTIFACT" ]; then
-              UPLOADED_ARTIFACT="$new_name"
-            fi
-          done
-
-          echo "artifact_name=$UPLOADED_ARTIFACT" >> $GITHUB_OUTPUT
+      - name: Upload metadata artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-metadata-${{ matrix.platform_name }}
+          path: release-metadata/${{ matrix.platform_name }}.json
+          if-no-files-found: error
 
   generate-latest-json:
     needs: build
@@ -162,40 +151,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Download metadata artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-metadata-*
+          merge-multiple: true
+          path: release-metadata
+
       - name: Generate latest.json
         env:
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          METADATA_DIR: release-metadata
+          LATEST_JSON_OUT: latest.json
+        run: node scripts/generate-latest-json.mjs
+
+      - name: Upload latest.json to release
+        env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${RELEASE_TAG#v}"
-          REPO="ipfred/focus-island"
-
-          # 获取发布日期
-          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-          # 构建 latest.json
-          cat > latest.json << EOF
-          {
-            "version": "${VERSION}",
-            "notes": "See https://github.com/${REPO}/releases/tag/${RELEASE_TAG} for release notes.",
-            "pub_date": "${PUB_DATE}",
-            "platforms": {
-              "darwin-aarch64": {
-                "signature": "",
-                "url": "https://github.com/${REPO}/releases/download/${RELEASE_TAG}/FocusIsland_${VERSION}_aarch64.dmg"
-              },
-              "darwin-x86_64": {
-                "signature": "",
-                "url": "https://github.com/${REPO}/releases/download/${RELEASE_TAG}/FocusIsland_${VERSION}_x64.dmg"
-              },
-              "windows-x86_64": {
-                "signature": "",
-                "url": "https://github.com/${REPO}/releases/download/${RELEASE_TAG}/FocusIsland_${VERSION}_x64-setup.exe"
-              }
-            }
-          }
-          EOF
-
-          echo "Generated latest.json:"
-          cat latest.json
-
-          gh release upload "${RELEASE_TAG}" latest.json --clobber
+        run: gh release upload "${RELEASE_TAG}" latest.json --clobber

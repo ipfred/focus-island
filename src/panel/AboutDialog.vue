@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { open } from '@tauri-apps/plugin-shell'
 import { getName, getVersion } from '@tauri-apps/api/app'
+import { invoke } from '@tauri-apps/api/core'
 import { check } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 
@@ -18,9 +19,23 @@ const downloadProgress = ref(0)
 const error = ref<string | null>(null)
 const updateInfo = ref<{ version: string; body?: string } | null>(null)
 const checked = ref(false)  // 是否已检查过
+const availableUpdate = ref<Awaited<ReturnType<typeof check>> | null>(null)
+const installFinished = ref(false)
+
+const isMacOS = navigator.userAgent.toLowerCase().includes('mac')
+const macQuarantined = ref(false)
+const macRepairCommand = ref('')
+const macRepairStatus = ref('')
+const copiedRepairCommand = ref(false)
 
 const githubUrl = 'https://github.com/ipfred/focus-island'
 import appIcon from '../../src-tauri/icons/128x128.png'
+
+interface MacosUpdateHealth {
+  app_path: string
+  quarantined: boolean
+  repair_command: string
+}
 
 onMounted(async () => {
   try {
@@ -30,6 +45,7 @@ onMounted(async () => {
     appName.value = '专注岛'
     appVersion.value = '1.3.3'
   }
+  await refreshMacUpdateHealth()
 })
 
 function openGitHub() {
@@ -47,11 +63,14 @@ async function checkForUpdate() {
   error.value = null
   updateAvailable.value = false
   updateInfo.value = null
+  availableUpdate.value = null
+  installFinished.value = false
 
   try {
     console.log('开始检查更新...')
     const update = await check()
     console.log('更新检查结果:', update)
+    availableUpdate.value = update
     if (update) {
       updateAvailable.value = true
       updateInfo.value = {
@@ -69,14 +88,16 @@ async function checkForUpdate() {
 }
 
 async function downloadAndInstall() {
-  if (!updateAvailable.value) return
+  if (!updateAvailable.value && !availableUpdate.value) return
 
   downloading.value = true
   downloadProgress.value = 0
   error.value = null
+  macRepairStatus.value = ''
+  copiedRepairCommand.value = false
 
   try {
-    const update = await check()
+    const update = availableUpdate.value ?? await check()
     if (update) {
       let downloaded = 0
       let contentLength = 0
@@ -98,12 +119,67 @@ async function downloadAndInstall() {
         }
       })
 
+      installFinished.value = true
+      updateAvailable.value = false
+      availableUpdate.value = null
+
+      if (isMacOS) {
+        await refreshMacUpdateHealth(true)
+        if (macQuarantined.value) {
+          macRepairStatus.value = '更新已安装，但检测到系统隔离属性，请执行命令后重新检测。'
+          return
+        }
+      }
+
       await relaunch()
     }
   } catch (e) {
-    error.value = e instanceof Error ? e.message : '下载更新失败'
+    const message = e instanceof Error ? e.message : '下载更新失败'
+    if (/signature|公钥|校验/i.test(message)) {
+      error.value = '更新包签名校验失败，请先配置 updater pubkey 和 latest.json 的 signature。'
+    } else {
+      error.value = message
+    }
   } finally {
     downloading.value = false
+  }
+}
+
+async function refreshMacUpdateHealth(showStatus = false) {
+  if (!isMacOS) return
+  try {
+    const health = await invoke<MacosUpdateHealth | null>('get_macos_update_health')
+    if (!health) return
+    if (!macRepairCommand.value || macRepairCommand.value.startsWith('xattr -dr com.apple.quarantine')) {
+      macRepairCommand.value = health.repair_command
+    }
+    macQuarantined.value = health.quarantined
+    if (showStatus) {
+      macRepairStatus.value = health.quarantined
+        ? '仍检测到隔离属性，请在终端执行命令后再次检测。'
+        : '检测通过，正在重启应用...'
+    }
+  } catch {
+    if (showStatus) {
+      macRepairStatus.value = '检测失败，请手动执行命令后再重试。'
+    }
+  }
+}
+
+async function copyRepairCommand() {
+  if (!macRepairCommand.value) return
+  try {
+    await navigator.clipboard.writeText(macRepairCommand.value)
+    copiedRepairCommand.value = true
+  } catch {
+    copiedRepairCommand.value = false
+  }
+}
+
+async function recheckAfterRepair() {
+  await refreshMacUpdateHealth(true)
+  if (installFinished.value && isMacOS && !macQuarantined.value) {
+    await relaunch()
   }
 }
 </script>
@@ -134,7 +210,7 @@ async function downloadAndInstall() {
       <div class="update-area">
         <!-- 检查更新按钮 -->
         <button
-          v-if="!updateAvailable && !downloading"
+          v-if="!updateAvailable && !downloading && !installFinished"
           class="link-btn"
           :disabled="checking"
           @click="checkForUpdate"
@@ -166,8 +242,28 @@ async function downloadAndInstall() {
           </div>
         </template>
 
+        <!-- macOS 安装后隔离属性修复 -->
+        <template v-if="installFinished && isMacOS">
+          <div class="status-hint">
+            更新已安装
+          </div>
+          <div v-if="macQuarantined" class="mac-repair">
+            <label class="repair-label">若更新后无法打开，请在终端执行（可编辑）：</label>
+            <input v-model="macRepairCommand" class="repair-input" />
+            <div class="repair-actions">
+              <button class="link-btn" @click="copyRepairCommand">
+                {{ copiedRepairCommand ? '已复制' : '复制命令' }}
+              </button>
+              <button class="link-btn install-btn" @click="recheckAfterRepair">
+                重新检测并重启
+              </button>
+            </div>
+            <div v-if="macRepairStatus" class="status-hint">{{ macRepairStatus }}</div>
+          </div>
+        </template>
+
         <!-- 无更新提示 -->
-        <div v-if="checked && !updateAvailable && !error" class="status-hint">
+        <div v-if="checked && !updateAvailable && !error && !installFinished" class="status-hint">
           已是最新版本
         </div>
 
@@ -338,5 +434,36 @@ async function downloadAndInstall() {
 .status-hint {
   font-size: 12px;
   color: #4ade80;
+}
+
+.mac-repair {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.repair-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  text-align: left;
+}
+
+.repair-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 11px;
+  padding: 8px;
+}
+
+.repair-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 </style>
