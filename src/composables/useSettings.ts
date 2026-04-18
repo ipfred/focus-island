@@ -11,11 +11,14 @@ export interface ThemePreset {
   alertColor: string
 }
 
+export type ColorMode = 'dark' | 'light' | 'system'
+
 export interface Settings {
   islandOpacity: number      // 透明度 0~0.7，值越大越透明，CSS alpha = 1 - value
   islandScale: number        // 灵动岛缩放比例 0.5~1.5
   focusDuration: number
   breakDuration: number
+  colorMode: ColorMode
   activeThemeId: string
   idleMottos: string[]       // 空闲时轮播的激励语，空数组则用内置默认
 }
@@ -35,6 +38,7 @@ const DEFAULT_SETTINGS: Settings = {
   islandScale: 1.0,
   focusDuration: 25,
   breakDuration: 5,
+  colorMode: 'system',
   activeThemeId: 'classic',
   idleMottos: [],
 }
@@ -42,10 +46,44 @@ const DEFAULT_SETTINGS: Settings = {
 const settings = ref<Settings>({ ...DEFAULT_SETTINGS })
 const loaded = ref(false)
 let suppressEmit = false
+let systemSchemeListenerBound = false
+
+function normalizeColorMode(mode: unknown): ColorMode {
+  if (mode === 'dark' || mode === 'light' || mode === 'system') return mode
+  return 'system'
+}
+
+export function resolveColorMode(mode: ColorMode): 'dark' | 'light' {
+  if (mode !== 'system') return mode
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  }
+  return 'dark'
+}
+
+function onSystemSchemeChange() {
+  if (settings.value.colorMode === 'system') applyThemeToDOM()
+}
+
+function ensureSystemSchemeListener() {
+  if (systemSchemeListenerBound) return
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+
+  const mq = window.matchMedia('(prefers-color-scheme: dark)')
+  if (typeof mq.addEventListener === 'function') {
+    mq.addEventListener('change', onSystemSchemeChange)
+  } else if (typeof mq.addListener === 'function') {
+    mq.addListener(onSystemSchemeChange)
+  }
+  systemSchemeListenerBound = true
+}
 
 function applyThemeToDOM() {
   const theme = presetThemes.find(t => t.id === settings.value.activeThemeId) ?? presetThemes[0]
   const root = document.documentElement
+  const resolvedColorMode = resolveColorMode(settings.value.colorMode)
+  root.dataset.colorMode = resolvedColorMode
+  root.style.colorScheme = resolvedColorMode
   root.style.setProperty('--focus-color', theme.focusColor)
   root.style.setProperty('--break-color', theme.breakColor)
   root.style.setProperty('--idle-color', theme.idleColor)
@@ -58,7 +96,11 @@ async function load() {
   try {
     const raw = await readTextFile(SETTINGS_FILE, { baseDir: BaseDirectory.AppData })
     const parsed = JSON.parse(raw) as Partial<Settings>
-    settings.value = { ...DEFAULT_SETTINGS, ...parsed }
+    settings.value = {
+      ...DEFAULT_SETTINGS,
+      ...parsed,
+      colorMode: normalizeColorMode(parsed.colorMode),
+    }
   } catch {
     settings.value = { ...DEFAULT_SETTINGS }
   }
@@ -93,11 +135,15 @@ const activeTheme = computed(() =>
 
 function applyExternalSettings(newSettings: Settings) {
   suppressEmit = true
-  settings.value = { ...newSettings }
+  settings.value = {
+    ...newSettings,
+    colorMode: normalizeColorMode(newSettings.colorMode),
+  }
   loaded.value = true
 }
 
 export function useSettings() {
+  ensureSystemSchemeListener()
   if (!loaded.value) load()
 
   return { settings, activeTheme, applyThemeToDOM, applyExternalSettings }

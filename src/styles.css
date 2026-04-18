@@ -14,6 +14,35 @@
   --idle-color: #4a8fd4;
   --alert-color: #e8a23a;
   --island-opacity: 0.82;
+  --panel-root-filter: none;
+  --panel-shell-bg: linear-gradient(180deg, rgba(22, 22, 27, 0.985), rgba(18, 18, 22, 0.97)), #121216;
+  --panel-shell-border: rgba(255, 255, 255, 0.08);
+  --panel-shell-shadow-1: 0 18px 48px rgba(0, 0, 0, 0.34);
+  --panel-shell-shadow-2: 0 6px 18px rgba(0, 0, 0, 0.22);
+  --panel-sheen-bg:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 22%),
+    radial-gradient(circle at 50% 0, rgba(255, 255, 255, 0.12), transparent 46%);
+  --panel-vignette-bg: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.14));
+  --panel-vignette-opacity: 0.8;
+}
+
+:root[data-color-mode="light"] {
+  --panel-root-filter: invert(1) hue-rotate(180deg) brightness(1.12) contrast(0.93);
+  --panel-shell-bg: linear-gradient(180deg, rgba(250, 252, 255, 0.98), rgba(242, 246, 251, 0.98)), #f5f8fc;
+  --panel-shell-border: rgba(22, 34, 52, 0.14);
+  --panel-shell-shadow-1: 0 18px 46px rgba(44, 59, 84, 0.12);
+  --panel-shell-shadow-2: 0 6px 18px rgba(44, 59, 84, 0.08);
+  --panel-sheen-bg:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 24%),
+    radial-gradient(circle at 50% 0, rgba(255, 255, 255, 0.8), transparent 48%);
+  --panel-vignette-bg: linear-gradient(180deg, rgba(20, 30, 48, 0), rgba(20, 30, 48, 0.06));
+  --panel-vignette-opacity: 1;
+}
+
+:root[data-color-mode="light"] .panel-root img,
+:root[data-color-mode="light"] .panel-root video,
+:root[data-color-mode="light"] .panel-root canvas {
+  filter: invert(1) hue-rotate(180deg);
 }
 
 html, body, #app {

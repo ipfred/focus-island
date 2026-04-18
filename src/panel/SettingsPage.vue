@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
-import { useSettings, presetThemes } from '../composables/useSettings'
+import { useSettings, presetThemes, type ColorMode } from '../composables/useSettings'
 import AboutDialog from './AboutDialog.vue'
 
 const emit = defineEmits<{ back: [] }>()
@@ -10,11 +10,21 @@ const { settings } = useSettings()
 const opacityPercent = (v: number) => Math.round(v * 100) + '%'
 
 const showAbout = ref(false)
+const colorModeOptions: Array<{ id: ColorMode; label: string }> = [
+  { id: 'dark', label: '深色' },
+  { id: 'light', label: '浅色' },
+  { id: 'system', label: '跟随系统' },
+]
 
 async function goBack() {
   showAbout.value = false
   await nextTick()
   emit('back')
+}
+
+function switchColorMode(mode: ColorMode) {
+  if (settings.value.colorMode === mode) return
+  settings.value.colorMode = mode
 }
 </script>
 
@@ -31,6 +41,22 @@ async function goBack() {
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>
         </svg>
       </button>
+    </div>
+
+    <div class="settings-section">
+      <div class="section-title">显示模式</div>
+      <div class="mode-toggle" role="group" aria-label="主题模式">
+        <button
+          v-for="option in colorModeOptions"
+          :key="option.id"
+          type="button"
+          class="mode-btn"
+          :class="{ active: settings.colorMode === option.id }"
+          @click="switchColorMode(option.id)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
     </div>
 
     <!-- 外观 -->
@@ -87,9 +113,9 @@ async function goBack() {
       </div>
     </div>
 
-    <!-- 主题 -->
+    <!-- 色彩主题 -->
     <div class="settings-section">
-      <div class="section-title">主题</div>
+      <div class="section-title">色彩主题</div>
       <div class="theme-grid">
         <button
           v-for="theme in presetThemes"
@@ -183,6 +209,44 @@ async function goBack() {
   font-weight: 500;
   letter-spacing: 0.5px;
   margin-bottom: 6px;
+}
+
+.mode-toggle {
+  display: flex;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--focus-color) 82%, transparent);
+  border-radius: 999px;
+  overflow: hidden;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.mode-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  height: 28px;
+  padding: 0 14px;
+  cursor: pointer;
+  transition: background 0.22s ease, color 0.22s ease;
+  white-space: nowrap;
+}
+
+.mode-btn + .mode-btn {
+  border-left: 1px solid color-mix(in srgb, var(--focus-color) 58%, transparent);
+}
+
+.mode-btn:hover {
+  background: color-mix(in srgb, var(--focus-color) 15%, transparent);
+}
+
+.mode-btn.active {
+  background: var(--focus-color);
+  color: #fff;
 }
 
 /* 外观 - 滑块行 */

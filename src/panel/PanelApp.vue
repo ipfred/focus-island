@@ -34,47 +34,45 @@ const IS_MACOS = navigator.userAgent.toLowerCase().includes('mac')
 
 const currentView = ref<'tasks' | 'settings' | 'completed' | 'memos' | 'stats'>('tasks')
 
-// 根据当前视图计算标题栏标题
-const pageTitle = computed(() => {
-  switch (currentView.value) {
-    case 'memos': return '📝 备忘录'
-    case 'settings': return '⚙️ 设置'
-    case 'completed': return '✓ 已完成'
-    case 'stats': return '📊 统计'
-    default: return '专注清单'
-  }
-})
-
 const navItems = [
   {
     key: 'tasks',
     label: '任务',
+    title: '任务清单',
     iconPaths: ['M4 6h2', 'M4 12h2', 'M4 18h2', 'M9 6h11', 'M9 12h11', 'M9 18h11'],
   },
   {
     key: 'completed',
     label: '完成',
+    title: '完成',
     iconPaths: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z', 'M9 12l2 2 4-4'],
   },
   {
     key: 'memos',
     label: '备忘',
+    title: '备忘录',
     iconPaths: ['M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z', 'M14 2v6h6', 'M9 13h6', 'M9 17h6', 'M9 9h1'],
   },
   {
     key: 'stats',
     label: '统计',
+    title: '统计',
     iconPaths: ['M3 3v18h18', 'M8 16v-6', 'M13 16V8', 'M18 16v-3'],
   },
   {
     key: 'settings',
     label: '设置',
+    title: '设置',
     iconPaths: [
       'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
       'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.09a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c0 .66.39 1.26 1 1.51.16.07.33.1.51.1H21a2 2 0 1 1 0 4h-.09c-.66 0-1.26.39-1.51 1Z',
     ],
   },
 ] as const
+
+const currentTitleMeta = computed(() =>
+  navItems.find(item => item.key === currentView.value) ?? navItems[0]
+)
 const isClosing = ref(false)
 const panelRootRef = ref<HTMLElement | null>(null)
 const panelAnimState = ref<'hidden' | 'steady' | 'opening-ready' | 'opening' | 'closing'>('hidden')
@@ -295,7 +293,11 @@ async function closeWindow() {
     <div class="panel-sheen" />
     <div class="panel-vignette" />
     <div class="panel-inner">
-      <PanelTitleBar :title="pageTitle" @close="closeWindow" />
+      <PanelTitleBar
+        :title="currentTitleMeta.title"
+        :icon-paths="[...currentTitleMeta.iconPaths]"
+        @close="closeWindow"
+      />
       <div class="panel-body">
         <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" />
         <SettingsPage v-else-if="currentView === 'settings'" @back="currentView = 'tasks'" />
@@ -335,13 +337,12 @@ async function closeWindow() {
   height: 100vh;
   width: 100vw;
   background:
-    linear-gradient(180deg, rgba(22, 22, 27, 0.985), rgba(18, 18, 22, 0.97)),
-    #121216;
+    var(--panel-shell-bg);
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--panel-shell-border);
   box-shadow:
-    0 18px 48px rgba(0, 0, 0, 0.34),
-    0 6px 18px rgba(0, 0, 0, 0.22);
+    var(--panel-shell-shadow-1),
+    var(--panel-shell-shadow-2);
   overflow: hidden;
   color: #e8e8ea;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -371,23 +372,22 @@ async function closeWindow() {
 }
 
 .panel-sheen {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 22%),
-    radial-gradient(circle at 50% 0, rgba(255, 255, 255, 0.12), transparent 46%);
+  background: var(--panel-sheen-bg);
   opacity: 0.9;
 }
 
 .panel-vignette {
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.14));
-  opacity: 0.8;
+  background: var(--panel-vignette-bg);
+  opacity: var(--panel-vignette-opacity);
 }
 
 .panel-inner {
-  z-index: 1;
+  z-index: 3;
   display: flex;
   flex-direction: column;
   min-height: 0;
   overflow: hidden;
+  filter: var(--panel-root-filter, none);
 }
 
 .motion-opening {
