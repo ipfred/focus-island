@@ -1,8 +1,9 @@
 /**
  * useTimerBridge — panel 窗口专用
- * 计时器逻辑在此运行，每秒通过 Tauri 事件广播状态到灵动岛窗口
+ * 计时器逻辑在此运行，关键状态变化时广播状态到灵动岛窗口
  */
-import { emit } from '@tauri-apps/api/event'
+import { emit, listen } from '@tauri-apps/api/event'
+import { watch } from 'vue'
 import { useTimer, type TimerPhase } from './useTimer'
 import { useTasks } from './useTasks'
 import { useDailyStats } from './useDailyStats'
@@ -16,6 +17,7 @@ export interface TimerStatePayload {
   running: boolean
   activeTaskId: string | null
   activeTaskTitle: string | null
+  syncedAt: number
 }
 
 let bridgeStarted = false
@@ -26,6 +28,30 @@ export function useTimerBridge() {
   const { recordPomodoro } = useDailyStats()
   const { recordPomodoro: recordAchievementPomodoro, recordEarlyBird, recordNightOwl } = useAchievements()
   const { settings } = useSettings()
+  let lastPayloadKey = ''
+
+  function buildPayload() {
+    return {
+      phase: timer.phase.value,
+      remaining: timer.remaining.value,
+      totalDuration: timer.totalDuration.value,
+      running: timer.running.value,
+      activeTaskId: timer.activeTaskId.value,
+      activeTaskTitle:
+        timer.activeTaskTitle.value ??
+        tasks.value.find(t => t.id === timer.activeTaskId.value)?.title ??
+        null,
+    }
+  }
+
+  function emitTimerState(force = false) {
+    const payloadBase = buildPayload()
+    const payloadKey = JSON.stringify(payloadBase)
+    if (!force && payloadKey === lastPayloadKey) return
+    lastPayloadKey = payloadKey
+    const payload: TimerStatePayload = { ...payloadBase, syncedAt: Date.now() }
+    emit('timer-state-update', payload)
+  }
 
   function startBridge() {
     if (bridgeStarted) return
@@ -51,21 +77,29 @@ export function useTimerBridge() {
       }
     })
 
-    // 每 500ms 广播一次状态（比 tick 更频繁，保证灵动岛不滞后超过 1 秒）
-    setInterval(() => {
-      const payload: TimerStatePayload = {
-        phase: timer.phase.value,
-        remaining: timer.remaining.value,
-        totalDuration: timer.totalDuration.value,
-        running: timer.running.value,
-        activeTaskId: timer.activeTaskId.value,
-        activeTaskTitle:
-          timer.activeTaskTitle.value ??
-          tasks.value.find(t => t.id === timer.activeTaskId.value)?.title ??
-          null,
-      }
-      emit('timer-state-update', payload)
-    }, 500)
+    // 即时同步关键状态（开始/暂停/跳过/任务切换/阶段切换）
+    watch(
+      () => [
+        timer.phase.value,
+        timer.running.value,
+        timer.totalDuration.value,
+        timer.activeTaskId.value,
+        timer.activeTaskTitle.value,
+      ],
+      () => emitTimerState(),
+      { immediate: true },
+    )
+
+    // 任务标题被编辑时（activeTaskTitle 为空、依赖 tasks 回退）也要同步到灵动岛。
+    watch(
+      () => tasks.value.find(t => t.id === timer.activeTaskId.value)?.title ?? null,
+      () => emitTimerState(),
+    )
+
+    // 灵动岛窗口重启/晚启动时，允许主动请求一次当前快照。
+    listen('timer-state-request', () => {
+      emitTimerState(true)
+    }).catch(() => {})
   }
 
   return { ...timer, startBridge }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { listen } from "@tauri-apps/api/event";
+import { emit, listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useIslandState } from "../composables/useIslandState";
 import { useTimer } from "../composables/useTimer";
@@ -17,6 +17,8 @@ let unlisten: (() => void) | null = null;
 let unlistenSettings: (() => void) | null = null;
 let unlistenPanelMotion: (() => void) | null = null;
 let panelMotionTimer: number | null = null;
+let countdownTimer: number | null = null;
+let countdownEndAt = 0;
 
 const BASE_WIDTH = 320;
 const BASE_HEIGHT = 34;
@@ -53,6 +55,26 @@ function runPanelMotion(phase: "open" | "close") {
     }, phase === "open" ? 280 : 240);
 }
 
+function stopLocalCountdown() {
+    if (countdownTimer !== null) {
+        window.clearInterval(countdownTimer);
+        countdownTimer = null;
+    }
+}
+
+function syncRemainingFromEndAt() {
+    if (countdownEndAt <= 0) return;
+    const msLeft = countdownEndAt - Date.now();
+    timer.remaining.value = Math.max(0, Math.ceil(msLeft / 1000));
+}
+
+function startLocalCountdown(endAt: number) {
+    countdownEndAt = endAt;
+    syncRemainingFromEndAt();
+    if (countdownTimer !== null) return;
+    countdownTimer = window.setInterval(syncRemainingFromEndAt, 200);
+}
+
 onMounted(async () => {
     invoke("set_click_through", { ignore: true });
     
@@ -64,13 +86,19 @@ onMounted(async () => {
     unlisten = await listen<TimerStatePayload>(
         "timer-state-update",
         ({ payload }) => {
-            timer.remaining.value = payload.remaining;
             timer.totalDuration.value = payload.totalDuration;
             timer.running.value = payload.running;
             timer.activeTaskId.value = payload.activeTaskId;
             timer.activeTaskTitle.value = payload.activeTaskTitle ?? null;
             if (payload.phase !== timer.phase.value) {
                 timer.phase.value = payload.phase;
+            }
+            if (payload.running) {
+                startLocalCountdown(payload.syncedAt + payload.remaining * 1000);
+            } else {
+                stopLocalCountdown();
+                countdownEndAt = 0;
+                timer.remaining.value = payload.remaining;
             }
 
             if (payload.running && payload.phase === "focus") {
@@ -87,6 +115,9 @@ onMounted(async () => {
             }
         },
     );
+
+    // 拉取 panel 当前计时快照，避免窗口晚启动时错过状态。
+    emit("timer-state-request").catch(() => {});
 
     unlistenSettings = await listen<Settings>("settings-changed", ({ payload }) => {
         applyExternalSettings(payload);
@@ -106,6 +137,7 @@ onUnmounted(() => {
     unlisten?.();
     unlistenSettings?.();
     unlistenPanelMotion?.();
+    stopLocalCountdown();
     if (panelMotionTimer) {
         window.clearTimeout(panelMotionTimer);
     }
