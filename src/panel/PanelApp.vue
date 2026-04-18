@@ -222,9 +222,19 @@ async function onPanelAnimationEnd(event: AnimationEvent) {
   }
 }
 
+function onPanelKeydown(event: KeyboardEvent) {
+  if (event.defaultPrevented) return
+  if (event.key !== 'Escape' || event.repeat) return
+  if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return
+  if (isClosing.value || panelAnimState.value === 'closing' || panelAnimState.value === 'hidden') return
+  event.preventDefault()
+  void closeWindow()
+}
+
 onMounted(async () => {
   startBridge()
   await invoke('set_click_through', { ignore: false })
+  window.addEventListener('keydown', onPanelKeydown)
 
   const win = getCurrentWebviewWindow()
   try {
@@ -254,6 +264,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('keydown', onPanelKeydown)
   clearRepositionTimers()
   clearCloseFallback()
   if (unlistenResize) unlistenResize()
