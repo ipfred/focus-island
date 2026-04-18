@@ -66,7 +66,37 @@ async function readSignature(filePath) {
     }
     return signature
   } catch (error) {
-    throw new Error(`missing updater signature for ${filePath}: ${String(error)}`)
+    const dir = path.dirname(filePath)
+    const basename = path.basename(filePath)
+    const normalized = basename.normalize('NFC')
+    const entries = await fs.readdir(dir)
+    const sigFiles = entries.filter((name) => name.endsWith('.sig'))
+    const normalizedCandidates = sigFiles.filter((name) => {
+      const n = name.normalize('NFC')
+      return (
+        n === `${normalized}.sig` ||
+        n.startsWith(`${normalized}.`) ||
+        n.includes(normalized.replace(/\.tar\.gz$/i, '')) ||
+        (basename.endsWith('.app.tar.gz') && n.endsWith('.app.tar.gz.sig')) ||
+        (basename.endsWith('.AppImage') && n.endsWith('.AppImage.sig')) ||
+        (basename.endsWith('.deb') && n.endsWith('.deb.sig')) ||
+        (basename.endsWith('.rpm') && n.endsWith('.rpm.sig')) ||
+        (basename.endsWith('-setup.exe') && n.endsWith('-setup.exe.sig'))
+      )
+    })
+
+    if (normalizedCandidates.length === 1) {
+      const fallbackSigPath = path.join(dir, normalizedCandidates[0])
+      const raw = await fs.readFile(fallbackSigPath, 'utf8')
+      const signature = raw.trim()
+      if (signature) {
+        return signature
+      }
+    }
+
+    throw new Error(
+      `missing updater signature for ${filePath}. expected ${sigPath}. found sig files: ${sigFiles.join(', ') || '(none)'}; root error: ${String(error)}`,
+    )
   }
 }
 

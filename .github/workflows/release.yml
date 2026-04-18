@@ -69,6 +69,10 @@ jobs:
             platform_name: windows-x86_64
             target: ''
             args: --bundles nsis
+          - runner: windows-latest
+            platform_name: windows-aarch64
+            target: aarch64-pc-windows-msvc
+            args: --bundles nsis --target aarch64-pc-windows-msvc
           - runner: ubuntu-22.04
             platform_name: linux-x86_64
             target: ''
