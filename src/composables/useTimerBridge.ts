@@ -5,6 +5,9 @@
 import { emit } from '@tauri-apps/api/event'
 import { useTimer, type TimerPhase } from './useTimer'
 import { useTasks } from './useTasks'
+import { useDailyStats } from './useDailyStats'
+import { useAchievements } from './useAchievements'
+import { useSettings } from './useSettings'
 
 export interface TimerStatePayload {
   phase: TimerPhase
@@ -20,6 +23,9 @@ let bridgeStarted = false
 export function useTimerBridge() {
   const timer = useTimer()
   const { tasks, incrementPomodoro } = useTasks()
+  const { recordPomodoro } = useDailyStats()
+  const { recordPomodoro: recordAchievementPomodoro, recordEarlyBird, recordNightOwl } = useAchievements()
+  const { settings } = useSettings()
 
   function startBridge() {
     if (bridgeStarted) return
@@ -28,6 +34,20 @@ export function useTimerBridge() {
     timer.onPhaseDoneCallback((phase, taskId) => {
       if (phase === 'focus' && taskId) {
         incrementPomodoro(taskId)
+        const focusMinutes = settings.value.focusDuration
+        recordPomodoro(focusMinutes)
+        recordAchievementPomodoro()
+
+        const startHour = timer.focusStartedAt.value === null
+          ? null
+          : new Date(timer.focusStartedAt.value).getHours()
+        if (startHour !== null) {
+          if (startHour < 6) {
+            recordEarlyBird()
+          } else if (startHour >= 23) {
+            recordNightOwl()
+          }
+        }
       }
     })
 

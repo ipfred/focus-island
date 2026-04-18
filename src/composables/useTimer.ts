@@ -9,6 +9,7 @@ const totalDuration = ref(25 * 60)
 const running = ref(false)
 const activeTaskId = ref<string | null>(null)
 const activeTaskTitle = ref<string | null>(null)
+const focusStartedAt = ref<number | null>(null)
 let intervalId: ReturnType<typeof setInterval> | null = null
 
 function tick() {
@@ -30,6 +31,7 @@ function onPhaseDone() {
   onDoneCallbacks.forEach(cb => cb(phase.value, activeTaskId.value))
   if (phase.value === 'focus') {
     phase.value = 'break'
+    focusStartedAt.value = null
     const breakSecs = settings.value.breakDuration * 60
     remaining.value = breakSecs
     totalDuration.value = breakSecs
@@ -37,6 +39,7 @@ function onPhaseDone() {
     intervalId = setInterval(tick, 1000)
   } else {
     phase.value = 'focus'
+    focusStartedAt.value = null
     const focusSecs = settings.value.focusDuration * 60
     remaining.value = focusSecs
     totalDuration.value = focusSecs
@@ -62,6 +65,7 @@ export function useTimer() {
     activeTaskId.value = taskId
     activeTaskTitle.value = taskTitle ?? null
     phase.value = 'focus'
+    focusStartedAt.value = Date.now()
     const focusSecs = settings.value.focusDuration * 60
     remaining.value = focusSecs
     totalDuration.value = focusSecs
@@ -84,6 +88,7 @@ export function useTimer() {
   function skipToBreak() {
     pause()
     phase.value = 'break'
+    focusStartedAt.value = null
     const breakSecs = settings.value.breakDuration * 60
     remaining.value = breakSecs
     totalDuration.value = breakSecs
@@ -93,6 +98,7 @@ export function useTimer() {
   function skipBreak() {
     pause()
     phase.value = 'focus'
+    focusStartedAt.value = null
     const focusSecs = settings.value.focusDuration * 60
     remaining.value = focusSecs
     totalDuration.value = focusSecs
@@ -103,6 +109,7 @@ export function useTimer() {
   function abandon() {
     pause()
     phase.value = 'focus'
+    focusStartedAt.value = null
     const focusSecs = settings.value.focusDuration * 60
     remaining.value = focusSecs
     totalDuration.value = focusSecs
@@ -122,6 +129,7 @@ export function useTimer() {
     running,
     activeTaskId,
     activeTaskTitle,
+    focusStartedAt,
     progress,
     displayTime,
     start,

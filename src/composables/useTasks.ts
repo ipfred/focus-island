@@ -3,6 +3,7 @@ import { readTextFile, writeTextFile, mkdir, BaseDirectory } from '@tauri-apps/p
 import { emitTo, listen } from '@tauri-apps/api/event'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useSettings } from './useSettings'
+import { useDailyStats } from './useDailyStats'
 
 export type TaskCategory = 'today' | 'tomorrow' | 'week'
 // 0=收件箱, 1=主任务, 2=次级A, 3=次级B
@@ -124,6 +125,7 @@ listen<string>('tasks-updated', (event) => {
 
 export function useTasks() {
   if (!loaded.value) load()
+  const { recordTaskCompleted } = useDailyStats()
 
   function addTask(title: string, category: TaskCategory = 'today', priority?: TaskPriority) {
     const now = Date.now()
@@ -148,11 +150,15 @@ export function useTasks() {
     const task = tasks.value.find(t => t.id === id)
     if (!task) return
 
+    const wasCompleted = task.completed
     const prevCategory = task.category
     Object.assign(task, patch)
 
     if (task.completed) {
       task.priority = 0
+    }
+    if (!wasCompleted && task.completed) {
+      recordTaskCompleted()
     }
 
     task.updatedAt = Date.now()
@@ -201,8 +207,12 @@ export function useTasks() {
     const task = tasks.value.find(t => t.id === id)
     if (!task) return
 
+    const wasCompleted = task.completed
     task.completed = !task.completed
     task.priority = task.completed ? 0 : nextAvailablePriority(task.category)
+    if (!wasCompleted && task.completed) {
+      recordTaskCompleted()
+    }
     task.updatedAt = Date.now()
     normalizeCategory(task.category)
   }
