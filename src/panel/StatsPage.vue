@@ -735,4 +735,16 @@ const maxPomodoros = computed(() => Math.max(...weekTrend.value.map(d => d.pomod
 .achievement-badge.unlocked .badge-progress {
   color: var(--focus-color);
 }
+
+/* Custom scrollbar */
+.stats-page::-webkit-scrollbar {
+  width: 4px;
+}
+.stats-page::-webkit-scrollbar-track {
+  background: transparent;
+}
+.stats-page::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+}
 </style>
