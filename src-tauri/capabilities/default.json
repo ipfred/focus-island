@@ -12,6 +12,9 @@
     "fs:allow-appdata-write-recursive",
     "shell:default",
     "updater:default",
-    "process:default"
+    "process:default",
+    "clipboard-manager:default",
+    "clipboard-manager:allow-read-text",
+    "clipboard-manager:allow-write-text"
   ]
 }

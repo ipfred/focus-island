@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
+import { readText } from '@tauri-apps/plugin-clipboard-manager'
 import type { Memo, MemoCategory } from '../composables/useMemos'
 import MemoCategoryDropdown from './MemoCategoryDropdown.vue'
 
@@ -563,7 +564,7 @@ function onEditorContextMenu(e: MouseEvent) {
 
   // Position menu, keep within viewport
   const menuWidth = 180
-  const menuHeight = 320
+  const menuHeight = 180
   let x = e.clientX
   let y = e.clientY
 
@@ -587,34 +588,38 @@ function onContextMenuAction(action: () => void) {
   closeContextMenu()
 }
 
-function execUndo() {
-  document.execCommand('undo', false)
-  onContentChange()
-}
-
-function execRedo() {
-  document.execCommand('redo', false)
-  onContentChange()
-}
-
-function execCut() {
-  document.execCommand('cut', false)
-  onContentChange()
-}
-
 function execCopy() {
   document.execCommand('copy', false)
 }
 
-function execPaste() {
-  // Try to read from clipboard, fallback to execCommand
-  navigator.clipboard.readText().then((text) => {
-    document.execCommand('insertText', false, text)
-    onContentChange()
-  }).catch(() => {
-    document.execCommand('paste', false)
-    onContentChange()
-  })
+async function execPaste() {
+  if (!editorRef.value) return
+
+  try {
+    const text = await readText()
+    if (text) {
+      editorRef.value.focus()
+      document.execCommand('insertText', false, text)
+      onContentChange()
+    }
+  } catch {
+    // 静默失败，不弹窗
+  }
+}
+
+async function execPasteAsPlainText() {
+  if (!editorRef.value) return
+
+  try {
+    const text = await readText()
+    if (text) {
+      editorRef.value.focus()
+      document.execCommand('insertText', false, text)
+      onContentChange()
+    }
+  } catch {
+    // 静默失败，不弹窗
+  }
 }
 
 function execSelectAll() {
@@ -857,43 +862,12 @@ function formatUpdateTime(timestamp: number): string {
       @click.stop
     >
       <div class="context-menu-group">
-        <button class="context-menu-item" @click="onContextMenuAction(execUndo)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 7v6h6"/>
-            <path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"/>
-          </svg>
-          <span>撤销</span>
-          <kbd class="context-menu-shortcut">Ctrl+Z</kbd>
-        </button>
-        <button class="context-menu-item" @click="onContextMenuAction(execRedo)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 7v6h-6"/>
-            <path d="M3 17a9 9 0 019-9 9 9 0 016 2.3L21 13"/>
-          </svg>
-          <span>重做</span>
-          <kbd class="context-menu-shortcut">Ctrl+Shift+Z</kbd>
-        </button>
-      </div>
-      <div class="context-menu-divider"></div>
-      <div class="context-menu-group">
-        <button class="context-menu-item" :disabled="!hasSelection" @click="onContextMenuAction(execCut)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="6" cy="6" r="3"/>
-            <circle cx="6" cy="18" r="3"/>
-            <line x1="20" y1="4" x2="8.12" y2="15.88"/>
-            <line x1="14.47" y1="14.48" x2="20" y2="20"/>
-            <line x1="8.12" y1="8.12" x2="12" y2="12"/>
-          </svg>
-          <span>剪切</span>
-          <kbd class="context-menu-shortcut">Ctrl+X</kbd>
-        </button>
         <button class="context-menu-item" :disabled="!hasSelection" @click="onContextMenuAction(execCopy)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
             <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
           </svg>
           <span>复制</span>
-          <kbd class="context-menu-shortcut">Ctrl+C</kbd>
         </button>
         <button class="context-menu-item" @click="onContextMenuAction(execPaste)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -901,50 +875,21 @@ function formatUpdateTime(timestamp: number): string {
             <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
           </svg>
           <span>粘贴</span>
-          <kbd class="context-menu-shortcut">Ctrl+V</kbd>
+        </button>
+        <button class="context-menu-item" @click="onContextMenuAction(execPasteAsPlainText)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+          <span>粘贴为纯文本</span>
         </button>
         <button class="context-menu-item" @click="onContextMenuAction(execSelectAll)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M4 7V4h3M4 17v3h3M20 7V4h-3M20 17v3h-3M9 9h6v6H9z"/>
           </svg>
           <span>全选</span>
-          <kbd class="context-menu-shortcut">Ctrl+A</kbd>
-        </button>
-      </div>
-      <div class="context-menu-divider"></div>
-      <div class="context-menu-group">
-        <button class="context-menu-item" :class="{ active: activeFormats.bold }" @click="onContextMenuAction(toggleBold)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="M6 4h8a4 4 0 014 4 4 4 0 01-4 4H6z"/>
-            <path d="M6 12h9a4 4 0 014 4 4 4 0 01-4 4H6z"/>
-          </svg>
-          <span>加粗</span>
-          <kbd class="context-menu-shortcut">Ctrl+B</kbd>
-        </button>
-        <button class="context-menu-item" :class="{ active: activeFormats.italic }" @click="onContextMenuAction(toggleItalic)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <line x1="19" y1="4" x2="10" y2="4"/>
-            <line x1="14" y1="20" x2="5" y2="20"/>
-            <line x1="15" y1="4" x2="9" y2="20"/>
-          </svg>
-          <span>斜体</span>
-          <kbd class="context-menu-shortcut">Ctrl+I</kbd>
-        </button>
-      </div>
-      <div class="context-menu-divider"></div>
-      <div class="context-menu-group">
-        <button class="context-menu-item" @click="onContextMenuAction(insertCheckbox)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-            <path d="M9 12l2 2 4-4"/>
-          </svg>
-          <span>插入复选框</span>
-        </button>
-        <button class="context-menu-item" @click="onContextMenuAction(insertDivider)">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          <span>插入分割线</span>
         </button>
       </div>
     </div>
