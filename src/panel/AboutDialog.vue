@@ -131,6 +131,10 @@ async function downloadAndInstall() {
         }
       }
 
+      // Windows: 延迟重启，避免私有字段访问错误
+      if (!isMacOS) {
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
       await relaunch()
     }
   } catch (e) {
