@@ -12,7 +12,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   update: [patch: Partial<Pick<Memo, 'title' | 'content' | 'categoryId' | 'isPinned'>>]
   delete: []
-  back: []
+  back: [isEmpty: boolean]
 }>()
 
 // Local state
@@ -450,10 +450,17 @@ function cancelDelete() {
   showDeleteConfirm.value = false
 }
 
+// Check if current editor content is empty
+function isContentEmpty(): boolean {
+  const hasTitle = localTitle.value.trim().length > 0
+  const hasContent = localContent.value.replace(/<[^>]+>/g, '').trim().length > 0
+  return !hasTitle && !hasContent
+}
+
 // Back handler
 function handleBack() {
   doSave()
-  emit('back')
+  emit('back', isContentEmpty())
 }
 
 // Keyboard shortcuts

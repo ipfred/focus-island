@@ -88,7 +88,11 @@ function handleMemoDelete() {
 }
 
 // Back to list from editor
-function handleBackToList() {
+function handleBackToList(isEmpty: boolean) {
+  // Delete empty memo if user didn't add any content
+  if (isEmpty && editingMemo.value) {
+    deleteMemo(editingMemo.value.id)
+  }
   view.value = 'list'
   editingMemo.value = null
 }
