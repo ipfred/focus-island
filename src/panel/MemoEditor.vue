@@ -76,17 +76,6 @@ function placeCaretAtEnd(node: Node) {
   selection.addRange(range)
 }
 
-function placeCaretAtStart(node: Node) {
-  const selection = window.getSelection()
-  if (!selection) return
-
-  const range = document.createRange()
-  range.selectNodeContents(node)
-  range.collapse(true)
-  selection.removeAllRanges()
-  selection.addRange(range)
-}
-
 function ensureEditorSelection(): Selection | null {
   const selection = window.getSelection()
   if (getEditorSelectionRange(selection)) return selection
@@ -384,43 +373,11 @@ function handleImageSelected(e: Event) {
   input.value = ''
 }
 
-// Editor focus handler - ensure caret is visible when clicking into empty editor
-function onEditorFocus() {
-  if (!editorRef.value) return
-  requestAnimationFrame(() => {
-    // Only set caret if we don't have a valid saved selection
-    if (!lastSelectionRange || !document.contains(lastSelectionRange.commonAncestorContainer)) {
-      if (isEditorEffectivelyEmpty()) {
-        // For empty editor, place caret at start of first line (first child)
-        const firstChild = editorRef.value!.firstChild
-        if (firstChild) {
-          placeCaretAtStart(firstChild)
-        }
-      } else {
-        placeCaretAtEnd(editorRef.value!)
-      }
-    }
-  })
-}
-
-function isEditorEffectivelyEmpty(): boolean {
-  if (!editorRef.value) return true
-  const text = editorRef.value.innerText?.trim()
-  // Also consider empty if only zero-width space remains
-  return !text || text === ZERO_WIDTH_SPACE
-}
-
-function updateEditorEmptyState() {
-  if (!editorRef.value) return
-  editorRef.value.dataset.empty = isEditorEffectivelyEmpty() ? 'true' : 'false'
-}
-
 // Content change handler
 function onContentChange() {
   if (editorRef.value) {
     localContent.value = editorRef.value.innerHTML
   }
-  updateEditorEmptyState()
   scheduleSave()
 }
 
@@ -707,7 +664,6 @@ function onSelectionChange() {
 onMounted(() => {
   if (editorRef.value) {
     editorRef.value.innerHTML = localContent.value || '<div><br></div>'
-    updateEditorEmptyState()
   }
   titleInputRef.value?.focus()
   document.addEventListener('click', onDocumentClick)
@@ -873,13 +829,11 @@ function formatUpdateTime(timestamp: number): string {
         ref="editorRef"
         class="editor-content"
         contenteditable="true"
-        data-placeholder="点击输入内容..."
         @input="onContentChange"
         @paste="onPaste"
         @keydown="onEditorKeydown"
         @click="onEditorClick"
         @blur="saveSelection"
-        @contextmenu="onEditorContextMenu"
         spellcheck="false"
       ></div>
     </div>
@@ -1185,19 +1139,6 @@ function formatUpdateTime(timestamp: number): string {
   color: rgba(255, 255, 255, 0.9);
   outline: none;
   caret-color: #fff;
-}
-
-/* Show placeholder when editor is effectively empty */
-.editor-content[data-empty="true"]::before {
-  content: attr(data-placeholder);
-  color: rgba(255, 255, 255, 0.25);
-  pointer-events: none;
-  display: block;
-}
-
-/* Subtle focus indicator */
-.editor-content:focus {
-  background: rgba(255, 255, 255, 0.01);
 }
 
 .editor-content :deep(p) {
