@@ -28,7 +28,7 @@ const currentCategory = computed(() => {
 })
 
 const displayCategories = computed(() => {
-  return props.categories.filter(c => c.id !== 'all')
+  return props.categories
 })
 
 const sizeClass = computed(() => {
