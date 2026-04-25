@@ -7,6 +7,9 @@ use tauri::{
 };
 use std::sync::{Mutex, OnceLock};
 
+#[cfg(desktop)]
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+
 #[cfg(target_os = "macos")]
 use core_graphics::event::CGEvent;
 #[cfg(target_os = "macos")]
@@ -451,6 +454,27 @@ pub fn run() {
             get_macos_update_health,
         ])
         .setup(|app| {
+            #[cfg(desktop)]
+            {
+                let shortcut = Shortcut::new(Some(Modifiers::ALT), Code::Space);
+
+                app.handle().plugin(
+                    tauri_plugin_global_shortcut::Builder::new()
+                        .with_handler(move |app, shortcut, event| {
+                            if event.state() == ShortcutState::Pressed {
+                                // 检测 Alt+Space / Option+Space
+                                let target = Shortcut::new(Some(Modifiers::ALT), Code::Space);
+                                if shortcut == &target {
+                                    toggle_panel(app.clone());
+                                }
+                            }
+                        })
+                        .build(),
+                )?;
+
+                let _ = app.global_shortcut().register(shortcut);
+            }
+
             if let Some(window) = app.get_webview_window("main") {
                 if let Ok(Some(monitor)) = window.current_monitor() {
                     let scale_factor = monitor.scale_factor();
