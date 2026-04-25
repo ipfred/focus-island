@@ -103,6 +103,40 @@ async function readSignature(filePath) {
 }
 
 /**
+ * 为 macOS .app.tar.gz 添加架构后缀（如 _aarch64 / _x86_64），
+ * 避免 darwin-aarch64 和 darwin-x86_64 两个 job 产出同名文件互相覆盖。
+ * 架构后缀插入在 .app.tar.gz 之前，例如 FocusIsland_aarch64.app.tar.gz。
+ */
+async function renameMacAppTarGz(filePath) {
+  const basename = path.basename(filePath)
+  if (!/\.app\.tar\.gz$/i.test(basename)) return filePath
+  if (!platformName.startsWith('darwin-')) return filePath
+
+  const dir = path.dirname(filePath)
+  const arch = platformName.replace('darwin-', '') // aarch64 or x86_64
+  const ext = '.app.tar.gz'
+  const baseWithoutExt = basename.slice(0, -ext.length)
+  const newBasename = `${baseWithoutExt}_${arch}${ext}`
+  const newPath = path.join(dir, newBasename)
+
+  await fs.rename(filePath, newPath)
+  console.log(`Renamed (arch): ${basename} -> ${newBasename}`)
+
+  // 同步重命名对应的 .sig 文件
+  const sigPath = `${filePath}.sig`
+  try {
+    await fs.access(sigPath)
+    const newSigPath = `${newPath}.sig`
+    await fs.rename(sigPath, newSigPath)
+    console.log(`Renamed (arch): ${basename}.sig -> ${newBasename}.sig`)
+  } catch {
+    // .sig 文件可能不存在，忽略
+  }
+
+  return newPath
+}
+
+/**
  * 重命名文件：将中文产品名替换为英文产品名
  * 同时处理对应的 .sig 文件
  */
@@ -146,8 +180,10 @@ const entries = []
 const uploadedAssets = []
 
 for (const file of files) {
+  // macOS .app.tar.gz 添加架构后缀，避免同名覆盖
+  const archRenamed = await renameMacAppTarGz(file)
   // 重命名文件（中文 -> 英文）
-  const renamedFile = await renameAssetToEnglish(file)
+  const renamedFile = await renameAssetToEnglish(archRenamed)
   const basename = path.basename(renamedFile)
 
   // 上传重命名后的文件
