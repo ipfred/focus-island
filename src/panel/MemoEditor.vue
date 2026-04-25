@@ -558,34 +558,6 @@ function onEditorKeydown(e: KeyboardEvent) {
   }
 }
 
-// Context menu
-function onEditorContextMenu(e: MouseEvent) {
-  // Only show custom menu inside the editor
-  const target = e.target as HTMLElement
-  if (!editorRef.value || !editorRef.value.contains(target)) return
-
-  e.preventDefault()
-
-  const selection = window.getSelection()
-  hasSelection.value = !!(selection && selection.toString().trim().length > 0)
-
-  // Position menu, keep within viewport
-  const menuWidth = 180
-  const menuHeight = 180
-  let x = e.clientX
-  let y = e.clientY
-
-  if (x + menuWidth > window.innerWidth) {
-    x = window.innerWidth - menuWidth - 8
-  }
-  if (y + menuHeight > window.innerHeight) {
-    y = window.innerHeight - menuHeight - 8
-  }
-
-  contextMenuPosition.value = { x, y }
-  showContextMenu.value = true
-}
-
 function closeContextMenu() {
   showContextMenu.value = false
 }
