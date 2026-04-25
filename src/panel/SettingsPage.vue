@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, onMounted, onUnmounted } from 'vue'
 import { useSettings, presetThemes, type ColorMode } from '../composables/useSettings'
 import AboutDialog from './AboutDialog.vue'
 
@@ -10,15 +10,89 @@ const { settings } = useSettings()
 const opacityPercent = (v: number) => Math.round(v * 100) + '%'
 
 const showAbout = ref(false)
+const isRecording = ref(false)
+
 const colorModeOptions: Array<{ id: ColorMode; label: string }> = [
   { id: 'dark', label: '深色' },
   { id: 'light', label: '浅色' },
   { id: 'system', label: '跟随系统' },
 ]
 
-async function goBack() {
+function formatShortcut(key: string): string {
+  if (!key) return '无'
+  return key.replace('CommandOrControl', navigator.userAgent.includes('Mac') ? '⌘' : 'Ctrl')
+    .replace('Alt', 'Alt')
+    .replace('Shift', '⇧')
+    .replace('Control', 'Ctrl')
+}
+
+function startRecording() {
+  isRecording.value = true
+}
+
+function stopRecording() {
+  isRecording.value = false
+}
+
+let recordedKey = ''
+
+function buildCombo(e: KeyboardEvent): string {
+  const mods: string[] = []
+  if (e.ctrlKey) mods.push('Control')
+  if (e.altKey) mods.push('Alt')
+  if (e.metaKey) mods.push('CommandOrControl')
+  if (e.shiftKey) mods.push('Shift')
+
+  const code = e.code
+  let keyName: string
+  if (code.startsWith('Key')) keyName = code.slice(3)
+  else if (code.startsWith('Digit')) keyName = code.slice(5)
+  else keyName = code
+
+  return mods.join('+') + '+' + keyName
+}
+
+function onRecordKeydown(e: KeyboardEvent) {
+  if (!isRecording.value) return
+  // Skip modifier-only presses
+  if (e.key === 'Control' || e.key === 'Alt' || e.key === 'Meta' || e.key === 'Shift') return
+  // Skip if no modifier is held
+  if (!e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) return
+
+  e.preventDefault()
+  e.stopPropagation()
+  recordedKey = buildCombo(e)
+}
+
+function onRecordKeyup(e: KeyboardEvent) {
+  if (!isRecording.value) return
+
+  // Fallback: if keydown was intercepted (e.g. Option+Space on macOS),
+  // capture the combo from keyup instead
+  if (!recordedKey && (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey)) {
+    if (e.key !== 'Control' && e.key !== 'Alt' && e.key !== 'Meta' && e.key !== 'Shift') {
+      recordedKey = buildCombo(e)
+    }
+  }
+
+  // Finalize when all modifiers are released
+  if (!e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
+    if (recordedKey) {
+      settings.value.shortcutKey = recordedKey
+      recordedKey = ''
+      isRecording.value = false
+    } else {
+      // Released all mods without hitting a key — cancel
+      isRecording.value = false
+    }
+  }
+}
+
+function goBack() {
   showAbout.value = false
-  await nextTick()
+  stopRecording()
+  recordedKey = ''
+  nextTick()
   emit('back')
 }
 
@@ -26,6 +100,16 @@ function switchColorMode(mode: ColorMode) {
   if (settings.value.colorMode === mode) return
   settings.value.colorMode = mode
 }
+
+onMounted(() => {
+  document.addEventListener('keydown', onRecordKeydown, true)
+  document.addEventListener('keyup', onRecordKeyup, true)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', onRecordKeydown, true)
+  document.removeEventListener('keyup', onRecordKeyup, true)
+})
 </script>
 
 <template>
@@ -110,6 +194,24 @@ function switchColorMode(mode: ColorMode) {
           </div>
           <span class="duration-unit">分</span>
         </div>
+      </div>
+    </div>
+
+    <!-- 快捷操作 -->
+    <div class="settings-section">
+      <div class="section-title">快捷操作</div>
+      <div class="shortcut-row">
+        <span class="shortcut-label">打开面板</span>
+        <button
+          class="shortcut-recorder"
+          :class="{ recording: isRecording }"
+          @click="startRecording"
+          tabindex="0"
+        >
+          <span v-if="isRecording" class="recording-hint">按下组合键...</span>
+          <span v-else>{{ formatShortcut(settings.shortcutKey) }}</span>
+        </button>
+        <span class="shortcut-hint" v-if="!isRecording">推荐: Ctrl+P、Alt+Space;默认Esc 关闭面板</span>
       </div>
     </div>
 
@@ -355,6 +457,65 @@ function switchColorMode(mode: ColorMode) {
 .duration-unit {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.4);
+}
+
+/* 快捷操作 */
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.shortcut-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.shortcut-recorder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 120px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.shortcut-recorder:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.shortcut-recorder.recording {
+  border-color: var(--focus-color);
+  background: color-mix(in srgb, var(--focus-color) 15%, transparent);
+  box-shadow: 0 0 0 1px var(--focus-color);
+  animation: recorder-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes recorder-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px var(--focus-color); }
+  50% { box-shadow: 0 0 0 2px var(--focus-color), 0 0 8px color-mix(in srgb, var(--focus-color) 40%, transparent); }
+}
+
+.recording-hint {
+  color: var(--focus-color);
+  font-weight: 500;
+}
+
+.shortcut-hint {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  white-space: nowrap;
 }
 
 /* 主题 */

@@ -6,6 +6,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useTimerBridge } from '../composables/useTimerBridge'
 import { useSettings } from '../composables/useSettings'
+import { useShortcut } from '../composables/useShortcut'
 import TaskArea from './TaskArea.vue'
 import SettingsPage from './SettingsPage.vue'
 import CompletedPage from './CompletedPage.vue'
@@ -26,6 +27,7 @@ interface PanelTransitionMetrics {
 
 const { startBridge } = useTimerBridge()
 useSettings()
+useShortcut()
 
 const REPOSITION_BURST_DELAYS = [0, 90, 220]
 const PANEL_CLOSE_DURATION = 240

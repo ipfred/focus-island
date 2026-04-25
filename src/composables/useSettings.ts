@@ -21,6 +21,7 @@ export interface Settings {
   colorMode: ColorMode
   activeThemeId: string
   idleMottos: string[]       // 空闲时轮播的激励语，空数组则用内置默认
+  shortcutKey: string        // 全局快捷键，如 "Alt+Space"
 }
 
 export const presetThemes: ThemePreset[] = [
@@ -41,6 +42,7 @@ const DEFAULT_SETTINGS: Settings = {
   colorMode: 'system',
   activeThemeId: 'classic',
   idleMottos: [],
+  shortcutKey: 'Alt+Space',
 }
 
 const settings = ref<Settings>({ ...DEFAULT_SETTINGS })
