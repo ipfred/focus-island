@@ -1,11 +1,24 @@
 <script setup lang="ts">
-import { ref, nextTick, onMounted, onUnmounted } from 'vue'
+import { computed, ref, nextTick, onMounted, onUnmounted } from 'vue'
 import { useSettings, presetThemes, type ColorMode } from '../composables/useSettings'
+import { useUpdater } from '../composables/useUpdater'
 import AboutDialog from './AboutDialog.vue'
 
 const emit = defineEmits<{ back: [] }>()
 
 const { settings } = useSettings()
+const {
+  checking,
+  checked,
+  updateAvailable,
+  downloading,
+  downloadProgress,
+  error,
+  updateInfo,
+  installFinished,
+  checkForUpdate,
+  downloadAndInstall,
+} = useUpdater()
 
 const opacityPercent = (v: number) => Math.round(v * 100) + '%'
 
@@ -17,6 +30,15 @@ const colorModeOptions: Array<{ id: ColorMode; label: string }> = [
   { id: 'light', label: '浅色' },
   { id: 'system', label: '跟随系统' },
 ]
+
+const updateStatusText = computed(() => {
+  if (downloading.value) return `下载中 ${downloadProgress.value}%`
+  if (updateAvailable.value) return `发现新版本 v${updateInfo.value?.version ?? ''}`
+  if (installFinished.value) return '更新已安装，正在准备重启'
+  if (error.value) return error.value
+  if (checked.value) return '已是最新版本'
+  return '自动检查开启后，启动时静默检查，有新版本会在面板顶部提示'
+})
 
 function formatShortcut(key: string): string {
   if (!key) return '无'
@@ -101,6 +123,14 @@ function switchColorMode(mode: ColorMode) {
   settings.value.colorMode = mode
 }
 
+function manualCheckForUpdate() {
+  void checkForUpdate()
+}
+
+function installUpdate() {
+  void downloadAndInstall()
+}
+
 onMounted(() => {
   document.addEventListener('keydown', onRecordKeydown, true)
   document.addEventListener('keyup', onRecordKeyup, true)
@@ -140,6 +170,47 @@ onUnmounted(() => {
         >
           {{ option.label }}
         </button>
+      </div>
+    </div>
+
+    <!-- 更新 -->
+    <div class="settings-section">
+      <div class="section-title">更新</div>
+      <div class="update-toggle-row">
+        <div class="update-copy">
+          <span class="update-label">自动检查更新</span>
+          <span class="update-hint">启动后静默检查，不打断专注</span>
+        </div>
+        <label class="switch" aria-label="自动检查更新">
+          <input v-model="settings.autoCheckUpdates" type="checkbox" />
+          <span class="switch-track"></span>
+        </label>
+      </div>
+      <div class="update-action-row">
+        <button
+          type="button"
+          class="update-btn"
+          :disabled="checking || downloading"
+          @click="manualCheckForUpdate"
+        >
+          <span v-if="checking" class="mini-spinner"></span>
+          <span>{{ checking ? '检查中...' : '手动检查更新' }}</span>
+        </button>
+        <button
+          v-if="updateAvailable"
+          type="button"
+          class="update-btn primary"
+          :disabled="downloading"
+          @click="installUpdate"
+        >
+          安装更新
+        </button>
+        <span
+          class="update-status"
+          :class="{ error: Boolean(error), success: checked && !updateAvailable && !error }"
+        >
+          {{ updateStatusText }}
+        </span>
       </div>
     </div>
 
@@ -349,6 +420,160 @@ onUnmounted(() => {
 .mode-btn.active {
   background: var(--focus-color);
   color: #fff;
+}
+
+/* 更新 */
+.update-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.update-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.update-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.update-hint {
+  font-size: 10px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.36);
+}
+
+.switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 42px;
+  height: 24px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.switch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.switch-track {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.switch-track::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.switch input:checked + .switch-track {
+  background: color-mix(in srgb, var(--focus-color) 72%, rgba(255, 255, 255, 0.12));
+  border-color: color-mix(in srgb, var(--focus-color) 88%, transparent);
+}
+
+.switch input:checked + .switch-track::after {
+  transform: translateX(18px);
+  background: #fff;
+}
+
+.switch input:focus-visible + .switch-track {
+  outline: 2px solid color-mix(in srgb, var(--focus-color) 80%, white);
+  outline-offset: 2px;
+}
+
+.update-action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  min-width: 0;
+}
+
+.update-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.update-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.24);
+  color: #fff;
+}
+
+.update-btn.primary {
+  background: var(--focus-color);
+  border-color: var(--focus-color);
+  color: #fff;
+}
+
+.update-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.update-status {
+  font-size: 10px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.42);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.update-status.success {
+  color: #4ade80;
+}
+
+.update-status.error {
+  color: #f87171;
+}
+
+.mini-spinner {
+  width: 11px;
+  height: 11px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* 外观 - 滑块行 */

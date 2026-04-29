@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <!-- 专注橙红：高亮流光渐变 -->
+    <linearGradient id="brandGrad" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFA085" />
+      <stop offset="100%" stop-color="#e85d3a" />
+    </linearGradient>
+
+    <!-- 番茄高光渐变：增加中心硬件/红点的高级立体感 -->
+    <radialGradient id="tomatoGrad" cx="30%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#FFB9A3" />
+      <stop offset="100%" stop-color="#e85d3a" />
+    </radialGradient>
+
+    <!-- 柔和底部投影 (参数已适配 1024 尺寸) -->
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="40" stdDeviation="48" flood-color="#000000" flood-opacity="0.3" />
+    </filter>
+  </defs>
+
+  <!-- 透明画布占位 -->
+  <rect x="0" y="0" width="1024" height="1024" fill="transparent" />
+
+  <!-- ================= 核心主体：展开的灵动岛 (圆角正方块) ================= -->
+  <!-- 尺寸 760x760，极度方正饱满 -->
+  <rect x="132" y="132" width="760" height="760" rx="180" fill="#141416" filter="url(#shadow)" />
+  
+  <!-- 边缘微光反光 (硬件倒角质感) -->
+  <rect x="132" y="132" width="760" height="760" rx="180" fill="none" stroke="rgba(255, 255, 255, 0.08)" stroke-width="4" />
+
+  <!-- ================= 核心交互：专注流光进度环 ================= -->
+  <!-- 暗色底轨 (全闭合) -->
+  <rect x="132" y="132" width="760" height="760" rx="180" fill="none" stroke="#26262B" stroke-width="48" />
+
+  <!-- 高亮橙红进度环 (未闭合) -->
+  <path d="M 512 132 
+           L 712 132 
+           A 180 180 0 0 1 892 312 
+           L 892 712 
+           A 180 180 0 0 1 712 892 
+           L 312 892 
+           A 180 180 0 0 1 132 712 
+           L 132 312 
+           A 180 180 0 0 1 312 132" 
+        fill="none" 
+        stroke="url(#brandGrad)" 
+        stroke-width="48" 
+        stroke-linecap="round" />
+
+  <!-- ================= 内部布局：极简几何隐喻 ================= -->
+  <!-- 1. 领航番茄钟 / 硬件传感器 (绝对的视觉中心) -->
+  <circle cx="512" cy="380" r="88" fill="url(#tomatoGrad)" />
+  <circle cx="512" cy="380" r="20" fill="#141416" />
+
+  <!-- 2. 备忘录 / 专注清单骨架 (完美垂直对齐) -->
+  <rect x="292" y="572" width="440" height="48" rx="24" fill="#ffffff" opacity="0.9" />
+  <rect x="392" y="668" width="240" height="48" rx="24" fill="#ffffff" opacity="0.35" />
+
+</svg>
