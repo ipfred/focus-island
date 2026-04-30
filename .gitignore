@@ -37,3 +37,4 @@ desktop.ini
 
 # Worktrees
 .worktrees/
+.claude/worktrees/
