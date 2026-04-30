@@ -1,5 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-shell'
 import { check } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 
@@ -13,6 +14,7 @@ interface MacosUpdateHealth {
 
 const AUTO_CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000
 const LAST_AUTO_CHECK_KEY = 'focus-island:last-update-check'
+const GITHUB_RELEASES_URL = 'https://github.com/ipfred/focus-island/releases/latest'
 
 const checking = ref(false)
 const checked = ref(false)
@@ -23,6 +25,7 @@ const error = ref<string | null>(null)
 const updateInfo = ref<{ version: string; body?: string } | null>(null)
 const availableUpdate = ref<AvailableUpdate | null>(null)
 const installFinished = ref(false)
+const installFailed = ref(false)
 const updateNoticeDismissed = ref(false)
 
 const isMacOS = navigator.userAgent.toLowerCase().includes('mac')
@@ -62,6 +65,7 @@ function resetCheckState() {
   updateInfo.value = null
   availableUpdate.value = null
   installFinished.value = false
+  installFailed.value = false
 }
 
 async function checkForUpdate(options: { silent?: boolean } = {}) {
@@ -104,6 +108,7 @@ async function downloadAndInstall() {
   downloading.value = true
   downloadProgress.value = 0
   error.value = null
+  installFailed.value = false
   macRepairStatus.value = ''
   copiedRepairCommand.value = false
 
@@ -149,6 +154,7 @@ async function downloadAndInstall() {
     await relaunch()
   } catch (e) {
     const message = e instanceof Error ? e.message : '下载更新失败'
+    installFailed.value = true
     error.value = /signature|公钥|校验/i.test(message)
       ? '更新包签名校验失败，请先配置 updater pubkey 和 latest.json 的 signature。'
       : message
@@ -199,6 +205,10 @@ function dismissUpdateNotice() {
   updateNoticeDismissed.value = true
 }
 
+function openReleasePage() {
+  void open(GITHUB_RELEASES_URL)
+}
+
 export function useUpdater() {
   return {
     checking,
@@ -209,6 +219,7 @@ export function useUpdater() {
     error,
     updateInfo,
     installFinished,
+    installFailed,
     updateNoticeDismissed,
     hasVisibleUpdateWork,
     isMacOS,
@@ -223,5 +234,6 @@ export function useUpdater() {
     copyRepairCommand,
     recheckAfterRepair,
     dismissUpdateNotice,
+    openReleasePage,
   }
 }

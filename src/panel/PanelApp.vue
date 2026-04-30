@@ -47,6 +47,7 @@ const {
   copyRepairCommand,
   recheckAfterRepair,
   dismissUpdateNotice,
+  openReleasePage,
 } = useUpdater()
 
 const REPOSITION_BURST_DELAYS = [0, 90, 220]
@@ -334,21 +335,28 @@ async function closeWindow() {
         :icon-paths="[...currentTitleMeta.iconPaths]"
         @close="closeWindow"
       />
+      <div class="panel-body">
+        <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" />
+        <SettingsPage v-else-if="currentView === 'settings'" @back="currentView = 'tasks'" />
+        <MemoPage v-else-if="currentView === 'memos'" @back="currentView = 'tasks'" />
+        <StatsPage v-else-if="currentView === 'stats'" @back="currentView = 'tasks'" />
+        <CompletedPage v-else @back="currentView = 'tasks'" />
+      </div>
       <transition name="update-banner">
-        <div v-if="showUpdateBanner" class="update-banner">
+        <div v-if="showUpdateBanner" class="update-banner" role="status" aria-live="polite">
           <div class="update-banner-copy">
             <span class="update-banner-title">
-              <template v-if="downloading">正在下载更新</template>
+              <template v-if="downloading">下载更新 {{ downloadProgress }}%</template>
               <template v-else-if="installFinished">更新已安装</template>
-              <template v-else>发现新版本 v{{ updateInfo?.version }}</template>
+              <template v-else>新版本 v{{ updateInfo?.version }}</template>
             </span>
             <span class="update-banner-detail">
-              <template v-if="downloading">已完成 {{ downloadProgress }}%</template>
-              <template v-else-if="installFinished && isMacOS && macQuarantined">
-                检测到系统隔离属性，请按提示修复后重启
+              <template v-if="installFinished && isMacOS && macQuarantined">
+                检测到隔离属性，需修复后重启
               </template>
               <template v-else-if="installFinished">{{ macRepairStatus || '正在准备重启应用' }}</template>
-              <template v-else>{{ error || '建议在空闲时安装，专注过程不会被自动打断' }}</template>
+              <template v-else-if="error">{{ error }}</template>
+              <template v-else>可在空闲时安装</template>
             </span>
           </div>
           <div class="update-banner-actions">
@@ -359,6 +367,14 @@ async function closeWindow() {
               @click="downloadAndInstall()"
             >
               安装
+            </button>
+            <button
+              v-if="updateAvailable && !downloading"
+              type="button"
+              class="update-banner-btn"
+              @click="openReleasePage()"
+            >
+              详情
             </button>
             <button
               v-if="installFinished && isMacOS && macQuarantined"
@@ -380,7 +396,7 @@ async function closeWindow() {
               v-if="updateAvailable && !downloading"
               type="button"
               class="update-banner-close"
-              aria-label="稍后提醒"
+              aria-label="关闭更新提示"
               @click="dismissUpdateNotice()"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -395,13 +411,6 @@ async function closeWindow() {
           />
         </div>
       </transition>
-      <div class="panel-body">
-        <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" />
-        <SettingsPage v-else-if="currentView === 'settings'" @back="currentView = 'tasks'" />
-        <MemoPage v-else-if="currentView === 'memos'" @back="currentView = 'tasks'" />
-        <StatsPage v-else-if="currentView === 'stats'" @back="currentView = 'tasks'" />
-        <CompletedPage v-else @back="currentView = 'tasks'" />
-      </div>
       <nav class="panel-nav">
         <button
           v-for="item in navItems"
@@ -488,18 +497,24 @@ async function closeWindow() {
 }
 
 .update-banner {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 56px;
+  z-index: 8;
+  box-sizing: border-box;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px 10px;
+  gap: 6px 8px;
   align-items: center;
-  margin: 8px 12px 0;
-  padding: 9px 10px;
+  min-height: 40px;
+  padding: 6px 7px 6px 10px;
   border-radius: 8px;
   border: 1px solid color-mix(in srgb, var(--focus-color) 42%, rgba(255, 255, 255, 0.12));
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--focus-color) 18%, rgba(24, 24, 28, 0.96)), rgba(16, 16, 20, 0.94));
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22);
-  flex-shrink: 0;
+    linear-gradient(180deg, color-mix(in srgb, var(--focus-color) 14%, rgba(24, 24, 28, 0.96)), rgba(16, 16, 20, 0.94));
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(14px);
 }
 
 .update-banner-copy {
@@ -510,16 +525,22 @@ async function closeWindow() {
 }
 
 .update-banner-title {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.95);
-  line-height: 1.25;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .update-banner-detail {
   font-size: 10px;
-  line-height: 1.35;
+  line-height: 1.2;
   color: rgba(255, 255, 255, 0.58);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .update-banner-actions {
@@ -545,8 +566,9 @@ async function closeWindow() {
 
 .update-banner-btn {
   height: 28px;
-  padding: 0 10px;
-  font-size: 12px;
+  min-width: 44px;
+  padding: 0 9px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -596,7 +618,7 @@ async function closeWindow() {
 .update-banner-enter-from,
 .update-banner-leave-to {
   opacity: 0;
-  transform: translate3d(0, -6px, 0);
+  transform: translate3d(0, 6px, 0);
 }
 
 .motion-opening {
@@ -707,6 +729,8 @@ async function closeWindow() {
 }
 
 .panel-nav {
+  position: relative;
+  z-index: 7;
   display: flex;
   justify-content: space-between;
   align-items: center;

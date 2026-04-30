@@ -16,8 +16,10 @@ const {
   error,
   updateInfo,
   installFinished,
+  installFailed,
   checkForUpdate,
   downloadAndInstall,
+  openReleasePage,
 } = useUpdater()
 
 const opacityPercent = (v: number) => Math.round(v * 100) + '%'
@@ -39,6 +41,8 @@ const updateStatusText = computed(() => {
   if (checked.value) return '已是最新版本'
   return '自动检查开启后，启动时静默检查，有新版本会在面板顶部提示'
 })
+
+const showManualUpdateDownload = computed(() => installFailed.value && Boolean(error.value))
 
 function formatShortcut(key: string): string {
   if (!key) return '无'
@@ -131,6 +135,10 @@ function installUpdate() {
   void downloadAndInstall()
 }
 
+function openManualDownload() {
+  openReleasePage()
+}
+
 onMounted(() => {
   document.addEventListener('keydown', onRecordKeydown, true)
   document.addEventListener('keyup', onRecordKeyup, true)
@@ -211,6 +219,12 @@ onUnmounted(() => {
         >
           {{ updateStatusText }}
         </span>
+      </div>
+      <div v-if="showManualUpdateDownload" class="update-recovery">
+        <span>安装失败时，可以从 GitHub Release 手动下载安装包。</span>
+        <button type="button" class="update-link-btn" @click="openManualDownload">
+          前往 GitHub Release
+        </button>
       </div>
     </div>
 
@@ -505,6 +519,7 @@ onUnmounted(() => {
 .update-action-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 8px;
   min-width: 0;
@@ -546,6 +561,7 @@ onUnmounted(() => {
 }
 
 .update-status {
+  flex: 1 1 140px;
   font-size: 10px;
   line-height: 1.4;
   color: rgba(255, 255, 255, 0.42);
@@ -561,6 +577,32 @@ onUnmounted(() => {
 
 .update-status.error {
   color: #f87171;
+}
+
+.update-recovery {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.48);
+}
+
+.update-link-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--focus-color);
+  font: inherit;
+  font-weight: 700;
+  padding: 2px 0;
+  cursor: pointer;
+}
+
+.update-link-btn:hover {
+  color: color-mix(in srgb, var(--focus-color) 72%, white);
 }
 
 .mini-spinner {
