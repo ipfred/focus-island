@@ -13,6 +13,7 @@ import SettingsPage from './SettingsPage.vue'
 import CompletedPage from './CompletedPage.vue'
 import MemoPage from './MemoPage.vue'
 import StatsPage from './StatsPage.vue'
+import RadioPage from './RadioPage.vue'
 import PanelTitleBar from './PanelTitleBar.vue'
 
 interface PanelTransitionMetrics {
@@ -55,7 +56,7 @@ const PANEL_CLOSE_DURATION = 240
 const CLOSE_FALLBACK_BUFFER = 140
 const IS_MACOS = navigator.userAgent.toLowerCase().includes('mac')
 
-const currentView = ref<'tasks' | 'settings' | 'completed' | 'memos' | 'stats'>('tasks')
+const currentView = ref<'tasks' | 'settings' | 'completed' | 'memos' | 'stats' | 'radio'>('tasks')
 
 const navItems = [
   {
@@ -81,6 +82,12 @@ const navItems = [
     label: '统计',
     title: '统计',
     iconPaths: ['M3 3v18h18', 'M8 16v-6', 'M13 16V8', 'M18 16v-3'],
+  },
+  {
+    key: 'radio',
+    label: '电台',
+    title: '专注电台',
+    iconPaths: ['M9 18V5l12-2v13', 'M6 18a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M18 16a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z'],
   },
   {
     key: 'settings',
@@ -340,6 +347,7 @@ async function closeWindow() {
         <SettingsPage v-else-if="currentView === 'settings'" @back="currentView = 'tasks'" />
         <MemoPage v-else-if="currentView === 'memos'" @back="currentView = 'tasks'" />
         <StatsPage v-else-if="currentView === 'stats'" @back="currentView = 'tasks'" />
+        <RadioPage v-else-if="currentView === 'radio'" @back="currentView = 'tasks'" />
         <CompletedPage v-else @back="currentView = 'tasks'" />
       </div>
       <transition name="update-banner">

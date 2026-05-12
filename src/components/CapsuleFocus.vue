@@ -6,6 +6,8 @@ import { useTasks } from '../composables/useTasks'
 const { displayTime, phase, activeTaskId, activeTaskTitle, running } = useTimer()
 const { tasks } = useTasks()
 
+defineProps<{ radioPlaying?: boolean }>()
+
 const activeTask = computed(() =>
   tasks.value.find(t => t.id === activeTaskId.value)
 )
@@ -43,6 +45,20 @@ const phaseColor = computed(() =>
       <span class="text-white/20" :style="{ fontSize: `calc(10px * var(--island-scale, 1))` }">
         {{ running ? '' : '⏸' }}
       </span>
+      <span v-if="radioPlaying" class="music-note" :style="{ fontSize: `calc(10px * var(--island-scale, 1))` }">♪</span>
     </div>
   </div>
 </template>
+
+<style scoped>
+.music-note {
+  color: var(--focus-color);
+  opacity: 0.7;
+  animation: note-pulse 2s ease-in-out infinite;
+}
+
+@keyframes note-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.9; }
+}
+</style>

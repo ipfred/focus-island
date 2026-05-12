@@ -16,6 +16,9 @@ const { settings, applyExternalSettings } = useSettings();
 let unlisten: (() => void) | null = null;
 let unlistenSettings: (() => void) | null = null;
 let unlistenPanelMotion: (() => void) | null = null;
+let unlistenRadio: (() => void) | null = null;
+
+const radioPlaying = ref(false);
 let panelMotionTimer: number | null = null;
 let countdownTimer: number | null = null;
 let countdownEndAt = 0;
@@ -131,12 +134,17 @@ onMounted(async () => {
             runPanelMotion(payload);
         }
     });
+
+    unlistenRadio = await listen<{ playing: boolean; stationId: string | null }>("radio-state-update", ({ payload }) => {
+        radioPlaying.value = payload.playing;
+    });
 });
 
 onUnmounted(() => {
     unlisten?.();
     unlistenSettings?.();
     unlistenPanelMotion?.();
+    unlistenRadio?.();
     stopLocalCountdown();
     if (panelMotionTimer) {
         window.clearTimeout(panelMotionTimer);
@@ -171,8 +179,8 @@ onUnmounted(() => {
                     borderRadius: capsuleRadius + 'px',
                 }"
             >
-                <CapsuleIdle v-if="state === 'idle' || state === 'alert'" />
-                <CapsuleFocus v-else-if="state === 'focus' || state === 'break'" />
+                <CapsuleIdle v-if="state === 'idle' || state === 'alert'" :radio-playing="radioPlaying" />
+                <CapsuleFocus v-else-if="state === 'focus' || state === 'break'" :radio-playing="radioPlaying" />
                 <svg class="progress-ring" :viewBox="`0 0 ${capsuleWidth} ${capsuleHeight}`" aria-hidden="true">
                     <rect
                         class="ring-track"

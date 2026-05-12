@@ -4,7 +4,9 @@ import { useTasks } from "../composables/useTasks";
 import { useSettings } from "../composables/useSettings";
 
 const { todayTasks } = useTasks();
-const { settings } = useSettings();
+const { settings } = useSettings()
+
+defineProps<{ radioPlaying?: boolean }>();
 
 const focusTasks = computed(() =>
     todayTasks.value
@@ -109,6 +111,7 @@ onUnmounted(() => {
 
 <template>
     <div class="capsule-idle relative w-full h-full overflow-hidden">
+        <span v-if="radioPlaying" class="music-note" :style="{ fontSize: `calc(10px * var(--island-scale, 1))` }">♪</span>
         <TransitionGroup
             tag="div"
             name="carousel"
@@ -163,6 +166,22 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.music-note {
+    position: absolute;
+    right: calc(12px * var(--island-scale, 1));
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--focus-color);
+    opacity: 0.7;
+    z-index: 2;
+    animation: note-pulse 2s ease-in-out infinite;
+}
+
+@keyframes note-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 0.9; }
+}
+
 .carousel-enter-active,
 .carousel-leave-active {
     transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);

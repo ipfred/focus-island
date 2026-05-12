@@ -24,6 +24,359 @@ const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/icon.png");
 
 static LAST_PANEL_SIZE: OnceLock<Mutex<Option<tauri::PhysicalSize<u32>>>> = OnceLock::new();
 
+// Radio playback: rodio's OutputStream is !Send, so all audio state lives in a dedicated thread.
+// Commands are sent via mpsc channel. The shared state only holds Send-safe metadata.
+
+enum RadioCmd {
+    Play { url: String, result_tx: std::sync::mpsc::Sender<Result<(), String>> },
+    Pause,
+    Resume,
+    Stop,
+    SetVolume { volume: f64 },
+}
+
+struct RadioState {
+    playing: Mutex<bool>,
+    current_url: Mutex<Option<String>>,
+    tx: std::sync::mpsc::Sender<RadioCmd>,
+}
+
+static RADIO: OnceLock<RadioState> = OnceLock::new();
+
+fn radio_state() -> &'static RadioState {
+    RADIO.get_or_init(|| {
+        let (tx, rx) = std::sync::mpsc::channel::<RadioCmd>();
+
+        std::thread::spawn(move || {
+            let mut _stream: Option<rodio::OutputStream> = None;
+            let mut _handle: Option<rodio::OutputStreamHandle> = None;
+            let mut sink: Option<rodio::Sink> = None;
+
+            while let Ok(cmd) = rx.recv() {
+                match cmd {
+                    RadioCmd::Play { url, result_tx } => {
+                        eprintln!("[Radio] 收到播放命令: {}", url);
+
+                        // Stop previous
+                        if let Some(s) = sink.take() {
+                            eprintln!("[Radio] 停止之前的播放");
+                            s.stop();
+                        }
+                        sink = None;
+                        _stream = None;
+                        _handle = None;
+
+                        // Init output stream
+                        eprintln!("[Radio] 初始化音频输出流...");
+                        let (stream, handle) = match rodio::OutputStream::try_default() {
+                            Ok(pair) => {
+                                eprintln!("[Radio] 音频输出流创建成功");
+                                pair
+                            }
+                            Err(e) => {
+                                let msg = format!("音频输出错误: {e}");
+                                eprintln!("[Radio] {}", msg);
+                                let _ = result_tx.send(Err(msg));
+                                continue;
+                            }
+                        };
+                        _stream = Some(stream);
+                        _handle = Some(handle);
+
+                        let h = _handle.as_ref().unwrap();
+                        eprintln!("[Radio] 创建 Sink...");
+                        let new_sink = match rodio::Sink::try_new(h) {
+                            Ok(s) => {
+                                eprintln!("[Radio] Sink 创建成功");
+                                s
+                            }
+                            Err(e) => {
+                                let msg = format!("创建 Sink 失败: {e}");
+                                eprintln!("[Radio] {}", msg);
+                                let _ = result_tx.send(Err(msg));
+                                _stream = None;
+                                _handle = None;
+                                continue;
+                            }
+                        };
+
+                        // Check if it's a local file (starts with / or ./ or ~/)
+                        let decoder_result = if url.starts_with('/') || url.starts_with("./") || url.starts_with("~/") {
+                            load_local_file(&url)
+                        } else {
+                            stream_url_to_decoder(&url)
+                        };
+
+                        match decoder_result {
+                            Ok(decoder) => {
+                                eprintln!("[Radio] 添加音频源到 Sink...");
+                                new_sink.append(decoder);
+                                eprintln!("[Radio] 开始播放...");
+                                new_sink.play();
+                                eprintln!("[Radio] 播放状态: {}", if new_sink.is_paused() { "暂停" } else { "播放中" });
+                                eprintln!("[Radio] 音量: {}", new_sink.volume());
+                                sink = Some(new_sink);
+                                let _ = result_tx.send(Ok(()));
+                            }
+                            Err(e) => {
+                                eprintln!("[Radio] 播放失败: {}", e);
+                                let _ = result_tx.send(Err(e));
+                                _stream = None;
+                                _handle = None;
+                            }
+                        }
+                    }
+                    RadioCmd::Pause => {
+                        eprintln!("[Radio] 收到暂停命令");
+                        if let Some(s) = sink.as_ref() {
+                            s.pause();
+                            eprintln!("[Radio] 已暂停");
+                        }
+                    }
+                    RadioCmd::Resume => {
+                        eprintln!("[Radio] 收到恢复命令");
+                        if let Some(s) = sink.as_ref() {
+                            s.play();
+                            eprintln!("[Radio] 已恢复播放");
+                        }
+                    }
+                    RadioCmd::Stop => {
+                        eprintln!("[Radio] 收到停止命令");
+                        if let Some(s) = sink.take() {
+                            s.stop();
+                            eprintln!("[Radio] 已停止");
+                        }
+                        _stream = None;
+                        _handle = None;
+                    }
+                    RadioCmd::SetVolume { volume } => {
+                        eprintln!("[Radio] 设置音量: {}", volume);
+                        if let Some(s) = sink.as_ref() {
+                            let v = (volume / 100.0).clamp(0.0, 1.0) as f32;
+                            s.set_volume(v);
+                            eprintln!("[Radio] 音量已设置为: {}", v);
+                        }
+                    }
+                }
+            }
+        });
+
+        RadioState {
+            playing: Mutex::new(false),
+            current_url: Mutex::new(None),
+            tx,
+        }
+    })
+}
+
+/// Stream a URL to a temp file via `reqwest`, then decode from file.
+fn stream_url_to_decoder(url: &str) -> Result<rodio::Decoder<std::io::BufReader<std::fs::File>>, String> {
+    use std::io::Read;
+
+    eprintln!("[Radio] 开始下载流媒体: {}", url);
+
+    let tmp_dir = std::env::temp_dir().join("focus-island-radio");
+    std::fs::create_dir_all(&tmp_dir).map_err(|e| {
+        eprintln!("[Radio] 创建临时目录失败: {}", e);
+        format!("创建临时目录失败: {e}")
+    })?;
+    let tmp_path = tmp_dir.join(format!("stream-{}.mp3", std::process::id()));
+    eprintln!("[Radio] 临时文件路径: {:?}", tmp_path);
+
+    // Use reqwest to download the stream
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| {
+            eprintln!("[Radio] 创建 HTTP 客户端失败: {}", e);
+            format!("创建 HTTP 客户端失败: {e}")
+        })?;
+
+    eprintln!("[Radio] 发送 HTTP 请求...");
+    let mut response = client.get(url).send().map_err(|e| {
+        eprintln!("[Radio] HTTP 请求失败: {}", e);
+        format!("网络请求失败: {e}")
+    })?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        eprintln!("[Radio] HTTP 状态码错误: {}", status);
+        return Err(format!("HTTP 错误: {status}"));
+    }
+
+    eprintln!("[Radio] 开始写入临时文件...");
+    let mut file = std::fs::File::create(&tmp_path).map_err(|e| {
+        eprintln!("[Radio] 创建临时文件失败: {}", e);
+        format!("创建临时文件失败: {e}")
+    })?;
+
+    // Download first chunk (enough to start decoding)
+    let mut total_bytes = 0usize;
+    let mut buffer = vec![0u8; 8192]; // 8KB buffer
+
+    // Download up to 64KB before starting playback
+    while total_bytes < 65536 {
+        match response.read(&mut buffer) {
+            Ok(0) => break, // EOF
+            Ok(n) => {
+                std::io::Write::write_all(&mut file, &buffer[..n]).map_err(|e| {
+                    eprintln!("[Radio] 写入文件失败: {}", e);
+                    format!("写入文件失败: {e}")
+                })?;
+                total_bytes += n;
+            }
+            Err(e) => {
+                eprintln!("[Radio] 读取响应失败: {}", e);
+                return Err(format!("读取响应失败: {e}"));
+            }
+        }
+    }
+
+    std::io::Write::flush(&mut file).map_err(|e| {
+        eprintln!("[Radio] 刷新文件失败: {}", e);
+        format!("刷新文件失败: {e}")
+    })?;
+    drop(file);
+
+    eprintln!("[Radio] 已下载 {} 字节", total_bytes);
+
+    if total_bytes < 4096 {
+        eprintln!("[Radio] 数据不足: {} 字节", total_bytes);
+        return Err(format!("流媒体数据不足: {} 字节", total_bytes));
+    }
+
+    // Open the file for reading
+    eprintln!("[Radio] 打开文件进行解码...");
+    let file = std::fs::File::open(&tmp_path).map_err(|e| {
+        eprintln!("[Radio] 打开临时文件失败: {}", e);
+        format!("打开临时文件失败: {e}")
+    })?;
+    let reader = std::io::BufReader::new(file);
+
+    eprintln!("[Radio] 创建解码器...");
+    let decoder = rodio::Decoder::new(reader).map_err(|e| {
+        eprintln!("[Radio] 解码失败: {}", e);
+        format!("解码失败: {e}")
+    })?;
+
+    eprintln!("[Radio] 解码器创建成功");
+
+    // Continue downloading in background
+    let tmp_path_clone = tmp_path.clone();
+    std::thread::spawn(move || {
+        eprintln!("[Radio] 后台继续下载...");
+        if let Ok(mut file) = std::fs::OpenOptions::new().append(true).open(&tmp_path_clone) {
+            let _ = std::io::copy(&mut response, &mut file);
+        }
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        let _ = std::fs::remove_file(&tmp_path_clone);
+        eprintln!("[Radio] 清理临时文件");
+    });
+
+    Ok(decoder)
+}
+
+/// Load a local audio file for testing
+fn load_local_file(path: &str) -> Result<rodio::Decoder<std::io::BufReader<std::fs::File>>, String> {
+    eprintln!("[Radio] 加载本地文件: {}", path);
+    let file = std::fs::File::open(path).map_err(|e| {
+        eprintln!("[Radio] 打开本地文件失败: {}", e);
+        format!("打开文件失败: {e}")
+    })?;
+    let reader = std::io::BufReader::new(file);
+    let decoder = rodio::Decoder::new(reader).map_err(|e| {
+        eprintln!("[Radio] 解码本地文件失败: {}", e);
+        format!("解码失败: {e}")
+    })?;
+    eprintln!("[Radio] 本地文件加载成功");
+    Ok(decoder)
+}
+
+#[tauri::command]
+fn radio_play(url: String) -> Result<bool, String> {
+    let state = radio_state();
+    let (result_tx, result_rx) = std::sync::mpsc::channel();
+    state.tx.send(RadioCmd::Play { url: url.clone(), result_tx })
+        .map_err(|e| format!("发送播放命令失败: {e}"))?;
+    // Wait up to 5 seconds for the play result from the audio thread
+    match result_rx.recv_timeout(std::time::Duration::from_secs(5)) {
+        Ok(Ok(())) => {
+            *state.playing.lock().unwrap() = true;
+            *state.current_url.lock().unwrap() = Some(url);
+            Ok(true)
+        }
+        Ok(Err(e)) => {
+            *state.playing.lock().unwrap() = false;
+            Err(e)
+        }
+        Err(_timeout) => {
+            // Thread is still working (e.g. still buffering), assume it'll succeed
+            *state.playing.lock().unwrap() = true;
+            *state.current_url.lock().unwrap() = Some(url);
+            Ok(true)
+        }
+    }
+}
+
+#[tauri::command]
+fn radio_pause() -> Result<bool, String> {
+    let state = radio_state();
+    *state.playing.lock().unwrap() = false;
+    state.tx.send(RadioCmd::Pause)
+        .map_err(|e| format!("发送暂停命令失败: {e}"))?;
+    Ok(true)
+}
+
+#[tauri::command]
+fn radio_resume() -> Result<bool, String> {
+    let state = radio_state();
+    state.tx.send(RadioCmd::Resume)
+        .map_err(|e| format!("发送恢复命令失败: {e}"))?;
+    *state.playing.lock().unwrap() = true;
+    Ok(true)
+}
+
+#[tauri::command]
+fn radio_stop() -> Result<bool, String> {
+    let state = radio_state();
+    *state.playing.lock().unwrap() = false;
+    *state.current_url.lock().unwrap() = None;
+    state.tx.send(RadioCmd::Stop)
+        .map_err(|e| format!("发送停止命令失败: {e}"))?;
+    Ok(true)
+}
+
+#[tauri::command]
+fn radio_set_volume(volume: f64) -> Result<bool, String> {
+    let state = radio_state();
+    state.tx.send(RadioCmd::SetVolume { volume })
+        .map_err(|e| format!("发送音量命令失败: {e}"))?;
+    Ok(true)
+}
+
+#[tauri::command]
+fn radio_is_playing() -> bool {
+    let state = radio_state();
+    *state.playing.lock().unwrap()
+}
+
+#[tauri::command]
+fn get_local_audio_path<R: Runtime>(app: AppHandle<R>) -> Result<String, String> {
+    // Get the resource directory path
+    let resource_dir = app.path()
+        .resource_dir()
+        .map_err(|e| format!("获取资源目录失败: {e}"))?;
+
+    let audio_path = resource_dir.join("assets").join("audio").join("focus-music.mp3");
+
+    // Check if the file exists
+    if audio_path.exists() {
+        Ok(audio_path.to_string_lossy().to_string())
+    } else {
+        Err("本地音频文件不存在，请将音频文件放到 assets/audio/focus-music.mp3".to_string())
+    }
+}
+
 #[derive(serde::Serialize, Clone, Copy)]
 struct PanelTransitionMetrics {
     island_x: i32,
@@ -449,6 +802,13 @@ pub fn run() {
             set_island_visible,
             get_screen_info,
             get_macos_update_health,
+            radio_play,
+            radio_pause,
+            radio_resume,
+            radio_stop,
+            radio_set_volume,
+            radio_is_playing,
+            get_local_audio_path,
         ])
         .setup(|app| {
             #[cfg(desktop)]

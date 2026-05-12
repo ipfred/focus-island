@@ -38,3 +38,9 @@ desktop.ini
 # Worktrees
 .worktrees/
 .claude/worktrees/
+
+# 本地音频文件（用户自己添加）
+src-tauri/assets/audio/*.mp3
+src-tauri/assets/audio/*.wav
+src-tauri/assets/audio/*.flac
+src-tauri/assets/audio/*.ogg
