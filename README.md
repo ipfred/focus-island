@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="image/20260322_110714.gif" width="320" alt="专注岛演示" />
+  <img src="image/focus-island_v2-ezgif.com-optimize.gif" width="320" alt="专注岛演示" />
 </p>
 
 ---
@@ -26,11 +26,13 @@
 灵动岛长驻,时刻提醒,将自己的专注力拉回到任务心流中
 
 
-### 📝 任务管理
+### 🚀 功能亮点
 
 - 内置专注清单面板，优先级最高的任务进入核心专注区
 - 每个任务自动记录已完成的番茄数
-- 统计当天完成的番茄时钟数
+- 每日任务统计
+- 备忘录 + todo清单
+- 7*24 专注音乐电台
 
 ### 🎨 高度可定制
 
@@ -153,6 +155,10 @@ git add src-tauri/Cargo.toml
 
 当你手动修改了 `package.json` 的版本号后，可用这组命令补做同步。
 ---
+
+## Friendship Link
+
+Thanks for the support and feedback from the friends at [LINUX DO](https://linux.do/). 
 
 ## 📄 License
 

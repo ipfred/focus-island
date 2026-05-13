@@ -39,13 +39,18 @@ for (const file of files) {
   const entries = Array.isArray(parsed.entries) ? parsed.entries : []
   for (const entry of entries) {
     if (!entry?.key || !entry?.url || !entry?.signature) {
-      throw new Error(`invalid updater metadata entry in ${file}`)
+      throw new Error(`invalid updater metadata entry in ${file}: ${JSON.stringify(entry)}`)
+    }
+    if (entry.signature.trim().length === 0) {
+      console.error(`[generate-latest-json] ERROR: empty signature for platform=${entry.key} from ${file}`)
+      throw new Error(`empty signature for platform ${entry.key} in ${file}`)
     }
     if (!platformMap.has(entry.key)) {
       platformMap.set(entry.key, {
         url: entry.url,
         signature: entry.signature,
       })
+      console.log(`[generate-latest-json] added platform: ${entry.key} -> ${entry.url}`)
     }
   }
 }

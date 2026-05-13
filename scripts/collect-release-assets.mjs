@@ -60,46 +60,87 @@ function runGhUpload(filePath) {
 
 async function readSignature(filePath) {
   const sigPath = `${filePath}.sig`
+
+  // Try exact match first
   try {
+    await fs.access(sigPath)
     const raw = await fs.readFile(sigPath, 'utf8')
     const signature = raw.trim()
     if (!signature) {
+      console.warn(`[readSignature] WARNING: signature file empty: ${sigPath}`)
       throw new Error(`signature file is empty: ${sigPath}`)
     }
+    console.log(`[readSignature] OK: ${path.basename(filePath)} <- ${path.basename(sigPath)}`)
     return signature
   } catch (error) {
-    const dir = path.dirname(filePath)
-    const basename = path.basename(filePath)
-    const normalized = basename.normalize('NFC')
-    const entries = await fs.readdir(dir)
-    const sigFiles = entries.filter((name) => name.endsWith('.sig'))
-    const normalizedCandidates = sigFiles.filter((name) => {
-      const n = name.normalize('NFC')
-      return (
-        n === `${normalized}.sig` ||
-        n.startsWith(`${normalized}.`) ||
-        n.includes(normalized.replace(/\.tar\.gz$/i, '')) ||
-        (basename.endsWith('.app.tar.gz') && n.endsWith('.app.tar.gz.sig')) ||
-        (basename.endsWith('.AppImage') && n.endsWith('.AppImage.sig')) ||
-        (basename.endsWith('.deb') && n.endsWith('.deb.sig')) ||
-        (basename.endsWith('.rpm') && n.endsWith('.rpm.sig')) ||
-        (basename.endsWith('-setup.exe') && n.endsWith('-setup.exe.sig'))
-      )
-    })
-
-    if (normalizedCandidates.length === 1) {
-      const fallbackSigPath = path.join(dir, normalizedCandidates[0])
-      const raw = await fs.readFile(fallbackSigPath, 'utf8')
-      const signature = raw.trim()
-      if (signature) {
-        return signature
-      }
-    }
-
-    throw new Error(
-      `missing updater signature for ${filePath}. expected ${sigPath}. found sig files: ${sigFiles.join(', ') || '(none)'}; root error: ${String(error)}`,
-    )
+    if (error.message?.startsWith('signature file is empty')) throw error
+    console.warn(`[readSignature] exact match not found at ${sigPath}: ${error.message}`)
   }
+
+  // Fallback: search for .sig files in the same directory
+  const dir = path.dirname(filePath)
+  const basename = path.basename(filePath)
+  const normalized = basename.normalize('NFC')
+  const entries = await fs.readdir(dir)
+  const sigFiles = entries.filter((name) => name.endsWith('.sig'))
+
+  console.log(`[readSignature] searching for .sig for "${basename}" in ${dir}`)
+  console.log(`[readSignature] all .sig files in dir: ${sigFiles.length > 0 ? sigFiles.join(', ') : '(none)'}`)
+
+  // Try a series of heuristics in priority order
+  const candidates = []
+
+  // 1. Exact basename match
+  const exactMatch = sigFiles.find((name) => name === `${basename}.sig`)
+  if (exactMatch) candidates.push(exactMatch)
+
+  // 2. NFC normalized match
+  const nfcMatch = sigFiles.find((name) => name.normalize('NFC') === `${normalized}.sig`)
+  if (nfcMatch && !candidates.includes(nfcMatch)) candidates.push(nfcMatch)
+
+  // 3. Extension-specific suffix matches (handles multi-ext files like .app.tar.gz)
+  if (basename.endsWith('.app.tar.gz')) {
+    const match = sigFiles.find((name) => name.endsWith('.app.tar.gz.sig'))
+    if (match) candidates.push(match)
+  } else if (basename.endsWith('.AppImage')) {
+    const match = sigFiles.find((name) => name.endsWith('.AppImage.sig'))
+    if (match) candidates.push(match)
+  } else if (basename.endsWith('.deb')) {
+    const match = sigFiles.find((name) => name.endsWith('.deb.sig'))
+    if (match) candidates.push(match)
+  } else if (basename.endsWith('.rpm')) {
+    const match = sigFiles.find((name) => name.endsWith('.rpm.sig'))
+    if (match) candidates.push(match)
+  } else if (basename.endsWith('-setup.exe')) {
+    const match = sigFiles.find((name) => name.endsWith('-setup.exe.sig'))
+    if (match) candidates.push(match)
+  }
+
+  // 4. Any .sig that starts with the asset name stem
+  const stem = basename.replace(/\.(tar\.gz|app\.tar\.gz|AppImage|deb|rpm|exe)$/i, '')
+  if (stem !== basename) {
+    const stemMatches = sigFiles.filter((name) => name.startsWith(stem) && !candidates.includes(name))
+    candidates.push(...stemMatches)
+  }
+
+  if (candidates.length === 1) {
+    const fallbackSigPath = path.join(dir, candidates[0])
+    const raw = await fs.readFile(fallbackSigPath, 'utf8')
+    const signature = raw.trim()
+    if (signature) {
+      console.log(`[readSignature] OK (fallback): ${basename} <- ${candidates[0]}`)
+      return signature
+    }
+    console.warn(`[readSignature] WARNING: fallback signature file empty: ${fallbackSigPath}`)
+  }
+
+  if (candidates.length > 1) {
+    console.warn(`[readSignature] WARNING: ambiguous candidates for ${basename}: ${candidates.join(', ')}`)
+  }
+
+  throw new Error(
+    `missing updater signature for ${filePath}. expected ${sigPath}. found sig files in dir: ${sigFiles.join(', ') || '(none)'}`,
+  )
 }
 
 /**
@@ -214,6 +255,13 @@ await fs.writeFile(
     2,
   )}\n`,
 )
+
+// Validate all entries have non-empty signatures
+for (const entry of entries) {
+  if (!entry.signature || entry.signature.trim().length === 0) {
+    console.error(`[collect] ERROR: empty signature for key=${entry.key}, url=${entry.url}`)
+  }
+}
 
 console.log(`uploaded ${uploadedAssets.length} assets for ${platformName}`)
 console.log(`collected ${entries.length} updater entries -> ${metadataOut}`)

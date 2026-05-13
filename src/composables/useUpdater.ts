@@ -29,6 +29,7 @@ const installFailed = ref(false)
 const updateNoticeDismissed = ref(false)
 
 const isMacOS = navigator.userAgent.toLowerCase().includes('mac')
+const isWindows = navigator.userAgent.toLowerCase().includes('win')
 const macQuarantined = ref(false)
 const macRepairCommand = ref('')
 const macRepairStatus = ref('')
@@ -68,6 +69,38 @@ function resetCheckState() {
   installFailed.value = false
 }
 
+/**
+ * Extract the most useful error message from Tauri updater errors.
+ * Tauri's updater plugin can produce nested error structures.
+ */
+function formatUpdateError(e: unknown): string {
+  if (!(e instanceof Error)) return '更新失败，请稍后重试'
+
+  const message = e.message || String(e)
+
+  // Signature verification failure
+  if (/signature|签名|公钥|pub.?key|verif/i.test(message)) {
+    return '更新包签名校验失败，请确认：\n1. GitHub Secrets 中的 TAURI_SIGNING_PRIVATE_KEY 是否正确\n2. tauri.conf.json 中的 pubkey 是否与私钥匹配\n3. 最近一次 release CI 是否成功生成了 latest.json'
+  }
+
+  // Network-related
+  if (/network|fetch|connect|timeout|dns|ENOTFOUND/i.test(message)) {
+    return `网络连接失败：无法获取更新信息。请检查网络连接后重试。\n(${message})`
+  }
+
+  // File/permission errors
+  if (/permission|denied|EACCES|EPERM/i.test(message)) {
+    return `权限不足：无法写入更新文件。请尝试以管理员身份运行应用。\n(${message})`
+  }
+
+  // NSIS/installer errors on Windows
+  if (isWindows && (/install|setup|msi|nsis/i.test(message))) {
+    return `安装更新失败。请手动从 GitHub Releases 页面下载最新版本安装。\n(${message})`
+  }
+
+  return `更新失败：${message}`
+}
+
 async function checkForUpdate(options: { silent?: boolean } = {}) {
   if (checking.value || downloading.value) return availableUpdate.value
 
@@ -88,7 +121,7 @@ async function checkForUpdate(options: { silent?: boolean } = {}) {
     return update
   } catch (e) {
     if (!options.silent) {
-      error.value = e instanceof Error ? e.message : '检查更新失败'
+      error.value = formatUpdateError(e)
     }
     return null
   } finally {
@@ -143,21 +176,17 @@ async function downloadAndInstall() {
     if (isMacOS) {
       await refreshMacUpdateHealth(true)
       if (macQuarantined.value) {
-        macRepairStatus.value = '更新已安装，但检测到系统隔离属性，请执行命令后重新检测。'
+        macRepairStatus.value = '更新已安装，但检测到系统隔离属性（com.apple.quarantine），请在终端执行下方命令后重新启动应用。'
         return
       }
     }
 
-    if (!isMacOS) {
-      await new Promise(resolve => setTimeout(resolve, 500))
-    }
+    // Brief delay to ensure the installer completes before relaunch
+    await new Promise(resolve => setTimeout(resolve, isMacOS ? 800 : 500))
     await relaunch()
   } catch (e) {
-    const message = e instanceof Error ? e.message : '下载更新失败'
     installFailed.value = true
-    error.value = /signature|公钥|校验/i.test(message)
-      ? '更新包签名校验失败，请先配置 updater pubkey 和 latest.json 的 signature。'
-      : message
+    error.value = formatUpdateError(e)
   } finally {
     downloading.value = false
   }
@@ -168,18 +197,16 @@ async function refreshMacUpdateHealth(showStatus = false) {
   try {
     const health = await invoke<MacosUpdateHealth | null>('get_macos_update_health')
     if (!health) return
-    if (!macRepairCommand.value || macRepairCommand.value.startsWith('xattr -dr com.apple.quarantine')) {
-      macRepairCommand.value = health.repair_command
-    }
+    macRepairCommand.value = health.repair_command
     macQuarantined.value = health.quarantined
     if (showStatus) {
       macRepairStatus.value = health.quarantined
-        ? '仍检测到隔离属性，请在终端执行命令后再次检测。'
+        ? '仍检测到隔离属性（com.apple.quarantine）。请在终端执行下方命令后重新启动应用。'
         : '检测通过，正在重启应用...'
     }
   } catch {
     if (showStatus) {
-      macRepairStatus.value = '检测失败，请手动执行命令后再重试。'
+      macRepairStatus.value = '检测失败，请手动在终端执行 xattr 命令后再重试。'
     }
   }
 }
