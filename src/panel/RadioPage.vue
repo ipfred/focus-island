@@ -54,16 +54,46 @@ const { stations, currentStation, playing, loading, error, volume, toggle, switc
         @click="switchStation(station.id)"
       >
         <div class="card-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 18V5l12-2v13" />
-            <circle cx="6" cy="18" r="3" />
-            <circle cx="18" cy="16" r="3" />
+          <!-- Code Radio: code brackets -->
+          <svg v-if="station.icon === 'code'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 18l6-6-6-6M8 6l-6 6 6 6" />
+          </svg>
+          <!-- Groove Salad: equalizer bars -->
+          <svg v-else-if="station.icon === 'wave'" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="3" y="13" width="3" height="7" rx="1" opacity="0.7" />
+            <rect x="8" y="9" width="3" height="11" rx="1" opacity="0.85" />
+            <rect x="13" y="6" width="3" height="14" rx="1" />
+            <rect x="18" y="11" width="3" height="9" rx="1" opacity="0.7" />
+          </svg>
+          <!-- Drone Zone: concentric waves -->
+          <svg v-else-if="station.icon === 'drone'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <circle cx="12" cy="12" r="3" />
+            <circle cx="12" cy="12" r="7" opacity="0.55" />
+            <circle cx="12" cy="12" r="11" opacity="0.25" />
+          </svg>
+          <!-- Deep Space One: planet with ring -->
+          <svg v-else-if="station.icon === 'planet'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <circle cx="12" cy="11" r="5" />
+            <ellipse cx="12" cy="11" rx="9" ry="3" transform="rotate(-18 12 11)" />
+          </svg>
+          <!-- Space Station: star sparkle -->
+          <svg v-else-if="station.icon === 'star'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2l1.5 6.5L20 9l-5 4.5L17 20l-5-3-5 3 1.5-7L4 9l6.5-.5z" />
+          </svg>
+          <!-- Ambient Pill: pill shape -->
+          <svg v-else-if="station.icon === 'pill'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <rect x="3" y="7" width="18" height="10" rx="5" />
+          </svg>
+          <!-- 本地音乐: folder -->
+          <svg v-else-if="station.icon === 'folder'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" />
           </svg>
           <div v-if="currentStation?.id === station.id && playing" class="playing-indicator">
             <span /><span /><span />
           </div>
         </div>
         <div class="card-name">{{ station.name }}</div>
+        <div class="card-keyword">{{ station.keyword }}</div>
       </button>
     </div>
   </div>
@@ -79,6 +109,7 @@ const { stations, currentStation, playing, loading, error, volume, toggle, switc
   gap: 16px;
   padding: 0 4px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .now-playing {
@@ -290,6 +321,22 @@ const { stations, currentStation, playing, loading, error, volume, toggle, switc
   font-size: 11px;
   font-weight: 500;
   text-align: center;
+  line-height: 1.3;
+}
+
+.card-keyword {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.45);
+  text-align: center;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.station-card.active .card-keyword {
+  color: color-mix(in srgb, var(--focus-color) 50%, transparent);
 }
 
 .radio-page::-webkit-scrollbar {

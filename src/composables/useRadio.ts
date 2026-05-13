@@ -3,11 +3,15 @@ import { readTextFile, writeTextFile, mkdir, BaseDirectory } from '@tauri-apps/p
 import { emit } from '@tauri-apps/api/event'
 import { invoke, convertFileSrc } from '@tauri-apps/api/core'
 
+export type StationIcon = 'code' | 'wave' | 'drone' | 'planet' | 'star' | 'pill' | 'folder'
+
 export interface RadioStation {
   id: string
   name: string
   streamUrl: string
   description: string
+  icon: StationIcon
+  keyword: string
 }
 
 export interface RadioSettings {
@@ -21,12 +25,56 @@ export const PRESET_STATIONS: RadioStation[] = [
     name: 'Code Radio',
     streamUrl: 'https://coderadio-admin-v2.freecodecamp.org/listen/coderadio/radio.mp3',
     description: 'freeCodeCamp 24h 编程音乐电台',
+    icon: 'code',
+    keyword: '编程音乐',
+  },
+  {
+    id: 'groovesalad',
+    name: 'Groove Salad',
+    streamUrl: 'https://ice5.somafm.com/groovesalad-128-mp3',
+    description: 'SomaFM 氛围缓拍电子，适合专注工作',
+    icon: 'wave',
+    keyword: '缓拍电子',
+  },
+  {
+    id: 'dronezone',
+    name: 'Drone Zone',
+    streamUrl: 'https://ice5.somafm.com/dronezone-128-mp3',
+    description: 'SomaFM 极简氛围音景，深度专注',
+    icon: 'drone',
+    keyword: '极简氛围',
+  },
+  {
+    id: 'deepspaceone',
+    name: 'Deep Space One',
+    streamUrl: 'https://ice5.somafm.com/deepspaceone-128-mp3',
+    description: 'SomaFM 深邃太空电子，沉浸式专注',
+    icon: 'planet',
+    keyword: '太空电子',
+  },
+  {
+    id: 'spacestation',
+    name: 'Space Station',
+    streamUrl: 'https://ice5.somafm.com/spacestation-128-mp3',
+    description: 'SomaFM 中速太空音乐，轻松聚焦',
+    icon: 'star',
+    keyword: '太空音乐',
+  },
+  {
+    id: 'ambientpill',
+    name: 'Ambient Pill',
+    streamUrl: 'http://radio.stereoscenic.com/asp-s',
+    description: '24h 纯氛围音乐，无节拍无广告',
+    icon: 'pill',
+    keyword: '纯氛围',
   },
   {
     id: 'local-music',
     name: '本地音乐',
     streamUrl: '__LOCAL__',
     description: '离线专注音乐（需要在 assets/audio/ 放置 focus-music.mp3）',
+    icon: 'folder',
+    keyword: '离线音乐',
   },
 ]
 

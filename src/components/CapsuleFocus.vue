@@ -45,20 +45,45 @@ const phaseColor = computed(() =>
       <span class="text-white/20" :style="{ fontSize: `calc(10px * var(--island-scale, 1))` }">
         {{ running ? '' : '⏸' }}
       </span>
-      <span v-if="radioPlaying" class="music-note" :style="{ fontSize: `calc(10px * var(--island-scale, 1))` }">♪</span>
+      <div v-if="radioPlaying" class="wave-bars">
+        <span class="wave-bar" />
+        <span class="wave-bar" />
+        <span class="wave-bar" />
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.music-note {
-  color: var(--focus-color);
-  opacity: 0.7;
-  animation: note-pulse 2s ease-in-out infinite;
+.wave-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: calc(1.5px * var(--island-scale, 1));
+  height: calc(11px * var(--island-scale, 1));
 }
 
-@keyframes note-pulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 0.9; }
+.wave-bar {
+  width: calc(2px * var(--island-scale, 1));
+  background: var(--focus-color);
+  border-radius: 1px;
+  opacity: 0.8;
+  animation: wave-bounce 0.8s ease-in-out infinite;
+}
+
+.wave-bar:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.wave-bar:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.wave-bar:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes wave-bounce {
+  0%, 100% { height: 30%; }
+  50% { height: 100%; }
 }
 </style>
