@@ -12,35 +12,42 @@ const { stations, currentStation, playing, loading, error, volume, toggle, switc
         <div class="station-name">{{ currentStation?.name ?? '选择一个电台' }}</div>
         <div class="station-desc">{{ currentStation?.description ?? '让音乐陪伴你的专注时光' }}</div>
       </div>
-      <div class="controls">
-        <button class="play-btn" :disabled="!currentStation" @click="toggle">
-          <svg v-if="loading" class="spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="M12 2a10 10 0 0 1 10 10" />
+      <div class="player-controls">
+        <button
+          class="play-btn"
+          :class="{ 'is-playing': playing }"
+          :disabled="!currentStation"
+          @click="toggle"
+        >
+          <svg v-if="loading" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="7" cy="12" r="1.8" opacity="0.3" />
+            <circle cx="12" cy="12" r="1.8" opacity="0.6" />
+            <circle cx="17" cy="12" r="1.8" />
           </svg>
           <svg v-else-if="playing" viewBox="0 0 24 24" fill="currentColor">
-            <rect x="6" y="4" width="4" height="16" rx="1" />
-            <rect x="14" y="4" width="4" height="16" rx="1" />
+            <rect x="7" y="5" width="3.5" height="14" rx="1" />
+            <rect x="13.5" y="5" width="3.5" height="14" rx="1" />
           </svg>
           <svg v-else viewBox="0 0 24 24" fill="currentColor">
-            <path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11.04-6.86a1 1 0 0 0 0-1.72L9.5 4.28a1 1 0 0 0-1.5.86Z" />
+            <path d="M7.5 5.3v13.4a1 1 0 0 0 1.45.9l11.1-6.7a1 1 0 0 0 0-1.8L8.95 4.4a1 1 0 0 0-1.45.9Z" />
           </svg>
         </button>
+        <div class="volume-row">
+          <svg class="vol-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 5L6 9H2v6h4l5 4V5z" />
+          </svg>
+          <input
+            type="range"
+            class="volume-slider"
+            min="0"
+            max="100"
+            :value="volume"
+            @input="setVolume(Number(($event.target as HTMLInputElement).value))"
+          />
+          <span class="vol-value">{{ volume }}</span>
+        </div>
       </div>
       <div v-if="error" class="error-msg">{{ error }}</div>
-      <div class="volume-row">
-        <svg class="vol-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M11 5L6 9H2v6h4l5 4V5z" />
-        </svg>
-        <input
-          type="range"
-          class="volume-slider"
-          min="0"
-          max="100"
-          :value="volume"
-          @input="setVolume(Number(($event.target as HTMLInputElement).value))"
-        />
-        <span class="vol-value">{{ volume }}%</span>
-      </div>
     </div>
 
     <!-- Station List -->
@@ -139,73 +146,84 @@ const { stations, currentStation, playing, loading, error, volume, toggle, switc
   color: rgba(255, 255, 255, 0.45);
 }
 
-.controls {
+.player-controls {
   display: flex;
-  justify-content: center;
+  align-items: center;
+  gap: 12px;
 }
 
 .play-btn {
-  width: 52px;
-  height: 52px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--focus-color);
-  border: none;
+  background: transparent;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
   border-radius: 50%;
-  color: #fff;
+  color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
-  transition: transform 0.15s ease, opacity 0.15s ease;
+  flex-shrink: 0;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
 }
 
 .play-btn:hover {
-  transform: scale(1.06);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.play-btn.is-playing {
+  background: var(--focus-color);
+  border-color: var(--focus-color);
+  color: #fff;
+}
+
+.play-btn.is-playing:hover {
+  opacity: 0.9;
 }
 
 .play-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.3;
   cursor: not-allowed;
 }
 
+.play-btn:disabled:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.7);
+}
+
 .play-btn svg {
-  width: 22px;
-  height: 22px;
-}
-
-.play-btn .spin {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  width: 18px;
+  height: 18px;
 }
 
 .error-msg {
   font-size: 11px;
   color: #e85d3a;
-  text-align: center;
 }
 
 .volume-row {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .vol-icon {
-  width: 16px;
-  height: 16px;
-  color: rgba(255, 255, 255, 0.45);
+  width: 14px;
+  height: 14px;
+  color: rgba(255, 255, 255, 0.35);
   flex-shrink: 0;
 }
 
 .volume-slider {
   flex: 1;
+  min-width: 0;
   -webkit-appearance: none;
   appearance: none;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.12);
+  height: 3px;
+  background: rgba(255, 255, 255, 0.1);
   border-radius: 2px;
   outline: none;
   cursor: pointer;
@@ -213,19 +231,21 @@ const { stations, currentStation, playing, loading, error, volume, toggle, switc
 
 .volume-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
-  background: #fff;
+  width: 12px;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.9);
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .vol-value {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.45);
-  min-width: 30px;
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.5);
+  min-width: 20px;
   text-align: right;
+  flex-shrink: 0;
 }
 
 .section-title {
