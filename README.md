@@ -7,7 +7,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-blue" alt="Platform" />
-  <img src="https://img.shields.io/badge/license-MIT-green" alt="License" />
+  <img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License" />
   <img src="https://img.shields.io/badge/size-~5MB-purple" alt="Size" />
 </p>
 
@@ -135,25 +135,6 @@ npm version major  # 首位升级 重置后两位
 npm version 1.8.3 --no-git-tag-version  # 指定版本 不提交到git上
 ```
 
-运行 `npm version` 时会触发 `package.json` 里的 `version` 钩子：
-
-```bash
-node scripts/sync-version.mjs && git add src-tauri/Cargo.toml
-```
-
-这样生成的版本提交和 tag 会包含：
-- `package.json`
-- `package-lock.json`
-- `src-tauri/Cargo.toml`
-
-### 单独执行脚本（可选）
-
-```bash
-node scripts/sync-version.mjs
-git add src-tauri/Cargo.toml
-```
-
-当你手动修改了 `package.json` 的版本号后，可用这组命令补做同步。
 ---
 
 ## Friendship Link
@@ -162,5 +143,5 @@ Thanks for the support and feedback from the friends at [LINUX DO](https://linux
 
 ## 📄 License
 
-MIT
+Apache License 2.0
 
