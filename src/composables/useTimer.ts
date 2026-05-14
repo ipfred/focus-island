@@ -43,27 +43,14 @@ type PhaseCallback = (phase: TimerPhase, taskId: string | null) => void
 const onDoneCallbacks: PhaseCallback[] = []
 
 function onPhaseDone() {
-  const { settings } = useSettings()
   onDoneCallbacks.forEach(cb => cb(phase.value, activeTaskId.value))
-  if (phase.value === 'focus') {
-    phase.value = 'break'
-    focusStartedAt.value = null
-    const breakSecs = settings.value.breakDuration * 60
-    remaining.value = breakSecs
-    totalDuration.value = breakSecs
-    running.value = true
-    phaseEndAtMs = Date.now() + breakSecs * 1000
-    startTicking()
-  } else {
-    phase.value = 'focus'
-    focusStartedAt.value = null
-    phaseEndAtMs = null
-    const focusSecs = settings.value.focusDuration * 60
-    remaining.value = focusSecs
-    totalDuration.value = focusSecs
-    activeTaskId.value = null
-    activeTaskTitle.value = null
+  // 停止计时，不自动跳转。由通知按钮决定后续动作。
+  if (intervalId) {
+    clearInterval(intervalId)
+    intervalId = null
   }
+  phaseEndAtMs = null
+  running.value = false
 }
 
 export function useTimer() {
@@ -134,6 +121,28 @@ export function useTimer() {
     resume()
   }
 
+  function startBreak() {
+    const { settings } = useSettings()
+    phase.value = 'break'
+    focusStartedAt.value = null
+    const breakSecs = settings.value.breakDuration * 60
+    remaining.value = breakSecs
+    totalDuration.value = breakSecs
+    phaseEndAtMs = Date.now() + breakSecs * 1000
+    resume()
+  }
+
+  function continueFocus() {
+    const { settings } = useSettings()
+    phase.value = 'focus'
+    focusStartedAt.value = Date.now()
+    const focusSecs = settings.value.focusDuration * 60
+    remaining.value = focusSecs
+    totalDuration.value = focusSecs
+    phaseEndAtMs = Date.now() + focusSecs * 1000
+    resume()
+  }
+
   function skipBreak() {
     pause()
     phase.value = 'focus'
@@ -144,6 +153,19 @@ export function useTimer() {
     totalDuration.value = focusSecs
     activeTaskId.value = null
     activeTaskTitle.value = null
+  }
+
+  function resetToIdle() {
+    const { settings } = useSettings()
+    phase.value = 'focus'
+    focusStartedAt.value = null
+    phaseEndAtMs = null
+    const focusSecs = settings.value.focusDuration * 60
+    remaining.value = focusSecs
+    totalDuration.value = focusSecs
+    activeTaskId.value = null
+    activeTaskTitle.value = null
+    running.value = false
   }
 
   function abandon() {
@@ -179,6 +201,9 @@ export function useTimer() {
     skipToBreak,
     skipBreak,
     abandon,
+    startBreak,
+    continueFocus,
+    resetToIdle,
     onPhaseDoneCallback,
   }
 }
