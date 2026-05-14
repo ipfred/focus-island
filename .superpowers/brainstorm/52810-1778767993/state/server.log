@@ -1,0 +1,5 @@
+{"type":"server-started","port":56086,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:56086","screen_dir":"/Users/fred/Desktop/my_work/focus-island/.superpowers/brainstorm/52810-1778767993/content","state_dir":"/Users/fred/Desktop/my_work/focus-island/.superpowers/brainstorm/52810-1778767993/state"}
+{"type":"screen-added","file":"/Users/fred/Desktop/my_work/focus-island/.superpowers/brainstorm/52810-1778767993/content/notification-toast.html"}
+{"type":"screen-added","file":"/Users/fred/Desktop/my_work/focus-island/.superpowers/brainstorm/52810-1778767993/content/notification-toast-v2.html"}
+{"type":"screen-added","file":"/Users/fred/Desktop/my_work/focus-island/.superpowers/brainstorm/52810-1778767993/content/waiting.html"}
+{"type":"server-stopped","reason":"idle timeout"}

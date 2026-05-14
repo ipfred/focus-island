@@ -1,0 +1,141 @@
+<h2>通知悬浮窗 v2 — 更紧凑圆润的设计</h2>
+<p class="subtitle">参考 iOS 通知横幅风格，降低高度，加大圆角</p>
+
+<div class="section">
+  <h3>方案 A：圆角胶囊式</h3>
+  <p class="subtitle">全圆角 pill 风格，图标+文字+按钮在同一行，紧凑高效</p>
+  <div class="mockup">
+    <div class="mockup-header">灵动岛区域（模拟 macOS 菜单栏位置）</div>
+    <div class="mockup-body" style="display:flex;flex-direction:column;align-items:center;padding:36px 0 24px;background:rgba(0,0,0,0.15);border-radius:12px;">
+      <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
+        <!-- Notification Toast - 方案A 紧凑版 -->
+        <div style="width:316px;background:rgba(30,30,36,0.96);border-radius:24px;border:1px solid rgba(255,255,255,0.1);box-shadow:0 8px 32px rgba(0,0,0,0.55),inset 0 1px 0 rgba(255,255,255,0.06);padding:12px 16px;display:flex;align-items:center;gap:10px;z-index:2;position:relative;backdrop-filter:blur(20px);">
+          <!-- Left: Icon -->
+          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#e85d3a,#f06b4e);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 8px rgba(232,93,58,0.3);">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+          </div>
+          <!-- Center: Text -->
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;">
+            <div style="font-size:12.5px;font-weight:600;color:white;line-height:1.35;">完成了一个番茄</div>
+            <div style="font-size:10.5px;color:rgba(255,255,255,0.48);line-height:1.3;margin-top:1px;">休息一下吧</div>
+          </div>
+          <!-- Right: Buttons -->
+          <div style="display:flex;gap:6px;flex-shrink:0;">
+            <button style="height:30px;padding:0 16px;border-radius:15px;border:none;background:linear-gradient(135deg,#e85d3a,#f06b4e);color:white;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;box-shadow:0 2px 6px rgba(232,93,58,0.25);">休息</button>
+            <button style="height:30px;padding:0 14px;border-radius:15px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.65);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;">退出</button>
+          </div>
+        </div>
+        <!-- Island underneath -->
+        <div style="width:316px;height:32px;background:rgba(20,20,22,0.82);border-radius:16px;backdrop-filter:blur(16px);box-shadow:0 4px 20px rgba(0,0,0,0.4);margin-top:-4px;display:flex;align-items:center;justify-content:center;z-index:1;position:relative;">
+          <div style="display:flex;align-items:center;gap:7px;">
+            <div style="width:7px;height:7px;border-radius:50%;background:#e85d3a;animation:pulse 1.5s infinite;"></div>
+            <span style="font-size:10.5px;color:rgba(255,255,255,0.55);">专注岛 · 00:00</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>方案 B：更圆润的卡片式</h3>
+  <p class="subtitle">稍大的圆角 (20px)，双行布局，图标更大一些</p>
+  <div class="mockup">
+    <div class="mockup-header">灵动岛区域</div>
+    <div class="mockup-body" style="display:flex;flex-direction:column;align-items:center;padding:36px 0 24px;background:rgba(0,0,0,0.15);border-radius:12px;">
+      <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
+        <!-- Notification Toast - 方案B -->
+        <div style="width:320px;background:rgba(28,28,34,0.97);border-radius:22px;border:1px solid rgba(255,255,255,0.08);box-shadow:0 10px 40px rgba(0,0,0,0.6);padding:14px 16px;display:flex;align-items:center;gap:12px;z-index:2;position:relative;backdrop-filter:blur(24px);">
+          <!-- Left: Icon (slightly larger) -->
+          <div style="width:40px;height:40px;border-radius:14px;background:linear-gradient(135deg,#e85d3a,#f06b4e);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 3px 10px rgba(232,93,58,0.35);">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+              <polyline points="22 4 12 14.01 9 11.01"/>
+            </svg>
+          </div>
+          <!-- Center: Text -->
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:600;color:white;line-height:1.4;">完成了一个番茄</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.45);line-height:1.3;margin-top:2px;">休息一下吧 ☕</div>
+          </div>
+          <!-- Right: Buttons -->
+          <div style="display:flex;gap:7px;flex-shrink:0;">
+            <button style="height:32px;padding:0 18px;border-radius:16px;border:none;background:linear-gradient(135deg,#e85d3a,#f06b4e);color:white;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;box-shadow:0 2px 8px rgba(232,93,58,0.3);">休息</button>
+            <button style="height:32px;padding:0 14px;border-radius:16px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.6);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;">退出</button>
+          </div>
+        </div>
+        <!-- Island underneath -->
+        <div style="width:320px;height:32px;background:rgba(20,20,22,0.82);border-radius:16px;backdrop-filter:blur(16px);box-shadow:0 4px 20px rgba(0,0,0,0.4);margin-top:-4px;display:flex;align-items:center;justify-content:center;z-index:1;position:relative;">
+          <span style="font-size:10.5px;color:rgba(255,255,255,0.55);">专注岛 · 00:00</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>休息结束场景（方案A 风格）</h3>
+  <p class="subtitle">绿色系，同样的紧凑布局</p>
+  <div class="mockup">
+    <div class="mockup-header">灵动岛区域</div>
+    <div class="mockup-body" style="display:flex;flex-direction:column;align-items:center;padding:36px 0 24px;background:rgba(0,0,0,0.15);border-radius:12px;">
+      <div style="position:relative;display:flex;flex-direction:column;align-items:center;">
+        <div style="width:316px;background:rgba(30,30,36,0.96);border-radius:24px;border:1px solid rgba(58,158,110,0.25);box-shadow:0 8px 32px rgba(0,0,0,0.55),inset 0 1px 0 rgba(255,255,255,0.06);padding:12px 16px;display:flex;align-items:center;gap:10px;z-index:2;position:relative;backdrop-filter:blur(20px);">
+          <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#3a9e6e,#4db88a);display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 2px 8px rgba(58,158,110,0.3);">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12.5px;font-weight:600;color:white;line-height:1.35;">休息结束</div>
+            <div style="font-size:10.5px;color:rgba(255,255,255,0.48);line-height:1.3;margin-top:1px;">准备开启下一个番茄钟吗</div>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0;">
+            <button style="height:30px;padding:0 16px;border-radius:15px;border:none;background:linear-gradient(135deg,#3a9e6e,#4db88a);color:white;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;box-shadow:0 2px 6px rgba(58,158,110,0.25);">继续</button>
+            <button style="height:30px;padding:0 14px;border-radius:15px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.65);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;">退出</button>
+          </div>
+        </div>
+        <div style="width:316px;height:32px;background:rgba(20,20,22,0.82);border-radius:16px;backdrop-filter:blur(16px);box-shadow:0 4px 20px rgba(0,0,0,0.4);margin-top:-4px;display:flex;align-items:center;justify-content:center;z-index:1;position:relative;">
+          <span style="font-size:10.5px;color:rgba(255,255,255,0.55);">专注岛 · 空闲</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>两种布局对比</h3>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;">
+    <div style="flex:1;min-width:200px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;">
+      <div style="font-weight:600;color:white;margin-bottom:6px;">方案 A · 超紧凑</div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.5);line-height:1.5;">
+        · border-radius: 24px (胶囊感)<br/>
+        · 高度约 60px<br/>
+        · 图标 36px 圆形<br/>
+        · 按钮高 30px 圆角 15px<br/>
+        · 单行文字，副标题小字
+      </div>
+    </div>
+    <div style="flex:1;min-width:200px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:14px;">
+      <div style="font-weight:600;color:white;margin-bottom:6px;">方案 B · 宽松圆润</div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.5);line-height:1.5;">
+        · border-radius: 22px<br/>
+        · 高度约 68px<br/>
+        · 图标 40px 圆角 14px<br/>
+        · 按钮高 32px 圆角 16px<br/>
+        · 双行文字更舒展
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+</style>
