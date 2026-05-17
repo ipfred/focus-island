@@ -493,6 +493,7 @@ onBeforeUnmount(() => {
     flex: 1;
     display: flex;
     flex-direction: column;
+    width: 100%;
     overflow: hidden;
     background: transparent;
     color: #e8e8ea;
