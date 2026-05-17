@@ -59,13 +59,19 @@ const IS_MACOS = navigator.userAgent.toLowerCase().includes('mac')
 
 const currentView = ref<'tasks' | 'todo' | 'taskDetail' | 'settings' | 'memos' | 'stats' | 'radio'>('tasks')
 const taskIdForDetail = ref<string>('')
+const todoInitialTab = ref<string | undefined>(undefined)
+
+function navigateToTodo(tab?: string) {
+  todoInitialTab.value = tab
+  currentView.value = 'todo'
+}
 
 const navItems = [
   {
     key: 'tasks',
-    label: '任务',
-    title: '任务清单',
-    iconPaths: ['M4 6h2', 'M4 12h2', 'M4 18h2', 'M9 6h11', 'M9 12h11', 'M9 18h11'],
+    label: '首页',
+    title: '首页',
+    iconPaths: ['M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z', 'M9 22V12h6v10'],
   },
   {
     key: 'todo',
@@ -345,8 +351,8 @@ async function closeWindow() {
         @close="closeWindow"
       />
       <div class="panel-body">
-        <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" />
-        <TodoPage v-else-if="currentView === 'todo'" @view-detail="taskId => { taskIdForDetail = taskId; currentView = 'taskDetail' }" />
+        <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" @navigate-to-todo="navigateToTodo" />
+        <TodoPage v-else-if="currentView === 'todo'" :initial-tab="todoInitialTab" @view-detail="taskId => { taskIdForDetail = taskId; currentView = 'taskDetail' }" />
         <TaskDetailPage v-else-if="currentView === 'taskDetail'" :task-id="taskIdForDetail" @back="currentView = 'todo'" />
         <SettingsPage v-else-if="currentView === 'settings'" @back="currentView = 'tasks'" />
         <MemoPage v-else-if="currentView === 'memos'" @back="currentView = 'tasks'" />

@@ -6,6 +6,7 @@ import { useTimerBridge } from '../composables/useTimerBridge'
 import { getCategoryColor } from '../composables/useMemos'
 import TaskGroupDialog from './TaskGroupDialog.vue'
 
+const props = defineProps<{ initialTab?: string }>()
 const emit = defineEmits<{ viewDetail: [taskId: string] }>()
 
 const {
@@ -38,7 +39,12 @@ const {
 
 // --- Tab state ---
 type TabKey = string
-const activeTab = ref<TabKey>('today')
+const activeTab = ref<TabKey>(props.initialTab ?? 'today')
+
+// Watch for external tab changes (e.g. navigation from home page)
+watch(() => props.initialTab, (tab) => {
+  if (tab) activeTab.value = tab
+})
 const showGroupDialog = ref(false)
 
 // --- Quick-add state ---
