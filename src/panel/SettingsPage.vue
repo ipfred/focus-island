@@ -280,6 +280,16 @@ onUnmounted(() => {
           <span class="duration-unit">分</span>
         </div>
       </div>
+      <div class="notif-sound-row">
+        <div class="update-copy">
+          <span class="update-label">通知提示音</span>
+          <span class="update-hint">番茄钟或休息结束时播放提示音</span>
+        </div>
+        <label class="switch" aria-label="通知提示音">
+          <input v-model="settings.notificationSound" type="checkbox" />
+          <span class="switch-track"></span>
+        </label>
+      </div>
     </div>
 
     <!-- 快捷操作 -->
@@ -724,6 +734,16 @@ onUnmounted(() => {
 .duration-unit {
   font-size: 11px;
   color: rgba(255, 255, 255, 0.4);
+}
+
+.notif-sound-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 /* 快捷操作 */

@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { emit, listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useIslandState } from "../composables/useIslandState";
-import { useTimer } from "../composables/useTimer";
+import { useTimer, type NotificationType } from "../composables/useTimer";
 import { useSettings, type Settings } from "../composables/useSettings";
 import CapsuleIdle from "./CapsuleIdle.vue";
 import CapsuleFocus from "./CapsuleFocus.vue";
+import NotificationBanner from "./NotificationBanner.vue";
 import type { TimerStatePayload } from "../composables/useTimerBridge";
 
-const { state, setState } = useIslandState();
+const { state, setState, setNotificationVisible } = useIslandState();
 const timer = useTimer();
 const { settings, applyExternalSettings } = useSettings();
 
@@ -17,8 +18,59 @@ let unlisten: (() => void) | null = null;
 let unlistenSettings: (() => void) | null = null;
 let unlistenPanelMotion: (() => void) | null = null;
 let unlistenRadio: (() => void) | null = null;
+let unlistenNotification: (() => void) | null = null;
 
 const radioPlaying = ref(false);
+const notificationType = ref<NotificationType>(null);
+
+// Watch notification visibility and toggle click-through + resize window
+watch(notificationType, (val) => {
+    const visible = val !== null;
+    setNotificationVisible(visible);
+    invoke("set_click_through", { ignore: !visible });
+    const scale = settings.value.islandScale ?? 1;
+    if (visible) {
+        // Expand window to fit capsule + gap + notification banner
+        const width = 360 * scale;
+        const height = (BASE_HEIGHT + 6 + 60) * scale;
+        invoke("set_island_custom_size", { width, height });
+    } else {
+        // Restore normal island size
+        invoke("set_island_size", { scale });
+    }
+});
+
+function playNotificationSound() {
+    if (!settings.value.notificationSound) return;
+    try {
+        const ctx = new AudioContext();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.08);
+        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.16);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+        osc.start(ctx.currentTime);
+        osc.stop(ctx.currentTime + 0.35);
+    } catch {
+        // Audio not available
+    }
+}
+
+function onNotifConfirm() {
+    notificationType.value = null;
+    emit("notification-action", "confirm");
+}
+
+function onNotifDismiss() {
+    notificationType.value = null;
+    emit("notification-action", "dismiss");
+}
+
 let panelMotionTimer: number | null = null;
 let countdownTimer: number | null = null;
 let countdownEndAt = 0;
@@ -138,6 +190,11 @@ onMounted(async () => {
     unlistenRadio = await listen<{ playing: boolean; stationId: string | null }>("radio-state-update", ({ payload }) => {
         radioPlaying.value = payload.playing;
     });
+
+    unlistenNotification = await listen<NotificationType>("notification-show", ({ payload }) => {
+        notificationType.value = payload;
+        if (payload) playNotificationSound();
+    });
 });
 
 onUnmounted(() => {
@@ -145,6 +202,7 @@ onUnmounted(() => {
     unlistenSettings?.();
     unlistenPanelMotion?.();
     unlistenRadio?.();
+    unlistenNotification?.();
     stopLocalCountdown();
     if (panelMotionTimer) {
         window.clearTimeout(panelMotionTimer);
@@ -154,54 +212,62 @@ onUnmounted(() => {
 
 <template>
     <div class="island-container w-full h-full flex items-start justify-center">
-        <div
-            class="capsule-motion"
-            :class="{
-                'panel-launching': panelMotionState === 'opening',
-                'panel-receiving': panelMotionState === 'closing',
-            }"
-        >
+        <div class="island-stack">
             <div
-                class="capsule-shell relative flex items-center justify-center"
+                class="capsule-motion"
                 :class="{
-                    'ring-focus':
-                        timer.phase.value === 'focus' && timer.running.value,
-                    'ring-break':
-                        timer.phase.value === 'break' && timer.running.value,
-                }"
-                :style="{
-                    '--ring-progress': progressScale,
-                    '--ring-color': ringColor,
-                    '--ring-opacity': timer.running.value ? 1 : 0.35,
-                    '--island-scale': settings.islandScale ?? 1,
-                    width: capsuleWidth + 'px',
-                    height: capsuleHeight + 'px',
-                    borderRadius: capsuleRadius + 'px',
+                    'panel-launching': panelMotionState === 'opening',
+                    'panel-receiving': panelMotionState === 'closing',
                 }"
             >
-                <CapsuleIdle v-if="state === 'idle' || state === 'alert'" :radio-playing="radioPlaying" />
-                <CapsuleFocus v-else-if="state === 'focus' || state === 'break'" :radio-playing="radioPlaying" />
-                <svg class="progress-ring" :viewBox="`0 0 ${capsuleWidth} ${capsuleHeight}`" aria-hidden="true">
-                    <rect
-                        class="ring-track"
-                        :x="1.5 * settings.islandScale"
-                        :y="1.5 * settings.islandScale"
-                        :width="capsuleWidth - 3 * settings.islandScale"
-                        :height="capsuleHeight - 3 * settings.islandScale"
-                        :rx="capsuleRadius - 1.5 * settings.islandScale"
-                        pathLength="1"
-                    />
-                    <rect
-                        class="ring-progress"
-                        :x="1.5 * settings.islandScale"
-                        :y="1.5 * settings.islandScale"
-                        :width="capsuleWidth - 3 * settings.islandScale"
-                        :height="capsuleHeight - 3 * settings.islandScale"
-                        :rx="capsuleRadius - 1.5 * settings.islandScale"
-                        pathLength="1"
-                    />
-                </svg>
+                <div
+                    class="capsule-shell relative flex items-center justify-center"
+                    :class="{
+                        'ring-focus':
+                            timer.phase.value === 'focus' && timer.running.value,
+                        'ring-break':
+                            timer.phase.value === 'break' && timer.running.value,
+                    }"
+                    :style="{
+                        '--ring-progress': progressScale,
+                        '--ring-color': ringColor,
+                        '--ring-opacity': timer.running.value ? 1 : 0.35,
+                        '--island-scale': settings.islandScale ?? 1,
+                        width: capsuleWidth + 'px',
+                        height: capsuleHeight + 'px',
+                        borderRadius: capsuleRadius + 'px',
+                    }"
+                >
+                    <CapsuleIdle v-if="state === 'idle' || state === 'alert'" :radio-playing="radioPlaying" />
+                    <CapsuleFocus v-else-if="state === 'focus' || state === 'break'" :radio-playing="radioPlaying" />
+                    <svg class="progress-ring" :viewBox="`0 0 ${capsuleWidth} ${capsuleHeight}`" aria-hidden="true">
+                        <rect
+                            class="ring-track"
+                            :x="1.5 * settings.islandScale"
+                            :y="1.5 * settings.islandScale"
+                            :width="capsuleWidth - 3 * settings.islandScale"
+                            :height="capsuleHeight - 3 * settings.islandScale"
+                            :rx="capsuleRadius - 1.5 * settings.islandScale"
+                            pathLength="1"
+                        />
+                        <rect
+                            class="ring-progress"
+                            :x="1.5 * settings.islandScale"
+                            :y="1.5 * settings.islandScale"
+                            :width="capsuleWidth - 3 * settings.islandScale"
+                            :height="capsuleHeight - 3 * settings.islandScale"
+                            :rx="capsuleRadius - 1.5 * settings.islandScale"
+                            pathLength="1"
+                        />
+                    </svg>
+                </div>
             </div>
+            <NotificationBanner
+                :type="notificationType"
+                :scale="settings.islandScale ?? 1"
+                @confirm="onNotifConfirm"
+                @dismiss="onNotifDismiss"
+            />
         </div>
     </div>
 </template>
@@ -209,6 +275,13 @@ onUnmounted(() => {
 <style scoped>
 .island-container {
     /* items-start justify-center to stick to top edge */
+}
+
+.island-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
 }
 
 .capsule-motion {

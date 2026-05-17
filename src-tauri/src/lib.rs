@@ -150,6 +150,21 @@ fn set_island_size<R: Runtime>(app: AppHandle<R>, scale: f64) {
 }
 
 #[tauri::command]
+fn set_island_custom_size<R: Runtime>(app: AppHandle<R>, width: f64, height: f64) {
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.set_size(tauri::LogicalSize::new(width, height));
+        if let Ok(Some(monitor)) = main.current_monitor() {
+            let scale_factor = monitor.scale_factor();
+            let screen_width = monitor.size().width as f64;
+            let position = monitor.position();
+            let x = position.x as f64 + (screen_width - width * scale_factor) / 2.0;
+            let y = position.y as f64;
+            let _ = main.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
+        }
+    }
+}
+
+#[tauri::command]
 fn get_window_position<R: Runtime>(window: WebviewWindow<R>) -> (i32, i32) {
     window
         .outer_position()
@@ -453,6 +468,7 @@ pub fn run() {
             set_click_through,
             set_island_height,
             set_island_size,
+            set_island_custom_size,
             get_window_position,
             emit_island_panel_motion,
             position_panel_under_island,

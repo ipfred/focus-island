@@ -4,7 +4,7 @@
  */
 import { emit, listen } from '@tauri-apps/api/event'
 import { watch } from 'vue'
-import { useTimer, type TimerPhase } from './useTimer'
+import { useTimer, type TimerPhase, type NotificationType } from './useTimer'
 import { useTasks } from './useTasks'
 import { useDailyStats } from './useDailyStats'
 import { useAchievements } from './useAchievements'
@@ -53,6 +53,10 @@ export function useTimerBridge() {
     emit('timer-state-update', payload)
   }
 
+  function emitNotification(type: NotificationType) {
+    emit('notification-show', type)
+  }
+
   function startBridge() {
     if (bridgeStarted) return
     bridgeStarted = true
@@ -77,6 +81,25 @@ export function useTimerBridge() {
       }
     })
 
+    // Broadcast notification state to island when pendingNotification changes
+    watch(
+      () => timer.pendingNotification.value,
+      (notif) => {
+        emitNotification(notif)
+        // Also emit timer state so island gets the stopped state
+        emitTimerState(true)
+      },
+    )
+
+    // Listen for notification actions from the island window
+    listen<string>('notification-action', ({ payload }) => {
+      if (payload === 'confirm') {
+        timer.confirmNotification()
+      } else if (payload === 'dismiss') {
+        timer.dismissNotification()
+      }
+    }).catch(() => {})
+
     // 即时同步关键状态（开始/暂停/跳过/任务切换/阶段切换）
     watch(
       () => [
@@ -99,6 +122,10 @@ export function useTimerBridge() {
     // 灵动岛窗口重启/晚启动时，允许主动请求一次当前快照。
     listen('timer-state-request', () => {
       emitTimerState(true)
+      // Also resend notification state if pending
+      if (timer.pendingNotification.value) {
+        emitNotification(timer.pendingNotification.value)
+      }
     }).catch(() => {})
   }
 

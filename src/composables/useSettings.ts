@@ -23,6 +23,7 @@ export interface Settings {
   idleMottos: string[]       // 空闲时轮播的激励语，空数组则用内置默认
   shortcutKey: string        // 全局快捷键，如 "Alt+Space"
   autoCheckUpdates: boolean  // 启动后自动检查更新
+  notificationSound: boolean // 通知提示音开关
 }
 
 export const presetThemes: ThemePreset[] = [
@@ -45,6 +46,7 @@ const DEFAULT_SETTINGS: Settings = {
   idleMottos: [],
   shortcutKey: 'Alt+Space',
   autoCheckUpdates: true,
+  notificationSound: true,
 }
 
 const settings = ref<Settings>({ ...DEFAULT_SETTINGS })

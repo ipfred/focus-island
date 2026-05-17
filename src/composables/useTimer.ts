@@ -2,6 +2,7 @@ import { ref, computed, watch } from 'vue'
 import { useSettings } from './useSettings'
 
 export type TimerPhase = 'focus' | 'break'
+export type NotificationType = 'focus-done' | 'break-done' | null
 
 const phase = ref<TimerPhase>('focus')
 const remaining = ref(25 * 60)
@@ -10,6 +11,7 @@ const running = ref(false)
 const activeTaskId = ref<string | null>(null)
 const activeTaskTitle = ref<string | null>(null)
 const focusStartedAt = ref<number | null>(null)
+const pendingNotification = ref<NotificationType>(null)
 let intervalId: ReturnType<typeof setInterval> | null = null
 let phaseEndAtMs: number | null = null
 
@@ -44,13 +46,8 @@ const onDoneCallbacks: PhaseCallback[] = []
 
 function onPhaseDone() {
   onDoneCallbacks.forEach(cb => cb(phase.value, activeTaskId.value))
-  // 停止计时，不自动跳转。由通知按钮决定后续动作。
-  if (intervalId) {
-    clearInterval(intervalId)
-    intervalId = null
-  }
-  phaseEndAtMs = null
-  running.value = false
+  // Don't auto-transition; set pendingNotification and wait for user action
+  pendingNotification.value = phase.value === 'focus' ? 'focus-done' : 'break-done'
 }
 
 export function useTimer() {
@@ -121,28 +118,6 @@ export function useTimer() {
     resume()
   }
 
-  function startBreak() {
-    const { settings } = useSettings()
-    phase.value = 'break'
-    focusStartedAt.value = null
-    const breakSecs = settings.value.breakDuration * 60
-    remaining.value = breakSecs
-    totalDuration.value = breakSecs
-    phaseEndAtMs = Date.now() + breakSecs * 1000
-    resume()
-  }
-
-  function continueFocus() {
-    const { settings } = useSettings()
-    phase.value = 'focus'
-    focusStartedAt.value = Date.now()
-    const focusSecs = settings.value.focusDuration * 60
-    remaining.value = focusSecs
-    totalDuration.value = focusSecs
-    phaseEndAtMs = Date.now() + focusSecs * 1000
-    resume()
-  }
-
   function skipBreak() {
     pause()
     phase.value = 'focus'
@@ -155,8 +130,37 @@ export function useTimer() {
     activeTaskTitle.value = null
   }
 
-  function resetToIdle() {
-    const { settings } = useSettings()
+  /** User chose "休息" (after focus) or "继续" (after break) */
+  function confirmNotification() {
+    const notif = pendingNotification.value
+    if (!notif) return
+    pendingNotification.value = null
+    if (notif === 'focus-done') {
+      // Transition to break
+      phase.value = 'break'
+      focusStartedAt.value = null
+      const breakSecs = settings.value.breakDuration * 60
+      remaining.value = breakSecs
+      totalDuration.value = breakSecs
+      running.value = true
+      phaseEndAtMs = Date.now() + breakSecs * 1000
+      startTicking()
+    } else {
+      // break-done → start new focus (resume not auto-started, clear task)
+      phase.value = 'focus'
+      focusStartedAt.value = null
+      phaseEndAtMs = null
+      const focusSecs = settings.value.focusDuration * 60
+      remaining.value = focusSecs
+      totalDuration.value = focusSecs
+      activeTaskId.value = null
+      activeTaskTitle.value = null
+    }
+  }
+
+  /** User chose "退出" — return to idle */
+  function dismissNotification() {
+    pendingNotification.value = null
     phase.value = 'focus'
     focusStartedAt.value = null
     phaseEndAtMs = null
@@ -193,6 +197,7 @@ export function useTimer() {
     activeTaskId,
     activeTaskTitle,
     focusStartedAt,
+    pendingNotification,
     progress,
     displayTime,
     start,
@@ -201,9 +206,8 @@ export function useTimer() {
     skipToBreak,
     skipBreak,
     abandon,
-    startBreak,
-    continueFocus,
-    resetToIdle,
+    confirmNotification,
+    dismissNotification,
     onPhaseDoneCallback,
   }
 }
