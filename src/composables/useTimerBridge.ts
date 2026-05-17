@@ -17,6 +17,8 @@ export interface TimerStatePayload {
   running: boolean
   activeTaskId: string | null
   activeTaskTitle: string | null
+  activeSubtaskId: string | null
+  activeSubtaskTitle: string | null
   syncedAt: number
 }
 
@@ -41,6 +43,8 @@ export function useTimerBridge() {
         timer.activeTaskTitle.value ??
         tasks.value.find(t => t.id === timer.activeTaskId.value)?.title ??
         null,
+      activeSubtaskId: timer.activeSubtaskId.value,
+      activeSubtaskTitle: timer.activeSubtaskTitle.value,
     }
   }
 
