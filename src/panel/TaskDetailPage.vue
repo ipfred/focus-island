@@ -214,8 +214,12 @@ onBeforeUnmount(() => {
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
         </button>
-        <span class="header-title">任务详情</span>
-        <div class="header-spacer"></div>
+        <span class="header-title">TODO</span>
+        <button v-if="!showDeleteConfirm" class="header-btn delete-header-btn" @click.stop="confirmDelete" title="删除任务">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+          </svg>
+        </button>
       </header>
 
       <!-- Title row -->
@@ -321,18 +325,6 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- Notes -->
-      <div class="note-section">
-        <div class="section-label">备注</div>
-        <textarea
-          class="note-textarea"
-          :value="task!.note"
-          @input="onNoteInput"
-          placeholder="添加备注..."
-          rows="4"
-        ></textarea>
-      </div>
-
       <!-- Subtasks -->
       <div class="subtask-section">
         <div class="section-label-row">
@@ -386,6 +378,18 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
+      <!-- Notes -->
+      <div class="note-section">
+        <div class="section-label">备注</div>
+        <textarea
+          class="note-textarea"
+          :value="task!.note"
+          @input="onNoteInput"
+          placeholder="添加备注..."
+          rows="4"
+        ></textarea>
+      </div>
+
       <!-- Timer on subtask indicator -->
       <div v-if="activeSubtaskId && task!.subtasks.some(s => s.id === activeSubtaskId)" class="subtask-timer-bar" @click.stop>
         <span class="subtask-timer-name">{{ task!.subtasks.find(s => s.id === activeSubtaskId)?.title }}</span>
@@ -402,19 +406,11 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- Delete button -->
-      <div class="delete-section">
-        <button v-if="!showDeleteConfirm" class="delete-btn" @click="confirmDelete">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
-          </svg>
-          删除任务
-        </button>
-        <div v-else class="delete-confirm" @click.stop>
-          <span class="delete-confirm-text">确定删除？</span>
-          <button class="delete-confirm-btn danger" @click="doDelete">删除</button>
-          <button class="delete-confirm-btn" @click="cancelDelete">取消</button>
-        </div>
+      <!-- Delete confirmation bar (when active) -->
+      <div v-if="showDeleteConfirm" class="delete-confirm-bar" @click.stop>
+        <span class="delete-confirm-text">确定删除？</span>
+        <button class="delete-confirm-btn danger" @click="doDelete">删除</button>
+        <button class="delete-confirm-btn" @click="cancelDelete">取消</button>
       </div>
     </template>
   </div>
@@ -1070,43 +1066,26 @@ onBeforeUnmount(() => {
   gap: 3px;
 }
 
-/* Delete section */
-.delete-section {
-  padding: 16px 14px 24px;
+/* Delete header button */
+.delete-header-btn {
+  color: rgba(248, 113, 113, 0.5);
 }
 
-.delete-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  padding: 8px 16px;
-  border-radius: 8px;
-  background: rgba(248, 113, 113, 0.06);
-  border: 1px solid rgba(248, 113, 113, 0.15);
-  color: rgba(248, 113, 113, 0.8);
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.2s;
-  font-family: inherit;
-}
-
-.delete-btn:hover {
+.delete-header-btn:hover {
   background: rgba(248, 113, 113, 0.12);
-  border-color: rgba(248, 113, 113, 0.3);
+  border-color: rgba(248, 113, 113, 0.2);
   color: #f87171;
 }
 
-.delete-confirm {
+/* Delete confirmation bar */
+.delete-confirm-bar {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 10px 16px;
-  border-radius: 8px;
+  padding: 10px 14px;
   background: rgba(248, 113, 113, 0.08);
-  border: 1px solid rgba(248, 113, 113, 0.2);
+  border-bottom: 1px solid rgba(248, 113, 113, 0.15);
 }
 
 .delete-confirm-text {

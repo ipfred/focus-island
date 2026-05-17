@@ -23,7 +23,7 @@ const displayIconPaths = computed(() => props.iconPaths?.length ? props.iconPath
           />
         </svg>
       </span>
-      <span class="titlebar-title">{{ title || '任务清单' }}</span>
+      <span class="titlebar-title">{{ title || 'TODO' }}</span>
     </div>
     <div class="titlebar-actions">
       <button class="btn-close" @click="$emit('close')" title="关闭">✕</button>

@@ -103,7 +103,7 @@ const navItems = [
 ] as const
 
 const currentTitleMeta = computed(() =>
-  navItems.find(item => item.key === currentView.value) ?? navItems[0]
+  navItems.find(item => item.key === (currentView.value === 'taskDetail' ? 'todo' : currentView.value)) ?? navItems[0]
 )
 const showUpdateBanner = computed(() => {
   if (downloading.value || (installFinished.value && isMacOS)) return true
