@@ -8,9 +8,9 @@ import { useTimerBridge } from '../composables/useTimerBridge'
 import { useSettings } from '../composables/useSettings'
 import { useShortcut } from '../composables/useShortcut'
 import { useUpdater } from '../composables/useUpdater'
-import TaskArea from './TaskArea.vue'
+import TodoPage from './TodoPage.vue'
+import TaskDetailPage from './TaskDetailPage.vue'
 import SettingsPage from './SettingsPage.vue'
-import CompletedPage from './CompletedPage.vue'
 import MemoPage from './MemoPage.vue'
 import StatsPage from './StatsPage.vue'
 import RadioPage from './RadioPage.vue'
@@ -56,19 +56,14 @@ const PANEL_CLOSE_DURATION = 240
 const CLOSE_FALLBACK_BUFFER = 140
 const IS_MACOS = navigator.userAgent.toLowerCase().includes('mac')
 
-const currentView = ref<'tasks' | 'settings' | 'completed' | 'memos' | 'stats' | 'radio'>('tasks')
+const currentView = ref<'todo' | 'taskDetail' | 'settings' | 'memos' | 'stats' | 'radio'>('todo')
+const taskIdForDetail = ref<string>('')
 
 const navItems = [
   {
-    key: 'tasks',
-    label: '任务',
-    title: '任务清单',
-    iconPaths: ['M4 6h2', 'M4 12h2', 'M4 18h2', 'M9 6h11', 'M9 12h11', 'M9 18h11'],
-  },
-  {
-    key: 'completed',
-    label: '完成',
-    title: '完成',
+    key: 'todo',
+    label: 'TODO',
+    title: 'TODO',
     iconPaths: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z', 'M9 12l2 2 4-4'],
   },
   {
@@ -343,12 +338,12 @@ async function closeWindow() {
         @close="closeWindow"
       />
       <div class="panel-body">
-        <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" />
-        <SettingsPage v-else-if="currentView === 'settings'" @back="currentView = 'tasks'" />
-        <MemoPage v-else-if="currentView === 'memos'" @back="currentView = 'tasks'" />
-        <StatsPage v-else-if="currentView === 'stats'" @back="currentView = 'tasks'" />
-        <RadioPage v-else-if="currentView === 'radio'" @back="currentView = 'tasks'" />
-        <CompletedPage v-else @back="currentView = 'tasks'" />
+        <TodoPage v-if="currentView === 'todo'" @close="closeWindow" @view-detail="taskId => { taskIdForDetail = taskId; currentView = 'taskDetail' }" />
+        <TaskDetailPage v-else-if="currentView === 'taskDetail'" :task-id="taskIdForDetail" @back="currentView = 'todo'" />
+        <SettingsPage v-else-if="currentView === 'settings'" @back="currentView = 'todo'" />
+        <MemoPage v-else-if="currentView === 'memos'" @back="currentView = 'todo'" />
+        <StatsPage v-else-if="currentView === 'stats'" @back="currentView = 'todo'" />
+        <RadioPage v-else-if="currentView === 'radio'" @back="currentView = 'todo'" />
       </div>
       <transition name="update-banner">
         <div v-if="showUpdateBanner" class="update-banner" role="status" aria-live="polite">
