@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useTasks, getTaskTimeCategory, type Task } from '../composables/useTasks'
 import { useTaskGroups } from '../composables/useTaskGroups'
 import { useTimerBridge } from '../composables/useTimerBridge'
@@ -15,9 +15,7 @@ const {
   deleteTask,
   updateTask,
   incrementPomodoro,
-  addSubtask,
   toggleSubtask,
-  overdueTasks,
   todayTasks,
   tomorrowTasks,
   weekTasks,
@@ -53,6 +51,37 @@ const quickAddRef = ref<HTMLInputElement | null>(null)
 
 // --- Completed section ---
 const showCompleted = ref(false)
+
+// --- Subtask expand state ---
+const expandedSubtasks = ref<Set<string>>(new Set())
+
+function toggleSubtaskExpand(taskId: string) {
+  if (expandedSubtasks.value.has(taskId)) {
+    expandedSubtasks.value.delete(taskId)
+  } else {
+    expandedSubtasks.value.add(taskId)
+  }
+}
+
+// --- Show more pagination ---
+const PAGE_SIZE = 10
+const visibleCount = ref(PAGE_SIZE)
+
+const displayVisibleTasks = computed<Task[]>(() => {
+  const all = displayTasks.value
+  return all.slice(0, visibleCount.value)
+})
+
+const hasMoreTasks = computed(() => displayTasks.value.length > visibleCount.value)
+
+function loadMore() {
+  visibleCount.value += PAGE_SIZE
+}
+
+// reset pagination on tab change
+watch(activeTab, () => {
+  visibleCount.value = PAGE_SIZE
+})
 
 // --- Context menu ---
 const contextMenu = ref<{ taskId: string; x: number; y: number } | null>(null)
@@ -120,10 +149,10 @@ function handleDoneTimer() {
 // --- Tabs ---
 const allTabs = computed<{ key: string; label: string; count: number }[]>(() => {
   const tabs: { key: string; label: string; count: number }[] = [
-    { key: 'overdue', label: '已过期', count: overdueTasks.value.length },
     { key: 'today', label: '今天', count: todayTasks.value.length },
     { key: 'tomorrow', label: '明天', count: tomorrowTasks.value.length },
     { key: 'week', label: '一周内', count: weekTasks.value.length },
+    { key: 'completed', label: '已完成', count: completedTasks.value.length },
   ]
   for (const group of groups.value) {
     const groupTaskList = groupTasks(group.id)
@@ -135,7 +164,6 @@ const allTabs = computed<{ key: string; label: string; count: number }[]>(() => 
 // --- Display tasks ---
 const displayTasks = computed<Task[]>(() => {
   const tab = activeTab.value
-  if (tab === 'overdue') return overdueTasks.value
   if (tab === 'today') return todayTasks.value
   if (tab === 'tomorrow') return tomorrowTasks.value
   if (tab === 'week') return weekTasks.value
@@ -145,12 +173,9 @@ const displayTasks = computed<Task[]>(() => {
 
 const displayCompleted = computed<Task[]>(() => {
   const tab = activeTab.value
+  if (tab === 'completed' || tab === 'today') return []
   let currentCompleted: Task[]
-  if (tab === 'overdue') {
-    currentCompleted = tasks.value.filter(t => t.completed && getTaskTimeCategory(t) === 'overdue')
-  } else if (tab === 'today') {
-    currentCompleted = tasks.value.filter(t => t.completed && getTaskTimeCategory(t) === 'today')
-  } else if (tab === 'tomorrow') {
+  if (tab === 'tomorrow') {
     currentCompleted = tasks.value.filter(t => t.completed && getTaskTimeCategory(t) === 'tomorrow')
   } else if (tab === 'week') {
     currentCompleted = tasks.value.filter(t => t.completed && (getTaskTimeCategory(t) === 'week' || getTaskTimeCategory(t) === 'later'))
@@ -204,16 +229,6 @@ const selectedGroupLabel = computed(() => {
   return g?.name ?? '无分组'
 })
 
-// Subtask inline add
-const subtaskInputMap = ref<Record<string, string>>({})
-
-function handleAddSubtask(taskId: string) {
-  const title = (subtaskInputMap.value[taskId] ?? '').trim()
-  if (!title) return
-  addSubtask(taskId, title)
-  subtaskInputMap.value[taskId] = ''
-}
-
 // Keyboard handler for Escape
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') {
@@ -249,7 +264,7 @@ onBeforeUnmount(() => {
           @click="activeTab = tab.key"
         >
           <span
-            v-if="tab.key !== 'overdue' && tab.key !== 'today' && tab.key !== 'tomorrow' && tab.key !== 'week' && groups.find(g => g.id === tab.key)"
+            v-if="tab.key !== 'today' && tab.key !== 'tomorrow' && tab.key !== 'week' && tab.key !== 'completed' && groups.find(g => g.id === tab.key)"
             class="tab-group-dot"
             :style="{ backgroundColor: getCategoryColor(groups.find(g => g.id === tab.key)!.color).icon }"
           ></span>
@@ -327,19 +342,15 @@ onBeforeUnmount(() => {
         <span>暂无任务</span>
       </div>
 
-      <template v-for="task in displayTasks" :key="task.id">
+      <template v-for="task in displayVisibleTasks" :key="task.id">
         <div
           class="task-card"
           :class="{
             'is-running': activeTaskId === task.id,
-            'is-overdue': getTaskTimeCategory(task) === 'overdue',
             'is-completed': task.completed,
           }"
           @contextmenu="onContextMenu($event, task)"
         >
-          <!-- Overdue accent border -->
-          <div v-if="getTaskTimeCategory(task) === 'overdue' && !task.completed" class="task-accent-bar" :style="{ backgroundColor: 'var(--focus-color)' }"></div>
-
           <!-- Row 1: checkbox + title + actions -->
           <div class="task-row">
             <button
@@ -384,7 +395,7 @@ onBeforeUnmount(() => {
           <!-- Row 2: meta badges -->
           <div v-if="task.dueDate || task.pomodoroCount > 0 || task.groupId" class="task-meta-row">
             <span v-if="task.pomodoroCount > 0" class="task-pomodoro">🍅 {{ task.pomodoroCount }}</span>
-            <span v-if="task.dueDate" class="task-date" :class="{ overdue: getTaskTimeCategory(task) === 'overdue' }">
+            <span v-if="task.dueDate" class="task-date">
               {{ formatShortDate(task.dueDate) }}
             </span>
             <span v-if="task.groupId" class="task-group-badge">
@@ -393,8 +404,14 @@ onBeforeUnmount(() => {
             </span>
           </div>
 
-          <!-- Subtasks -->
-          <div v-if="task.subtasks.length > 0" class="subtask-list">
+          <!-- Subtask toggle (collapsed: count badge / expanded: collapse button) -->
+          <button v-if="task.subtasks.length > 0" class="subtask-badge" :class="{ expanded: expandedSubtasks.has(task.id) }" @click.stop="toggleSubtaskExpand(task.id)">
+            <svg class="subtask-badge-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+            <span>{{ task.subtasks.filter(s => s.completed).length }}/{{ task.subtasks.length }} 子任务</span>
+          </button>
+
+          <!-- Subtasks (expanded) -->
+          <div v-if="task.subtasks.length > 0 && expandedSubtasks.has(task.id)" class="subtask-list">
             <div
               v-for="sub in task.subtasks"
               :key="sub.id"
@@ -419,19 +436,13 @@ onBeforeUnmount(() => {
               </button>
             </div>
           </div>
-
-          <!-- Inline subtask add -->
-          <div class="subtask-add" @click.stop>
-            <input
-              v-model="subtaskInputMap[task.id]"
-              class="subtask-add-input"
-              placeholder="添加子任务..."
-              @keydown.enter="handleAddSubtask(task.id)"
-              @click.stop
-            />
-          </div>
         </div>
       </template>
+
+      <!-- Load more -->
+      <button v-if="hasMoreTasks" class="load-more-btn" @click="loadMore">
+        加载更多 ({{ displayTasks.length - visibleCount }} 条)
+      </button>
 
       <!-- Completed section -->
       <div v-if="displayCompleted.length > 0" class="completed-section">
@@ -497,7 +508,9 @@ onBeforeUnmount(() => {
 .todo-page {
   display: flex;
   flex-direction: column;
+  flex: 1;
   height: 100%;
+  min-height: 0;
   width: 100%;
   overflow: hidden;
   background: transparent;
@@ -723,6 +736,7 @@ onBeforeUnmount(() => {
 /* Tabs in header */
 .tab-scroll {
   flex: 1;
+  min-width: 0;
   display: flex;
   gap: 4px;
   overflow-x: auto;
@@ -783,6 +797,7 @@ onBeforeUnmount(() => {
 /* Task list */
 .task-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 8px 10px 20px;
   display: flex;
@@ -812,6 +827,7 @@ onBeforeUnmount(() => {
   padding: 40px 20px;
   color: rgba(255, 255, 255, 0.3);
   font-size: 13px;
+  flex-shrink: 0;
 }
 
 /* Task card */
@@ -819,12 +835,14 @@ onBeforeUnmount(() => {
   position: relative;
   display: flex;
   flex-direction: column;
-  padding: 5px 8px;
+  gap: 3px;
+  padding: 8px 10px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.035);
   border: 1px solid rgba(255, 255, 255, 0.06);
   transition: all 0.2s;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .task-card:hover {
@@ -836,11 +854,7 @@ onBeforeUnmount(() => {
   background: color-mix(in srgb, var(--focus-color) 10%, rgba(28, 28, 32, 0.95));
   border-color: color-mix(in srgb, var(--focus-color) 30%, transparent);
   border-left: 3px solid var(--focus-color);
-  padding: 6px 8px;
-}
-
-.task-card.is-overdue {
-  border-left: 3px solid var(--focus-color);
+  padding: 8px 10px;
 }
 
 .task-card.completed-card {
@@ -851,20 +865,11 @@ onBeforeUnmount(() => {
   opacity: 0.75;
 }
 
-.task-accent-bar {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  border-radius: 10px 0 0 10px;
-}
-
 .task-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 30px;
+  min-height: 32px;
 }
 
 .task-checkbox {
@@ -899,12 +904,14 @@ onBeforeUnmount(() => {
   font-size: 13px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.9);
-  line-height: 1.3;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.4;
   min-width: 0;
   cursor: pointer;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
 }
 
 .task-title.line-through {
@@ -917,7 +924,8 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   padding-left: 22px;
-  padding-top: 1px;
+  padding-top: 2px;
+  padding-bottom: 2px;
 }
 
 .task-date {
@@ -926,11 +934,6 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.05);
   padding: 1px 6px;
   border-radius: 4px;
-}
-
-.task-date.overdue {
-  color: var(--focus-color);
-  background: color-mix(in srgb, var(--focus-color) 15%, transparent);
 }
 
 .task-pomodoro {
@@ -1055,21 +1058,58 @@ onBeforeUnmount(() => {
   color: #f87171;
 }
 
+/* Subtask badge (collapsed/expanded toggle) */
+.subtask-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 22px;
+  margin-top: 2px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: none;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 10px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.subtask-badge:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.subtask-badge.expanded {
+  color: rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.subtask-badge-chevron {
+  transition: transform 0.2s;
+}
+
+.subtask-badge.expanded .subtask-badge-chevron {
+  transform: rotate(90deg);
+}
+
 /* Subtasks */
 .subtask-list {
   margin-top: 4px;
   margin-left: 22px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .subtask-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 4px;
+  padding: 5px 6px;
   border-radius: 6px;
+  min-height: 28px;
   transition: background 0.15s;
 }
 
@@ -1115,6 +1155,7 @@ onBeforeUnmount(() => {
   flex: 1;
   font-size: 12px;
   color: rgba(255, 255, 255, 0.7);
+  line-height: 1.35;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1159,37 +1200,32 @@ onBeforeUnmount(() => {
   color: var(--focus-color);
 }
 
-/* Inline subtask add */
-.subtask-add {
-  margin-left: 28px;
-  margin-top: 4px;
-}
-
-.subtask-add-input {
+/* Load more button */
+.load-more-btn {
+  display: block;
   width: 100%;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid transparent;
-  border-radius: 6px;
-  padding: 4px 8px;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.4);
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
-  outline: none;
-  transition: all 0.2s;
   font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
 }
 
-.subtask-add-input::placeholder {
-  color: rgba(255, 255, 255, 0.2);
-}
-
-.subtask-add-input:focus {
-  border-color: rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.04);
+.load-more-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.7);
 }
 
 /* Completed section */
 .completed-section {
   margin-top: 12px;
+  flex-shrink: 0;
 }
 
 .completed-header {

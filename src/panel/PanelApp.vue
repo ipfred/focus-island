@@ -733,6 +733,7 @@ async function closeWindow() {
 
 .panel-body {
   display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow: hidden;
