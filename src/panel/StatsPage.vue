@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import { useDailyStats } from '../composables/useDailyStats'
 import { useAchievements } from '../composables/useAchievements'
-import { useTasks } from '../composables/useTasks'
+import { useTasks, getTaskTimeCategory } from '../composables/useTasks'
 
 type TimeRange = 'today' | 'week' | 'month' | 'all'
 
@@ -97,9 +97,9 @@ const hoveredIndex = ref<number | null>(null)
 
 const taskDistribution = computed(() => {
   const active = tasks.value.filter(t => !t.completed)
-  const today = active.filter(t => t.category === 'today').length
-  const tomorrow = active.filter(t => t.category === 'tomorrow').length
-  const week = active.filter(t => t.category === 'week').length
+  const today = active.filter(t => getTaskTimeCategory(t) === 'today').length
+  const tomorrow = active.filter(t => getTaskTimeCategory(t) === 'tomorrow').length
+  const week = active.filter(t => getTaskTimeCategory(t) === 'week').length
   const total = today + tomorrow + week || 1
   return [
     { label: '今日', value: today, percent: Math.round((today / total) * 100) },
