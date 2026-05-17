@@ -37,6 +37,8 @@ export const CATEGORY_COLOR_MAP = {
   slate: { id: 'slate', bg: 'rgba(148, 163, 184, 0.15)', border: 'rgba(148, 163, 184, 0.4)', icon: '#94a3b8' },
 } as const
 
+export type CategoryColorId = keyof typeof CATEGORY_COLOR_MAP
+
 export const CATEGORY_COLORS = Object.values(CATEGORY_COLOR_MAP)
 
 // Stable getter function
