@@ -6,7 +6,7 @@ import { useTimerBridge } from '../composables/useTimerBridge'
 import { getCategoryColor } from '../composables/useMemos'
 import TaskGroupDialog from './TaskGroupDialog.vue'
 
-const emit = defineEmits<{ close: []; viewDetail: [taskId: string] }>()
+const emit = defineEmits<{ viewDetail: [taskId: string] }>()
 
 const {
   tasks,
@@ -225,8 +225,6 @@ function onKeydown(e: KeyboardEvent) {
       showGroupDialog.value = false
     } else if (contextMenu.value) {
       closeContextMenu()
-    } else {
-      emit('close')
     }
   }
 }
@@ -244,14 +242,25 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="todo-page" @click="onClickOutside">
-    <!-- Header -->
-    <header class="todo-header">
-      <button class="header-btn back-btn" @click.stop="emit('close')" title="返回">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M19 12H5M12 19l-7-7 7-7"/>
-        </svg>
-      </button>
-      <span class="header-title">TODO</span>
+    <!-- Tab bar as header -->
+    <header class="todo-header" @click.stop>
+      <div class="tab-scroll">
+        <button
+          v-for="tab in allTabs"
+          :key="tab.key"
+          class="tab-item"
+          :class="{ active: activeTab === tab.key }"
+          @click="activeTab = tab.key"
+        >
+          <span
+            v-if="tab.key !== 'overdue' && tab.key !== 'today' && tab.key !== 'tomorrow' && tab.key !== 'week' && tab.key !== 'completed' && groups.find(g => g.id === tab.key)"
+            class="tab-group-dot"
+            :style="{ backgroundColor: getCategoryColor(groups.find(g => g.id === tab.key)!.color).icon }"
+          ></span>
+          <span class="tab-label">{{ tab.label }}</span>
+          <span v-if="tab.count > 0" class="tab-count">{{ tab.count }}</span>
+        </button>
+      </div>
       <button class="header-btn gear-btn" @click.stop="showGroupDialog = !showGroupDialog" title="管理分组">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="3"/>
@@ -309,27 +318,6 @@ onBeforeUnmount(() => {
             <input type="date" :value="selectedDate" @change="selectedDate = ($event.target as HTMLInputElement).value; showDatePicker = false" />
           </label>
         </div>
-      </div>
-    </div>
-
-    <!-- Tab bar -->
-    <div class="tab-bar" @click.stop>
-      <div class="tab-scroll">
-        <button
-          v-for="tab in allTabs"
-          :key="tab.key"
-          class="tab-item"
-          :class="{ active: activeTab === tab.key }"
-          @click="activeTab = tab.key"
-        >
-          <span
-            v-if="tab.key !== 'overdue' && tab.key !== 'completed' && groups.find(g => g.id === tab.key)"
-            class="tab-group-dot"
-            :style="{ backgroundColor: getCategoryColor(groups.find(g => g.id === tab.key)!.color).icon }"
-          ></span>
-          <span class="tab-label">{{ tab.label }}</span>
-          <span v-if="tab.count > 0" class="tab-count">{{ tab.count }}</span>
-        </button>
       </div>
     </div>
 
@@ -514,26 +502,27 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
+  width: 100%;
   overflow: hidden;
   background: transparent;
   color: rgba(255, 255, 255, 0.9);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-/* Header */
+/* Header with integrated tabs */
 .todo-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: 8px;
+  padding: 8px 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
 }
 
 .header-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.5);
@@ -549,15 +538,6 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(255, 255, 255, 0.16);
   color: #fff;
-}
-
-.header-title {
-  flex: 1;
-  text-align: center;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.95);
 }
 
 /* Quick-add row */
@@ -761,22 +741,17 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-/* Tab bar */
-.tab-bar {
-  flex-shrink: 0;
-  padding: 6px 10px 0;
+/* Tabs in header */
+.tab-scroll {
+  flex: 1;
+  display: flex;
+  gap: 4px;
   overflow-x: auto;
   scrollbar-width: none;
 }
 
-.tab-bar::-webkit-scrollbar {
+.tab-scroll::-webkit-scrollbar {
   display: none;
-}
-
-.tab-scroll {
-  display: flex;
-  gap: 4px;
-  padding-bottom: 6px;
 }
 
 .tab-item {
