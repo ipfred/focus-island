@@ -340,8 +340,8 @@ onBeforeUnmount(() => {
           <!-- Overdue accent border -->
           <div v-if="getTaskTimeCategory(task) === 'overdue' && !task.completed" class="task-accent-bar" :style="{ backgroundColor: 'var(--focus-color)' }"></div>
 
-          <div class="task-main">
-            <!-- Checkbox -->
+          <!-- Row 1: checkbox + title + actions -->
+          <div class="task-row">
             <button
               class="task-checkbox"
               :class="{ checked: task.completed }"
@@ -350,32 +350,14 @@ onBeforeUnmount(() => {
               <svg v-if="task.completed" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
             </button>
 
-            <!-- Content -->
-            <div class="task-content" @click="emit('viewDetail', task.id)">
-              <span class="task-title" :class="{ 'line-through': task.completed }">{{ task.title }}</span>
-              <div class="task-meta">
-                <span v-if="task.dueDate" class="task-date" :class="{ overdue: getTaskTimeCategory(task) === 'overdue' }">
-                  {{ formatShortDate(task.dueDate) }}
-                </span>
-                <span v-if="task.pomodoroCount > 0" class="task-pomodoro">🍅 {{ task.pomodoroCount }}</span>
-                <span v-if="task.groupId" class="task-group-badge">
-                  <span class="group-dot-sm" :style="{ backgroundColor: getCategoryColor(groups.find(g => g.id === task.groupId)?.color ?? 'yellow').icon }"></span>
-                  {{ groups.find(g => g.id === task.groupId)?.name ?? '' }}
-                </span>
-              </div>
-            </div>
+            <span class="task-title" :class="{ 'line-through': task.completed }" @click="emit('viewDetail', task.id)">{{ task.title }}</span>
 
             <!-- Timer display (if running on this task) -->
             <div v-if="activeTaskId === task.id" class="task-timer" @click.stop>
               <span class="timer-phase">{{ phase === 'focus' ? '专注' : '休息' }}</span>
               <span class="timer-time">{{ displayTime }}</span>
               <div class="timer-controls">
-                <button
-                  class="timer-btn"
-                  :class="{ 'is-paused': !running }"
-                  @click.stop="running ? pause() : resume()"
-                  :title="running ? '暂停' : '继续'"
-                >
+                <button class="timer-btn" :class="{ 'is-paused': !running }" @click.stop="running ? pause() : resume()" :title="running ? '暂停' : '继续'">
                   <svg v-if="running" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
                   <svg v-else width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>
                 </button>
@@ -397,6 +379,18 @@ onBeforeUnmount(() => {
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>
             </button>
+          </div>
+
+          <!-- Row 2: meta badges -->
+          <div v-if="task.dueDate || task.pomodoroCount > 0 || task.groupId" class="task-meta-row">
+            <span v-if="task.pomodoroCount > 0" class="task-pomodoro">🍅 {{ task.pomodoroCount }}</span>
+            <span v-if="task.dueDate" class="task-date" :class="{ overdue: getTaskTimeCategory(task) === 'overdue' }">
+              {{ formatShortDate(task.dueDate) }}
+            </span>
+            <span v-if="task.groupId" class="task-group-badge">
+              <span class="group-dot-sm" :style="{ backgroundColor: getCategoryColor(groups.find(g => g.id === task.groupId)?.color ?? 'yellow').icon }"></span>
+              {{ groups.find(g => g.id === task.groupId)?.name ?? '' }}
+            </span>
           </div>
 
           <!-- Subtasks -->
@@ -458,14 +452,19 @@ onBeforeUnmount(() => {
               class="task-card completed-card"
               @click="emit('viewDetail', task.id)"
             >
-              <div class="task-main">
+              <div class="task-row">
                 <button class="task-checkbox checked" @click.stop="toggleComplete(task.id)">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
                 </button>
-                <div class="task-content">
-                  <span class="task-title line-through">{{ task.title }}</span>
-                </div>
+                <span class="task-title line-through">{{ task.title }}</span>
                 <span v-if="task.pomodoroCount > 0" class="task-pomodoro completed-pomodoro">🍅 {{ task.pomodoroCount }}</span>
+              </div>
+              <div v-if="task.dueDate || task.groupId" class="task-meta-row">
+                <span v-if="task.dueDate" class="task-date">{{ formatShortDate(task.dueDate) }}</span>
+                <span v-if="task.groupId" class="task-group-badge">
+                  <span class="group-dot-sm" :style="{ backgroundColor: getCategoryColor(groups.find(g => g.id === task.groupId)?.color ?? 'yellow').icon }"></span>
+                  {{ groups.find(g => g.id === task.groupId)?.name ?? '' }}
+                </span>
               </div>
             </div>
           </div>
@@ -820,9 +819,9 @@ onBeforeUnmount(() => {
   position: relative;
   display: flex;
   flex-direction: column;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  padding: 5px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
   border: 1px solid rgba(255, 255, 255, 0.06);
   transition: all 0.2s;
   overflow: hidden;
@@ -830,12 +829,14 @@ onBeforeUnmount(() => {
 
 .task-card:hover {
   background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
 .task-card.is-running {
-  border-color: color-mix(in srgb, var(--focus-color) 40%, transparent);
-  background: color-mix(in srgb, var(--focus-color) 6%, rgba(28, 28, 32, 0.95));
+  background: color-mix(in srgb, var(--focus-color) 10%, rgba(28, 28, 32, 0.95));
+  border-color: color-mix(in srgb, var(--focus-color) 30%, transparent);
+  border-left: 3px solid var(--focus-color);
+  padding: 6px 8px;
 }
 
 .task-card.is-overdue {
@@ -859,18 +860,19 @@ onBeforeUnmount(() => {
   border-radius: 10px 0 0 10px;
 }
 
-.task-main {
+.task-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 30px;
 }
 
 .task-checkbox {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
   background: transparent;
-  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  border: 2px solid rgba(255, 255, 255, 0.28);
   color: rgba(255, 255, 255, 0.5);
   cursor: pointer;
   display: flex;
@@ -882,8 +884,8 @@ onBeforeUnmount(() => {
 }
 
 .task-checkbox:hover {
-  border-color: color-mix(in srgb, var(--focus-color) 60%, transparent);
-  background: color-mix(in srgb, var(--focus-color) 10%, transparent);
+  border-color: var(--break-color);
+  background: color-mix(in srgb, var(--break-color) 20%, transparent);
 }
 
 .task-checkbox.checked {
@@ -892,23 +894,17 @@ onBeforeUnmount(() => {
   color: var(--focus-color);
 }
 
-.task-content {
-  flex: 1;
-  min-width: 0;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
 .task-title {
+  flex: 1;
   font-size: 13px;
   font-weight: 500;
   color: rgba(255, 255, 255, 0.9);
   line-height: 1.3;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  cursor: pointer;
 }
 
 .task-title.line-through {
@@ -916,11 +912,12 @@ onBeforeUnmount(() => {
   color: rgba(255, 255, 255, 0.35);
 }
 
-.task-meta {
+.task-meta-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
+  padding-left: 22px;
+  padding-top: 1px;
 }
 
 .task-date {
@@ -957,10 +954,13 @@ onBeforeUnmount(() => {
 }
 
 .task-play-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--focus-color) 18%, transparent);
+  min-width: 20px;
+  height: 20px;
+  padding: 1px 4px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--focus-color) 15%, transparent);
   border: 1px solid color-mix(in srgb, var(--focus-color) 30%, transparent);
   color: var(--focus-color);
   cursor: pointer;
@@ -969,13 +969,11 @@ onBeforeUnmount(() => {
   justify-content: center;
   transition: all 0.2s;
   flex-shrink: 0;
-  padding: 0;
 }
 
 .task-play-btn:hover {
-  background: color-mix(in srgb, var(--focus-color) 30%, transparent);
+  background: color-mix(in srgb, var(--focus-color) 25%, transparent);
   border-color: color-mix(in srgb, var(--focus-color) 50%, transparent);
-  transform: scale(1.08);
 }
 
 /* Timer display */
@@ -1059,11 +1057,11 @@ onBeforeUnmount(() => {
 
 /* Subtasks */
 .subtask-list {
-  margin-top: 6px;
-  margin-left: 28px;
+  margin-top: 4px;
+  margin-left: 22px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
 .subtask-row {
@@ -1088,11 +1086,11 @@ onBeforeUnmount(() => {
 }
 
 .subtask-checkbox {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
   background: transparent;
-  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.2);
   color: rgba(255, 255, 255, 0.4);
   cursor: pointer;
   display: flex;
