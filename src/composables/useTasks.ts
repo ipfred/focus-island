@@ -5,86 +5,100 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useSettings } from './useSettings'
 import { useDailyStats } from './useDailyStats'
 
-export type TaskCategory = 'today' | 'tomorrow' | 'week'
-// 0=收件箱, 1=主任务, 2=次级A, 3=次级B
+// --- Date helpers ---
+
+function toDateStr(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function parseDateStr(s: string): Date {
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+function startOfToday(): Date {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+// --- Types ---
+
+export interface Subtask {
+  id: string
+  title: string
+  completed: boolean
+  pomodoroCount: number
+}
+
 export type TaskPriority = 0 | 1 | 2 | 3
+export type TimeCategory = 'overdue' | 'today' | 'tomorrow' | 'week' | 'later' | 'nodate'
 
 export interface Task {
   id: string
   title: string
   note: string
-  category: TaskCategory
+  groupId: string | null
+  dueDate: string | null
   completed: boolean
   pomodoroCount: number
   priority: TaskPriority
+  subtasks: Subtask[]
   createdAt: number
   updatedAt: number
 }
 
+export function getTaskTimeCategory(task: Task): TimeCategory {
+  if (!task.dueDate) return 'nodate'
+  const today = startOfToday()
+  const due = parseDateStr(task.dueDate)
+  const diff = Math.floor((due.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
+  if (diff < 0) return 'overdue'
+  if (diff === 0) return 'today'
+  if (diff === 1) return 'tomorrow'
+  if (diff <= 6) return 'week'
+  return 'later'
+}
+
+// --- State ---
+
 const TASKS_FILE = 'focus-island/tasks.json'
-const categories: TaskCategory[] = ['today', 'tomorrow', 'week']
 
 const tasks = ref<Task[]>([])
 const loaded = ref(false)
 
-function normalizeCategory(category: TaskCategory) {
-  const indexMap = new Map(tasks.value.map((task, index) => [task.id, index]))
-  const scoped = tasks.value.filter(task => !task.completed && task.category === category)
-  const orderedFocus = scoped
-    .filter(task => task.priority > 0)
-    .sort((a, b) => {
-      if (a.priority !== b.priority) return a.priority - b.priority
-      return (indexMap.get(a.id) ?? 0) - (indexMap.get(b.id) ?? 0)
-    })
-
-  scoped.forEach(task => {
-    task.priority = 0
-  })
-
-  // Auto-fill from inbox when focus area has fewer than 3
-  if (orderedFocus.length < 3) {
-    const inbox = scoped
-      .filter(task => !orderedFocus.includes(task))
-      .sort((a, b) => a.createdAt - b.createdAt)
-    while (orderedFocus.length < 3 && inbox.length > 0) {
-      orderedFocus.push(inbox.shift()!)
-    }
-  }
-
-  orderedFocus.slice(0, 3).forEach((task, index) => {
-    task.priority = (index + 1) as TaskPriority
-  })
-}
-
-function normalizeAllCategories() {
-  categories.forEach(normalizeCategory)
-}
-
-function nextAvailablePriority(category: TaskCategory): TaskPriority {
-  const used = new Set(
-    tasks.value
-      .filter(task => !task.completed && task.category === category && task.priority > 0)
-      .map(task => task.priority),
-  )
-
-  for (const priority of [1, 2, 3] as const) {
-    if (!used.has(priority)) return priority
-  }
-
-  return 0
-}
+// --- Persistence ---
 
 async function load() {
   try {
     const raw = await readTextFile(TASKS_FILE, { baseDir: BaseDirectory.AppData })
     const parsed = JSON.parse(raw)
-    tasks.value = parsed.map((t: Omit<Task, 'note' | 'category' | 'priority'> & Partial<Task>) => ({
-      note: t.note ?? '',
-      category: t.category ?? ('today' as TaskCategory),
-      priority: t.completed ? 0 : ((t.priority ?? 0) as TaskPriority),
-      ...t,
-    } as Task))
-    normalizeAllCategories()
+    tasks.value = parsed.map((t: Record<string, unknown> & Partial<Task>) => {
+      // Migration: convert old category field to dueDate
+      if ('category' in t && !('dueDate' in t)) {
+        const cat = (t as Record<string, unknown>).category as string | undefined
+        const now = new Date()
+        if (cat === 'tomorrow') {
+          now.setDate(now.getDate() + 1)
+        } else if (cat === 'week') {
+          now.setDate(now.getDate() + 2)
+        }
+        // 'today' or anything else → today's date
+        t.dueDate = toDateStr(now)
+      }
+
+      return {
+        note: t.note ?? '',
+        groupId: t.groupId ?? null,
+        dueDate: t.dueDate ?? toDateStr(new Date()),
+        priority: t.completed ? 0 : ((t.priority ?? 0) as TaskPriority),
+        subtasks: t.subtasks ?? [],
+        ...t,
+      } as Task
+    })
   } catch {
     tasks.value = []
   }
@@ -123,35 +137,37 @@ listen<string>('tasks-updated', (event) => {
   } catch { /* ignore */ }
 })
 
+// --- Composable ---
+
 export function useTasks() {
   if (!loaded.value) load()
   const { recordTaskCompleted } = useDailyStats()
 
-  function addTask(title: string, category: TaskCategory = 'today', priority?: TaskPriority) {
+  function addTask(title: string, dueDate?: string | null, groupId?: string | null, priority?: TaskPriority) {
     const now = Date.now()
     const task: Task = {
       id: crypto.randomUUID(),
       title: title.trim(),
       note: '',
-      category,
+      groupId: groupId ?? null,
+      dueDate: dueDate ?? toDateStr(new Date()),
       completed: false,
       pomodoroCount: 0,
-      priority: priority ?? nextAvailablePriority(category),
+      priority: priority ?? 0,
+      subtasks: [],
       createdAt: now,
       updatedAt: now,
     }
 
     tasks.value.unshift(task)
-    normalizeCategory(category)
     return task
   }
 
-  function updateTask(id: string, patch: Partial<Pick<Task, 'title' | 'note' | 'category' | 'completed' | 'priority'>>) {
+  function updateTask(id: string, patch: Partial<Pick<Task, 'title' | 'note' | 'groupId' | 'dueDate' | 'completed' | 'priority'>>) {
     const task = tasks.value.find(t => t.id === id)
     if (!task) return
 
     const wasCompleted = task.completed
-    const prevCategory = task.category
     Object.assign(task, patch)
 
     if (task.completed) {
@@ -162,45 +178,18 @@ export function useTasks() {
     }
 
     task.updatedAt = Date.now()
-    normalizeCategory(prevCategory)
-    if (task.category !== prevCategory) normalizeCategory(task.category)
   }
 
   function setTaskPriority(id: string, priority: TaskPriority) {
     const task = tasks.value.find(t => t.id === id)
     if (!task || task.completed) return
 
-    const scoped = tasks.value.filter(t => !t.completed && t.category === task.category)
-    const indexMap = new Map(tasks.value.map((item, index) => [item.id, index]))
-    const orderedFocus = scoped
-      .filter(t => t.id !== id && t.priority > 0)
-      .sort((a, b) => {
-        if (a.priority !== b.priority) return a.priority - b.priority
-        return (indexMap.get(a.id) ?? 0) - (indexMap.get(b.id) ?? 0)
-      })
-
-    if (priority > 0) {
-      orderedFocus.splice(priority - 1, 0, task)
-    }
-
-    scoped.forEach(t => {
-      t.priority = 0
-    })
-
-    orderedFocus.slice(0, 3).forEach((item, index) => {
-      item.priority = (index + 1) as TaskPriority
-    })
-
+    task.priority = priority
     task.updatedAt = Date.now()
   }
 
   function deleteTask(id: string) {
-    const task = tasks.value.find(t => t.id === id)
-    if (!task) return
-
-    const category = task.category
     tasks.value = tasks.value.filter(t => t.id !== id)
-    normalizeCategory(category)
   }
 
   function toggleComplete(id: string) {
@@ -209,12 +198,15 @@ export function useTasks() {
 
     const wasCompleted = task.completed
     task.completed = !task.completed
-    task.priority = task.completed ? 0 : nextAvailablePriority(task.category)
+    if (task.completed) {
+      task.priority = 0
+    } else {
+      task.priority = 1 as TaskPriority
+    }
     if (!wasCompleted && task.completed) {
       recordTaskCompleted()
     }
     task.updatedAt = Date.now()
-    normalizeCategory(task.category)
   }
 
   function incrementPomodoro(id: string) {
@@ -225,18 +217,60 @@ export function useTasks() {
     }
   }
 
-  const activeTasks = computed(() => tasks.value.filter(t => !t.completed))
+  // --- Subtask CRUD ---
 
-  const todayTasks = computed(() =>
-    tasks.value.filter(t => !t.completed && t.category === 'today')
-  )
-  const tomorrowTasks = computed(() =>
-    tasks.value.filter(t => !t.completed && t.category === 'tomorrow')
-  )
-  const weekTasks = computed(() =>
-    tasks.value.filter(t => !t.completed && t.category === 'week')
-  )
+  function addSubtask(taskId: string, title: string): void {
+    const task = tasks.value.find(t => t.id === taskId)
+    if (!task) return
+    task.subtasks.push({
+      id: crypto.randomUUID(),
+      title: title.trim(),
+      completed: false,
+      pomodoroCount: 0,
+    })
+    task.updatedAt = Date.now()
+  }
+
+  function toggleSubtask(taskId: string, subtaskId: string): void {
+    const task = tasks.value.find(t => t.id === taskId)
+    if (!task) return
+    const subtask = task.subtasks.find(s => s.id === subtaskId)
+    if (!subtask) return
+    subtask.completed = !subtask.completed
+    task.updatedAt = Date.now()
+  }
+
+  function deleteSubtask(taskId: string, subtaskId: string): void {
+    const task = tasks.value.find(t => t.id === taskId)
+    if (!task) return
+    task.subtasks = task.subtasks.filter(s => s.id !== subtaskId)
+    task.updatedAt = Date.now()
+  }
+
+  function incrementSubtaskPomodoro(taskId: string, subtaskId: string): void {
+    const task = tasks.value.find(t => t.id === taskId)
+    if (!task) return
+    const subtask = task.subtasks.find(s => s.id === subtaskId)
+    if (!subtask) return
+    subtask.pomodoroCount++
+    task.updatedAt = Date.now()
+  }
+
+  // --- Computed views ---
+
+  const activeTasks = computed(() => tasks.value.filter(t => !t.completed))
   const completedTasks = computed(() => tasks.value.filter(t => t.completed))
+
+  const overdueTasks = computed(() => activeTasks.value.filter(t => getTaskTimeCategory(t) === 'overdue'))
+  const todayTasks = computed(() => activeTasks.value.filter(t => getTaskTimeCategory(t) === 'today'))
+  const tomorrowTasks = computed(() => activeTasks.value.filter(t => getTaskTimeCategory(t) === 'tomorrow'))
+  const weekTasks = computed(() => activeTasks.value.filter(t => getTaskTimeCategory(t) === 'week'))
+  const laterTasks = computed(() => activeTasks.value.filter(t => getTaskTimeCategory(t) === 'later'))
+  const nodateTasks = computed(() => activeTasks.value.filter(t => getTaskTimeCategory(t) === 'nodate'))
+
+  function groupTasks(groupId: string): Task[] {
+    return activeTasks.value.filter(t => t.groupId === groupId)
+  }
 
   const todayStats = computed(() => {
     const { settings } = useSettings()
@@ -252,10 +286,13 @@ export function useTasks() {
   return {
     tasks,
     activeTasks,
+    completedTasks,
+    overdueTasks,
     todayTasks,
     tomorrowTasks,
     weekTasks,
-    completedTasks,
+    laterTasks,
+    nodateTasks,
     todayStats,
     addTask,
     updateTask,
@@ -263,5 +300,10 @@ export function useTasks() {
     deleteTask,
     toggleComplete,
     incrementPomodoro,
+    addSubtask,
+    toggleSubtask,
+    deleteSubtask,
+    incrementSubtaskPomodoro,
+    groupTasks,
   }
 }
