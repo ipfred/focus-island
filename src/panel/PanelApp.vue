@@ -11,7 +11,6 @@ import { useUpdater } from '../composables/useUpdater'
 import TodoPage from './TodoPage.vue'
 import TaskArea from './TaskArea.vue'
 import TaskDetailPage from './TaskDetailPage.vue'
-import CompletedPage from './CompletedPage.vue'
 import SettingsPage from './SettingsPage.vue'
 import MemoPage from './MemoPage.vue'
 import StatsPage from './StatsPage.vue'
@@ -58,7 +57,7 @@ const PANEL_CLOSE_DURATION = 240
 const CLOSE_FALLBACK_BUFFER = 140
 const IS_MACOS = navigator.userAgent.toLowerCase().includes('mac')
 
-const currentView = ref<'tasks' | 'todo' | 'taskDetail' | 'completed' | 'settings' | 'memos' | 'stats' | 'radio'>('tasks')
+const currentView = ref<'tasks' | 'todo' | 'taskDetail' | 'settings' | 'memos' | 'stats' | 'radio'>('tasks')
 const taskIdForDetail = ref<string>('')
 
 const navItems = [
@@ -72,12 +71,6 @@ const navItems = [
     key: 'todo',
     label: 'TODO',
     title: 'TODO',
-    iconPaths: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z', 'M9 12l2 2 4-4'],
-  },
-  {
-    key: 'completed',
-    label: '完成',
-    title: '完成',
     iconPaths: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z', 'M9 12l2 2 4-4'],
   },
   {
@@ -355,7 +348,6 @@ async function closeWindow() {
         <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" />
         <TodoPage v-else-if="currentView === 'todo'" @view-detail="taskId => { taskIdForDetail = taskId; currentView = 'taskDetail' }" />
         <TaskDetailPage v-else-if="currentView === 'taskDetail'" :task-id="taskIdForDetail" @back="currentView = 'todo'" />
-        <CompletedPage v-else-if="currentView === 'completed'" @back="currentView = 'tasks'" />
         <SettingsPage v-else-if="currentView === 'settings'" @back="currentView = 'tasks'" />
         <MemoPage v-else-if="currentView === 'memos'" @back="currentView = 'tasks'" />
         <StatsPage v-else-if="currentView === 'stats'" @back="currentView = 'tasks'" />
