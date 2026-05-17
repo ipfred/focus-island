@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import { useTimer } from '../composables/useTimer'
 import { useTasks } from '../composables/useTasks'
 
-const { displayTime, phase, activeTaskId, activeTaskTitle, running } = useTimer()
+const { displayTime, phase, activeTaskId, activeTaskTitle, activeSubtaskTitle, running } = useTimer()
 const { tasks } = useTasks()
 
 defineProps<{ radioPlaying?: boolean }>()
@@ -11,9 +11,10 @@ defineProps<{ radioPlaying?: boolean }>()
 const activeTask = computed(() =>
   tasks.value.find(t => t.id === activeTaskId.value)
 )
-const resolvedTitle = computed(() =>
-  activeTaskTitle.value ?? activeTask.value?.title ?? null
-)
+const resolvedTitle = computed(() => {
+  if (activeSubtaskTitle.value) return activeSubtaskTitle.value
+  return activeTaskTitle.value ?? activeTask.value?.title ?? null
+})
 
 const phaseColor = computed(() =>
   phase.value === 'focus' ? 'var(--focus-color)' : 'var(--break-color)'
