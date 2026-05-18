@@ -399,6 +399,19 @@ onBeforeUnmount(() => {
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>
             </button>
+
+            <!-- Subtask toggle button (next to play button) -->
+            <button
+              v-if="task.subtasks.length > 0"
+              class="subtask-toggle-btn"
+              :class="{ expanded: expandedSubtasks.has(task.id) }"
+              @click.stop="toggleSubtaskExpand(task.id)"
+              :title="expandedSubtasks.has(task.id) ? '收起子任务' : '展开子任务'"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
           </div>
 
           <!-- Row 2: meta badges -->
@@ -412,12 +425,6 @@ onBeforeUnmount(() => {
               {{ groups.find(g => g.id === task.groupId)?.name ?? '' }}
             </span>
           </div>
-
-          <!-- Subtask toggle (collapsed: count badge / expanded: collapse button) -->
-          <button v-if="task.subtasks.length > 0" class="subtask-badge" :class="{ expanded: expandedSubtasks.has(task.id) }" @click.stop="toggleSubtaskExpand(task.id)">
-            <svg class="subtask-badge-chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-            <span>{{ task.subtasks.filter(s => s.completed).length }}/{{ task.subtasks.length }} 子任务</span>
-          </button>
 
           <!-- Subtasks (expanded) -->
           <div v-if="task.subtasks.length > 0 && expandedSubtasks.has(task.id)" class="subtask-list">
@@ -1067,40 +1074,42 @@ onBeforeUnmount(() => {
   color: #f87171;
 }
 
-/* Subtask badge (collapsed/expanded toggle) */
-.subtask-badge {
+/* Subtask toggle button (next to play button) */
+.subtask-toggle-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-left: 22px;
-  margin-top: 2px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.04);
-  border: none;
-  color: rgba(255, 255, 255, 0.35);
-  font-size: 10px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all 0.15s;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s;
+  padding: 0;
+  margin-left: 4px;
 }
 
-.subtask-badge:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.6);
+.subtask-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.8);
 }
 
-.subtask-badge.expanded {
-  color: rgba(255, 255, 255, 0.45);
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.subtask-badge-chevron {
+.subtask-toggle-btn svg {
   transition: transform 0.2s;
 }
 
-.subtask-badge.expanded .subtask-badge-chevron {
-  transform: rotate(90deg);
+.subtask-toggle-btn.expanded {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.subtask-toggle-btn.expanded svg {
+  transform: rotate(180deg);
 }
 
 /* Subtasks */
