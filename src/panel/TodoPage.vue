@@ -16,6 +16,7 @@ const {
   deleteTask,
   updateTask,
   incrementPomodoro,
+  touchTask,
   toggleSubtask,
   todayTasks,
   tomorrowTasks,
@@ -127,6 +128,7 @@ function handleStartTask(task: Task) {
     if (running.value) pause()
     else resume()
   } else {
+    touchTask(task.id)
     start(task.id, task.title)
   }
 }
@@ -134,6 +136,7 @@ function handleStartTask(task: Task) {
 function handleStartSubtask(task: Task, subtaskId: string) {
   const sub = task.subtasks.find(s => s.id === subtaskId)
   if (sub) {
+    touchTask(task.id)
     setSubtaskContext(sub.id, sub.title)
     start(task.id, `${task.title} — ${sub.title}`)
   }

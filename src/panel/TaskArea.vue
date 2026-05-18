@@ -174,16 +174,22 @@ function handleDoneTask(taskId: string) {
     <!-- Zone 2: Focus Queue (Recent 3) -->
     <div class="focus-zone">
       <div class="zone-header">核心专注区</div>
-      <div v-if="recentTasks.length === 0" class="empty-hint">
-        TODO 中开启任务
-      </div>
-      <div
-        v-for="(task, index) in recentTasks"
-        :key="task.id"
-        class="focus-task-item"
-        :class="{ 'is-running': activeTaskId === task.id }"
-        :style="activeTaskId === task.id ? { '--active-color': phase === 'break' ? 'var(--break-color)' : 'var(--focus-color)' } : undefined"
-      >
+
+      <div class="focus-container">
+        <div v-if="recentTasks.length === 0" class="focus-empty">
+          <span class="focus-empty-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </span>
+          <span class="focus-empty-text">在 TODO 中选择任务开始专注</span>
+        </div>
+
+        <div
+          v-for="(task, index) in recentTasks"
+          :key="task.id"
+          class="focus-task-item"
+          :class="{ 'is-running': activeTaskId === task.id }"
+          :style="activeTaskId === task.id ? { '--active-color': phase === 'break' ? 'var(--break-color)' : 'var(--focus-color)' } : undefined"
+        >
         <!-- 运行态 -->
         <template v-if="activeTaskId === task.id">
           <template v-if="running">
@@ -237,6 +243,7 @@ function handleDoneTask(taskId: string) {
             <button class="start-btn" @click="handleStartTask(task)" title="开始">▶</button>
           </div>
         </template>
+      </div>
       </div>
     </div>
 
@@ -361,19 +368,50 @@ function handleDoneTask(taskId: string) {
   letter-spacing: 0.5px;
 }
 
-.empty-hint {
-  font-size: 12px;
+.focus-container {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.focus-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+}
+
+.focus-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
   color: rgba(255, 255, 255, 0.25);
-  padding: 6px 0;
+}
+
+.focus-empty-text {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.35);
+  text-align: center;
 }
 
 .focus-task-item {
   background: rgba(255, 255, 255, 0.035);
-  border-radius: 10px;
+  border-radius: 8px;
   margin-bottom: 4px;
   padding: 5px 10px;
   transition: all 0.2s;
   border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.focus-task-item:last-child {
+  margin-bottom: 0;
 }
 
 .focus-task-item:hover {
