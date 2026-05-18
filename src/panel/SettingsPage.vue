@@ -264,9 +264,9 @@ onUnmounted(() => {
         <div class="duration-cell">
           <label class="duration-label">专注</label>
           <div class="stepper">
-            <button class="stepper-btn" @click="settings.focusDuration = Math.max(1, settings.focusDuration - 5)">−</button>
+            <button class="stepper-btn" @click="settings.focusDuration = Math.max(5, Math.floor((settings.focusDuration - 1) / 5) * 5)">−</button>
             <span class="stepper-value">{{ settings.focusDuration }}</span>
-            <button class="stepper-btn" @click="settings.focusDuration = Math.min(120, settings.focusDuration + 5)">+</button>
+            <button class="stepper-btn" @click="settings.focusDuration = Math.min(120, Math.ceil((settings.focusDuration + 1) / 5) * 5)">+</button>
           </div>
           <span class="duration-unit">分</span>
         </div>

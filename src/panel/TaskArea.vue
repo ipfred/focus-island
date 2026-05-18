@@ -249,52 +249,86 @@ function handleDoneTask(taskId: string) {
 
     <!-- Zone 3: Radio -->
     <div class="radio-zone">
-      <div class="radio-row" @click="toggleRadio">
-        <div class="radio-icon-btn" :class="{ playing: playing }">
-          <svg v-if="loading" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="7" cy="12" r="2" opacity="0.3"/><circle cx="12" cy="12" r="2" opacity="0.6"/><circle cx="17" cy="12" r="2"/></svg>
-          <svg v-else-if="playing" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
-          <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.14v14l11-7z"/></svg>
-        </div>
+      <div class="radio-row">
+        <button class="radio-play-btn" :class="{ playing: playing }" @click="toggleRadio">
+          <svg v-if="loading" class="loading-spinner" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="12" cy="12" r="2"/>
+            <circle cx="12" cy="6" r="2" opacity="0.3"/>
+            <circle cx="12" cy="18" r="2" opacity="0.3"/>
+            <circle cx="6" cy="12" r="2" opacity="0.6"/>
+            <circle cx="18" cy="12" r="2" opacity="0.6"/>
+          </svg>
+          <svg v-else-if="playing" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="4" width="4" height="16" rx="1"/>
+            <rect x="14" y="4" width="4" height="16" rx="1"/>
+          </svg>
+          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+        </button>
         <div class="radio-info">
           <span class="radio-name">{{ currentStation?.name ?? '专注电台' }}</span>
-          <span class="radio-status">{{ playing ? (loading ? '缓冲中...' : '播放中') : '未播放' }}</span>
+          <span class="radio-status">{{ playing ? (loading ? '缓冲中...' : '播放中') : '点击播放' }}</span>
         </div>
-        <span class="radio-arrow">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-        </span>
+        <div class="radio-wave" v-if="playing && !loading">
+          <span class="wave-bar"></span>
+          <span class="wave-bar"></span>
+          <span class="wave-bar"></span>
+        </div>
       </div>
     </div>
 
     <!-- Zone 4: Task cards -->
     <div class="cards-zone">
+      <div class="zone-header">任务清单</div>
       <div class="card-grid">
         <button class="task-card" @click="emit('navigateToTodo', 'today')">
           <span class="card-icon today-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
           </span>
-          <span class="card-count">{{ todayTasks.length }}</span>
-          <span class="card-label">今天</span>
+          <div class="card-content">
+            <span class="card-label">今天</span>
+            <span class="card-count">{{ todayTasks.length }}</span>
+          </div>
         </button>
         <button class="task-card" @click="emit('navigateToTodo', 'tomorrow')">
           <span class="card-icon tomorrow-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
           </span>
-          <span class="card-count">{{ tomorrowTasks.length }}</span>
-          <span class="card-label">明天</span>
+          <div class="card-content">
+            <span class="card-label">明天</span>
+            <span class="card-count">{{ tomorrowTasks.length }}</span>
+          </div>
         </button>
         <button class="task-card" @click="emit('navigateToTodo', 'week')">
           <span class="card-icon week-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
           </span>
-          <span class="card-count">{{ weekTasks.length }}</span>
-          <span class="card-label">本周</span>
+          <div class="card-content">
+            <span class="card-label">本周</span>
+            <span class="card-count">{{ weekTasks.length }}</span>
+          </div>
         </button>
         <button class="task-card" @click="emit('navigateToTodo', 'completed')">
           <span class="card-icon done-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
           </span>
-          <span class="card-count">{{ completedTasks.length }}</span>
-          <span class="card-label">已完成</span>
+          <div class="card-content">
+            <span class="card-label">已完成</span>
+            <span class="card-count">{{ completedTasks.length }}</span>
+          </div>
         </button>
       </div>
     </div>
@@ -660,36 +694,61 @@ function handleDoneTask(taskId: string) {
 .radio-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
+  gap: 12px;
+  padding: 10px 12px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  cursor: pointer;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.02) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   transition: all 0.2s;
 }
 
-.radio-row:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
-.radio-icon-btn {
-  width: 32px;
-  height: 32px;
+.radio-play-btn {
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.6);
   flex-shrink: 0;
-  transition: all 0.2s;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 0;
 }
 
-.radio-icon-btn.playing {
-  background: color-mix(in srgb, var(--focus-color) 15%, transparent);
+.radio-play-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.9);
+  transform: scale(1.05);
+}
+
+.radio-play-btn:active {
+  transform: scale(0.95);
+}
+
+.radio-play-btn.playing {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--focus-color) 25%, transparent), color-mix(in srgb, var(--focus-color) 15%, transparent));
+  border-color: color-mix(in srgb, var(--focus-color) 40%, transparent);
   color: var(--focus-color);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--focus-color) 20%, transparent);
+}
+
+.radio-play-btn.playing:hover {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--focus-color) 35%, transparent), color-mix(in srgb, var(--focus-color) 25%, transparent));
+  border-color: color-mix(in srgb, var(--focus-color) 50%, transparent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--focus-color) 30%, transparent);
+}
+
+.loading-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .radio-info {
@@ -697,13 +756,13 @@ function handleDoneTask(taskId: string) {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
 }
 
 .radio-name {
   font-size: 13px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.85);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -711,12 +770,47 @@ function handleDoneTask(taskId: string) {
 
 .radio-status {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 500;
 }
 
-.radio-arrow {
-  color: rgba(255, 255, 255, 0.25);
+.radio-wave {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
   flex-shrink: 0;
+}
+
+.wave-bar {
+  width: 3px;
+  height: 100%;
+  background: var(--focus-color);
+  border-radius: 2px;
+  animation: wave 1.2s ease-in-out infinite;
+}
+
+.wave-bar:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.wave-bar:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.wave-bar:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes wave {
+  0%, 100% {
+    transform: scaleY(0.3);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
 }
 
 /* ===== Cards Zone ===== */
@@ -728,17 +822,16 @@ function handleDoneTask(taskId: string) {
 .card-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 8px;
 }
 
 .task-card {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 16px 10px;
-  border-radius: 12px;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 10px;
   background: rgba(255, 255, 255, 0.035);
   border: 1px solid rgba(255, 255, 255, 0.06);
   cursor: pointer;
@@ -762,8 +855,8 @@ function handleDoneTask(taskId: string) {
   justify-content: center;
   width: 36px;
   height: 36px;
-  border-radius: 10px;
-  margin-bottom: 2px;
+  border-radius: 8px;
+  flex-shrink: 0;
 }
 
 .today-icon {
@@ -772,13 +865,13 @@ function handleDoneTask(taskId: string) {
 }
 
 .tomorrow-icon {
-  background: color-mix(in srgb, #f59e0b 15%, transparent);
-  color: #f59e0b;
+  background: color-mix(in srgb, #a78bfa 15%, transparent);
+  color: #a78bfa;
 }
 
 .week-icon {
-  background: color-mix(in srgb, #8b5cf6 15%, transparent);
-  color: #8b5cf6;
+  background: color-mix(in srgb, #60a5fa 15%, transparent);
+  color: #60a5fa;
 }
 
 .done-icon {
@@ -786,16 +879,26 @@ function handleDoneTask(taskId: string) {
   color: #10b981;
 }
 
+.card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.card-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 500;
+  line-height: 1;
+}
+
 .card-count {
   font-size: 20px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.9);
   line-height: 1;
-}
-
-.card-label {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.45);
-  font-weight: 500;
 }
 </style>
