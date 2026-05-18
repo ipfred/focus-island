@@ -1,19 +1,18 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useTasks, type Task } from '../composables/useTasks'
 import { useTimerBridge } from '../composables/useTimerBridge'
 import { useRadio } from '../composables/useRadio'
-
-// Module-level singleton — persists across component remounts
-const recentTaskIds = ref<string[]>([])
 
 const emit = defineEmits<{ close: []; navigateToTodo: [tab?: string] }>()
 
 const {
   tasks,
   addTask,
+  deleteTask,
   setTaskPriority,
   incrementPomodoro,
+  touchTask,
   todayTasks,
   tomorrowTasks,
   weekTasks,
@@ -35,23 +34,94 @@ const { playing, loading, currentStation, toggle: toggleRadio } = useRadio()
 const newTitle = ref('')
 const quickAddRef = ref<HTMLInputElement | null>(null)
 
-// Track active task changes — any start pushes to the top of the list
-watch(activeTaskId, (newId, _oldId) => {
-  if (newId) {
-    recentTaskIds.value = [newId, ...recentTaskIds.value.filter(id => id !== newId)].slice(0, 3)
-  }
+// Touch lastActiveAt when a task starts
+watch(activeTaskId, (newId) => {
+  if (newId) touchTask(newId)
 })
 
-// Seed on mount if timer is already running
-if (activeTaskId.value && !recentTaskIds.value.includes(activeTaskId.value)) {
-  recentTaskIds.value = [activeTaskId.value, ...recentTaskIds.value].slice(0, 3)
+// Recent 3 tasks by lastActiveAt
+const recentTasks = computed<Task[]>(() => {
+  return tasks.value
+    .filter(t => !t.completed && t.lastActiveAt > 0)
+    .sort((a, b) => b.lastActiveAt - a.lastActiveAt)
+    .slice(0, 3)
+})
+
+// --- Title scroll animation ---
+type ScrollPhase = 'start' | 'scroll' | 'end'
+interface ScrollState {
+  taskId: string
+  container: HTMLElement
+  text: HTMLElement
+  frameId: number | null
+  offset: number
+  waitFrames: number
+  phase: ScrollPhase
 }
 
-const recentTasks = computed<Task[]>(() => {
-  return recentTaskIds.value
-    .map(id => tasks.value.find(t => t.id === id))
-    .filter((t): t is Task => !!t)
-})
+const SCROLL_SPEED = 0.5
+const START_WAIT_FRAMES = 30
+const END_WAIT_FRAMES = 60
+let activeScroll: ScrollState | null = null
+
+function startScroll(taskId: string, eventTarget: EventTarget | null) {
+  const containerEl = eventTarget as HTMLElement | null
+  if (!containerEl) return
+  const textEl = containerEl.querySelector('.task-title-text') as HTMLElement | null
+  if (!textEl) return
+  const overflow = textEl.scrollWidth - containerEl.clientWidth
+  if (overflow <= 0) return
+  stopScroll()
+  textEl.style.transform = 'translateX(0)'
+  activeScroll = { taskId, container: containerEl, text: textEl, frameId: null, offset: 0, waitFrames: START_WAIT_FRAMES, phase: 'start' }
+  scheduleNextScrollFrame()
+}
+
+function scheduleNextScrollFrame() {
+  if (!activeScroll) return
+  activeScroll.frameId = requestAnimationFrame(runScrollFrame)
+}
+
+function runScrollFrame() {
+  const state = activeScroll
+  if (!state) return
+  if (!state.container.isConnected || !state.text.isConnected) { stopScroll(state.taskId); return }
+  const overflow = state.text.scrollWidth - state.container.clientWidth
+  if (overflow <= 0) { stopScroll(state.taskId); return }
+  if (state.phase !== 'scroll') {
+    state.waitFrames -= 1
+    if (state.waitFrames <= 0) {
+      if (state.phase === 'end') { state.offset = 0; state.text.style.transform = 'translateX(0)' }
+      state.phase = 'scroll'
+    }
+    scheduleNextScrollFrame(); return
+  }
+  state.offset += SCROLL_SPEED
+  if (state.offset >= overflow) {
+    state.offset = overflow
+    state.text.style.transform = `translateX(-${overflow}px)`
+    state.phase = 'end'
+    state.waitFrames = END_WAIT_FRAMES
+  } else {
+    state.text.style.transform = `translateX(-${state.offset}px)`
+  }
+  scheduleNextScrollFrame()
+}
+
+function stopScroll(taskId?: string) {
+  if (!activeScroll) return
+  if (taskId && activeScroll.taskId !== taskId) return
+  if (activeScroll.frameId !== null) cancelAnimationFrame(activeScroll.frameId)
+  activeScroll.text.style.transform = 'translateX(0)'
+  activeScroll = null
+}
+
+onBeforeUnmount(() => { stopScroll() })
+
+function formatTime(ts: number) {
+  const d = new Date(ts)
+  return `${d.getMonth() + 1}月${d.getDate()}日`
+}
 
 // --- Quick-add ---
 async function handleInput(event: KeyboardEvent) {
@@ -70,33 +140,21 @@ async function handleInput(event: KeyboardEvent) {
 }
 
 // --- Timer Controls ---
-function handleToggleTimer(taskId: string) {
-  if (activeTaskId.value === taskId) {
+function handleStartTask(task: Task) {
+  if (activeTaskId.value === task.id) {
     if (running.value) pause()
     else resume()
   } else {
-    const task = tasks.value.find(t => t.id === taskId)
-    if (task) {
-      start(taskId, task.title)
-    }
+    touchTask(task.id)
+    start(task.id, task.title)
   }
 }
 
-function handleDone(taskId: string) {
+function handleDoneTask(taskId: string) {
   if (activeTaskId.value === taskId) {
     incrementPomodoro(taskId)
     abandon()
   }
-}
-
-function handleStop(taskId: string) {
-  if (activeTaskId.value === taskId) {
-    abandon()
-  }
-}
-
-function handlePlay(task: Task) {
-  start(task.id, task.title)
 }
 </script>
 
@@ -113,89 +171,72 @@ function handlePlay(task: Task) {
       />
     </div>
 
-    <!-- Zone 2: Focus -->
+    <!-- Zone 2: Focus Queue (Recent 3) -->
     <div class="focus-zone">
-      <div class="focus-header">
-        <span class="zone-label">核心专注区</span>
+      <div class="zone-header">核心专注区</div>
+      <div v-if="recentTasks.length === 0" class="empty-hint">
+        TODO 中开启任务
       </div>
-
-      <div v-if="recentTasks.length > 0" class="focus-list">
-        <div
-          v-for="task in recentTasks"
-          :key="task.id"
-          class="focus-card"
-          :class="{ 'is-active': activeTaskId === task.id }"
-          :style="activeTaskId === task.id ? { '--active-color': phase === 'break' ? 'var(--break-color)' : 'var(--focus-color)' } : undefined"
-        >
-          <!-- Active task: running -->
-          <template v-if="activeTaskId === task.id && running">
-            <div class="focus-top-row">
-              <span class="running-dot">●</span>
-              <span class="focus-title">{{ task.title }}</span>
-              <span class="focus-timer">{{ displayTime }}</span>
-            </div>
-            <div class="focus-phase">{{ phase === 'focus' ? '专注中' : '休息中' }}</div>
-            <div class="focus-actions">
-              <button class="act-btn pause-btn" @click="handleToggleTimer(task.id)" title="暂停">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
-                暂停
-              </button>
-              <button class="act-btn done-btn" @click="handleDone(task.id)" title="完成">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
-                完成
-              </button>
-              <button class="act-btn stop-btn" @click="handleStop(task.id)" title="停止">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
-                停止
-              </button>
+      <div
+        v-for="(task, index) in recentTasks"
+        :key="task.id"
+        class="focus-task-item"
+        :class="{ 'is-running': activeTaskId === task.id }"
+        :style="activeTaskId === task.id ? { '--active-color': phase === 'break' ? 'var(--break-color)' : 'var(--focus-color)' } : undefined"
+      >
+        <!-- 运行态 -->
+        <template v-if="activeTaskId === task.id">
+          <template v-if="running">
+            <div class="running-card">
+              <div class="running-header">
+                <span class="running-dot">●</span>
+                <span class="task-title running-title" @mouseenter="startScroll(task.id, $event.currentTarget)" @mouseleave="stopScroll(task.id)">
+                  <span class="task-title-text">{{ task.title }}</span>
+                </span>
+                <span class="task-timer">{{ displayTime }}</span>
+              </div>
+              <div class="running-actions">
+                <button class="run-btn pause-btn" @click="pause()" title="暂停">❚❚ 暂停</button>
+                <button class="run-btn done-btn" @click="handleDoneTask(task.id)" title="完成">✓ 完成</button>
+                <button class="run-btn abandon-btn" @click="abandon()" title="停止">■ 停止</button>
+              </div>
             </div>
           </template>
-
-          <!-- Active task: paused -->
-          <template v-else-if="activeTaskId === task.id && !running">
-            <div class="focus-top-row">
-              <span class="paused-dot">●</span>
-              <span class="focus-title">{{ task.title }}</span>
-              <span class="focus-timer">{{ displayTime }}</span>
-            </div>
-            <div class="focus-phase">已暂停</div>
-            <div class="focus-actions">
-              <button class="act-btn resume-btn" @click="handleToggleTimer(task.id)" title="继续">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>
-                继续
-              </button>
-              <button class="act-btn done-btn" @click="handleDone(task.id)" title="完成">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
-                完成
-              </button>
-              <button class="act-btn stop-btn" @click="handleStop(task.id)" title="停止">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
-                停止
-              </button>
-            </div>
-          </template>
-
-          <!-- Inactive task: show play button -->
+          <!-- 暂停态 -->
           <template v-else>
-            <div class="focus-top-row">
-              <button class="focus-play-btn" @click="handlePlay(task)" title="开始专注">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>
-              </button>
-              <span class="focus-title inactive">{{ task.title }}</span>
-              <span v-if="task.pomodoroCount > 0" class="focus-pomo">🍅 {{ task.pomodoroCount }}</span>
-              <button class="focus-remove-btn" @click="recentTaskIds = recentTaskIds.filter(id => id !== task.id)" title="移除">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
+            <div class="running-card paused">
+              <div class="running-header">
+                <span class="running-dot paused-dot">●</span>
+                <span class="task-title running-title" @mouseenter="startScroll(task.id, $event.currentTarget)" @mouseleave="stopScroll(task.id)">
+                  <span class="task-title-text">{{ task.title }}</span>
+                </span>
+                <span class="task-timer">{{ displayTime }}</span>
+              </div>
+              <div class="running-actions">
+                <button class="run-btn pause-btn" @click="resume()" title="继续">▶ 继续</button>
+                <button class="run-btn done-btn" @click="handleDoneTask(task.id)" title="完成">✓ 完成</button>
+                <button class="run-btn abandon-btn" @click="abandon()" title="停止">■ 停止</button>
+              </div>
             </div>
           </template>
-        </div>
-      </div>
+        </template>
 
-      <div v-else class="focus-empty">
-        <span class="focus-empty-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        </span>
-        <span class="focus-empty-text">在 TODO 中选择任务开始专注</span>
+        <!-- 正常态（非活跃任务） -->
+        <template v-else>
+          <div class="task-row">
+            <span class="rank-badge">{{ index === 0 ? '①' : index === 1 ? '②' : '③' }}</span>
+            <button class="check-circle" @click="handleDoneTask(task.id)" title="完成"></button>
+            <span class="task-title" @mouseenter="startScroll(task.id, $event.currentTarget)" @mouseleave="stopScroll(task.id)">
+              <span class="task-title-text">{{ task.title }}</span>
+            </span>
+            <span class="pomo-count" v-if="task.pomodoroCount > 0">● {{ task.pomodoroCount }}</span>
+            <span class="task-time">{{ formatTime(task.createdAt) }}</span>
+            <div class="task-actions">
+              <button class="act-btn delete" @click="deleteTask(task.id)" title="删除">✕</button>
+            </div>
+            <button class="start-btn" @click="handleStartTask(task)" title="开始">▶</button>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -279,14 +320,6 @@ function handlePlay(task: Task) {
   border-radius: 2px;
 }
 
-/* Shared zone label */
-.zone-label {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
-  font-weight: 500;
-  letter-spacing: 0.5px;
-}
-
 /* ===== Quick-add Zone ===== */
 .quick-add-zone {
   flex-shrink: 0;
@@ -320,36 +353,49 @@ function handlePlay(task: Task) {
   flex-shrink: 0;
 }
 
-.focus-header {
+.zone-header {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
   margin-bottom: 6px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
 }
 
-.focus-list {
+.empty-hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.25);
+  padding: 6px 0;
+}
+
+.focus-task-item {
+  background: rgba(255, 255, 255, 0.035);
+  border-radius: 10px;
+  margin-bottom: 4px;
+  padding: 5px 10px;
+  transition: all 0.2s;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.focus-task-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Running task card */
+.focus-task-item.is-running {
+  background: color-mix(in srgb, var(--active-color) 10%, transparent);
+  border-color: color-mix(in srgb, var(--active-color) 30%, transparent);
+  border-left: 3px solid var(--active-color);
+  padding: 8px 10px;
+}
+
+.running-card {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-.focus-card {
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 10px;
-  padding: 8px 10px;
-  transition: all 0.2s;
-}
-
-.focus-card:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
-}
-
-.focus-card.is-active {
-  background: color-mix(in srgb, var(--active-color) 8%, rgba(28, 28, 32, 0.95));
-  border-color: color-mix(in srgb, var(--active-color) 25%, transparent);
-  border-left: 3px solid var(--active-color);
-}
-
-.focus-top-row {
+.running-header {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -359,14 +405,10 @@ function handlePlay(task: Task) {
   color: var(--active-color);
   font-size: 10px;
   flex-shrink: 0;
-  animation: blink 1.2s ease-in-out infinite;
 }
 
 .paused-dot {
-  color: var(--active-color);
-  font-size: 10px;
-  flex-shrink: 0;
-  animation: blink 1.5s ease-in-out infinite;
+  animation: blink 1.2s ease-in-out infinite;
 }
 
 @keyframes blink {
@@ -374,181 +416,202 @@ function handlePlay(task: Task) {
   50% { opacity: 0.3; }
 }
 
-.focus-title {
-  flex: 1;
-  font-size: 13px;
-  font-weight: 600;
-  color: #fff;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
+.running-title {
+  color: #fff !important;
+  font-weight: 600 !important;
 }
 
-.focus-title.inactive {
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.focus-timer {
-  font-size: 14px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: #fff;
-  flex-shrink: 0;
-}
-
-.focus-phase {
-  font-size: 10px;
-  color: var(--active-color);
-  margin-top: 2px;
-  padding-left: 18px;
-}
-
-.focus-pomo {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.45);
-  flex-shrink: 0;
-}
-
-.focus-actions {
+.running-actions {
   display: flex;
   gap: 6px;
-  margin-top: 6px;
 }
 
-.act-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  height: 26px;
+.run-btn {
+  height: 28px;
   padding: 0 10px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  font-family: inherit;
   cursor: pointer;
-  transition: all 0.15s;
   border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.2s;
+  font-family: inherit;
 }
 
-.pause-btn,
-.resume-btn {
+.pause-btn {
   flex: 1;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .pause-btn:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.18);
   color: #fff;
 }
 
-.resume-btn {
-  flex: 1;
-  background: color-mix(in srgb, var(--focus-color) 20%, transparent);
-  border-color: color-mix(in srgb, var(--focus-color) 40%, transparent);
-  color: var(--focus-color);
-}
-
-.resume-btn:hover {
-  background: color-mix(in srgb, var(--focus-color) 30%, transparent);
-}
-
 .done-btn {
-  background: color-mix(in srgb, var(--break-color) 15%, transparent);
-  border-color: color-mix(in srgb, var(--break-color) 25%, transparent);
+  background: color-mix(in srgb, var(--break-color) 20%, transparent);
   color: var(--break-color);
+  border-color: color-mix(in srgb, var(--break-color) 30%, transparent);
 }
 
 .done-btn:hover {
-  background: color-mix(in srgb, var(--break-color) 25%, transparent);
+  background: color-mix(in srgb, var(--break-color) 35%, transparent);
 }
 
-.stop-btn {
+.abandon-btn {
   background: transparent;
-  border-color: rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.4);
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
-.stop-btn:hover {
-  background: rgba(248, 113, 113, 0.1);
-  border-color: rgba(248, 113, 113, 0.25);
+.abandon-btn:hover {
   color: #f87171;
+  border-color: rgba(248, 113, 113, 0.3);
+  background: rgba(248, 113, 113, 0.1);
 }
 
-/* Inactive task play button */
-.focus-play-btn {
-  width: 28px;
-  height: 28px;
+/* Normal task row */
+.task-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+
+.rank-badge {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  flex-shrink: 0;
+  color: var(--focus-color);
+  background: color-mix(in srgb, var(--focus-color) 15%, transparent);
   border-radius: 50%;
+}
+
+.check-circle {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.check-circle:hover {
+  border-color: var(--break-color);
+  background: color-mix(in srgb, var(--break-color) 20%, transparent);
+}
+
+.task-title {
+  flex: 1;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  position: relative;
+  min-width: 0;
+  cursor: default;
+}
+
+.task-title-text {
+  display: inline-block;
+  will-change: transform;
+}
+
+.pomo-count {
+  font-size: 11px;
+  color: var(--focus-color);
+  opacity: 0.7;
+}
+
+.task-timer {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--active-color);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.task-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.focus-task-item:hover .task-actions {
+  opacity: 1;
+}
+
+/* Unified action button */
+.act-btn {
+  min-width: 20px;
+  height: 20px;
+  padding: 1px 4px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  text-align: center;
+  font-family: inherit;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+
+.act-btn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.start-btn {
+  min-width: 20px;
+  height: 20px;
+  padding: 1px 4px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-weight: 600;
   background: color-mix(in srgb, var(--focus-color) 15%, transparent);
   border: 1px solid color-mix(in srgb, var(--focus-color) 30%, transparent);
   color: var(--focus-color);
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  text-align: center;
   flex-shrink: 0;
-  padding: 0;
-  transition: all 0.15s;
+  font-family: inherit;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
 }
 
-.focus-play-btn:hover {
+.start-btn:hover {
   background: color-mix(in srgb, var(--focus-color) 25%, transparent);
   border-color: color-mix(in srgb, var(--focus-color) 50%, transparent);
-  transform: scale(1.08);
 }
 
-/* Remove from focus zone button */
-.focus-remove-btn {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  background: transparent;
-  border: none;
-  color: rgba(255, 255, 255, 0.15);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  padding: 0;
-  transition: all 0.15s;
-  opacity: 0;
+.act-btn.delete {
+  color: rgba(255, 255, 255, 0.5);
 }
 
-.focus-card:hover .focus-remove-btn {
-  opacity: 1;
-}
-
-.focus-remove-btn:hover {
-  background: rgba(248, 113, 113, 0.12);
+.act-btn.delete:hover {
   color: #f87171;
+  border-color: rgba(248, 113, 113, 0.3);
+  background: rgba(248, 113, 113, 0.1);
 }
 
-/* Empty state */
-.focus-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 18px 12px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px dashed rgba(255, 255, 255, 0.08);
-}
-
-.focus-empty-icon {
-  color: rgba(255, 255, 255, 0.2);
-}
-
-.focus-empty-text {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.3);
-  text-align: center;
+.task-time {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.25);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ===== Radio Zone ===== */

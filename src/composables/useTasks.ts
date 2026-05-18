@@ -49,6 +49,7 @@ export interface Task {
   subtasks: Subtask[]
   createdAt: number
   updatedAt: number
+  lastActiveAt: number
 }
 
 export function getTaskTimeCategory(task: Task): TimeCategory {
@@ -97,6 +98,7 @@ async function load() {
         priority: t.completed ? 0 : ((t.priority ?? 0) as TaskPriority),
         subtasks: t.subtasks ?? [],
         ...t,
+        lastActiveAt: t.lastActiveAt ?? 0,
       } as Task
     })
   } catch {
@@ -157,6 +159,7 @@ export function useTasks() {
       subtasks: [],
       createdAt: now,
       updatedAt: now,
+      lastActiveAt: 0,
     }
 
     tasks.value.unshift(task)
@@ -214,6 +217,13 @@ export function useTasks() {
     if (task) {
       task.pomodoroCount++
       task.updatedAt = Date.now()
+    }
+  }
+
+  function touchTask(id: string) {
+    const task = tasks.value.find(t => t.id === id)
+    if (task) {
+      task.lastActiveAt = Date.now()
     }
   }
 
@@ -300,6 +310,7 @@ export function useTasks() {
     deleteTask,
     toggleComplete,
     incrementPomodoro,
+    touchTask,
     addSubtask,
     toggleSubtask,
     deleteSubtask,
