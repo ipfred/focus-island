@@ -41,6 +41,36 @@ fn get_local_audio_path<R: Runtime>(app: AppHandle<R>) -> Result<String, String>
     }
 }
 
+#[tauri::command]
+fn get_update_proxy() -> Option<String> {
+    let keys = [
+        "HTTPS_PROXY",
+        "https_proxy",
+        "HTTP_PROXY",
+        "http_proxy",
+        "ALL_PROXY",
+        "all_proxy",
+    ];
+
+    for key in keys {
+        if let Ok(value) = std::env::var(key) {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            if trimmed.starts_with("http://")
+                || trimmed.starts_with("https://")
+                || trimmed.starts_with("socks5://")
+            {
+                return Some(trimmed.to_string());
+            }
+            return Some(format!("http://{trimmed}"));
+        }
+    }
+
+    None
+}
+
 #[derive(serde::Serialize, Clone, Copy)]
 struct PanelTransitionMetrics {
     island_x: i32,
@@ -483,6 +513,7 @@ pub fn run() {
             get_screen_info,
             get_macos_update_health,
             get_local_audio_path,
+            get_update_proxy,
         ])
         .setup(|app| {
             #[cfg(desktop)]

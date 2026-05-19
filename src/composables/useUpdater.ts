@@ -1,4 +1,4 @@
-import { computed, ref, watch } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-shell'
 import { check } from '@tauri-apps/plugin-updater'
@@ -15,6 +15,8 @@ interface MacosUpdateHealth {
 const AUTO_CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000
 const LAST_AUTO_CHECK_KEY = 'focus-island:last-update-check'
 const GITHUB_RELEASES_URL = 'https://github.com/ipfred/focus-island/releases/latest'
+const UPDATE_CHECK_TIMEOUT_MS = 12000
+const UPDATE_DOWNLOAD_TIMEOUT_MS = 120000
 
 const checking = ref(false)
 const checked = ref(false)
@@ -24,9 +26,10 @@ const installing = ref(false)
 const downloadProgress = ref(0)
 const error = ref<string | null>(null)
 const updateInfo = ref<{ version: string; body?: string } | null>(null)
-const availableUpdate = ref<AvailableUpdate | null>(null)
+const availableUpdate = shallowRef<AvailableUpdate | null>(null)
 const installFinished = ref(false)
 const installFailed = ref(false)
+const downloadFailed = ref(false)
 const updateNoticeDismissed = ref(false)
 
 const isMacOS = navigator.userAgent.toLowerCase().includes('mac')
@@ -35,6 +38,7 @@ const macQuarantined = ref(false)
 const macRepairCommand = ref('')
 const macRepairStatus = ref('')
 const copiedRepairCommand = ref(false)
+const resolvedUpdateProxy = ref<string | null>(null)
 
 const hasVisibleUpdateWork = computed(() =>
   updateAvailable.value || downloading.value || installing.value || (installFinished.value && isMacOS),
@@ -69,6 +73,19 @@ function resetCheckState() {
   installing.value = false
   installFinished.value = false
   installFailed.value = false
+  downloadFailed.value = false
+}
+
+async function resolveUpdateProxy() {
+  if (resolvedUpdateProxy.value !== null) return resolvedUpdateProxy.value
+  try {
+    const proxy = await invoke<string | null>('get_update_proxy')
+    resolvedUpdateProxy.value = proxy && proxy.trim().length > 0 ? proxy.trim() : ''
+    return resolvedUpdateProxy.value || null
+  } catch {
+    resolvedUpdateProxy.value = ''
+    return null
+  }
 }
 
 /**
@@ -110,7 +127,11 @@ async function checkForUpdate(options: { silent?: boolean } = {}) {
   resetCheckState()
 
   try {
-    const update = await check()
+    const proxy = await resolveUpdateProxy()
+    const update = await check({
+      timeout: UPDATE_CHECK_TIMEOUT_MS,
+      proxy: proxy ?? undefined,
+    })
     availableUpdate.value = update
     updateAvailable.value = Boolean(update)
     if (update) {
@@ -145,36 +166,54 @@ async function downloadAndInstall() {
   downloadProgress.value = 0
   error.value = null
   installFailed.value = false
+  downloadFailed.value = false
   macRepairStatus.value = ''
   copiedRepairCommand.value = false
 
   try {
-    const update = availableUpdate.value ?? await check()
+    const proxy = await resolveUpdateProxy()
+    const update = availableUpdate.value ?? await check({
+      timeout: UPDATE_CHECK_TIMEOUT_MS,
+      proxy: proxy ?? undefined,
+    })
     if (!update) return
 
     let downloaded = 0
     let contentLength = 0
 
-    await update.download(event => {
-      switch (event.event) {
-        case 'Started':
-          contentLength = event.data.contentLength ?? 0
-          break
-        case 'Progress':
-          downloaded += event.data.chunkLength
-          if (contentLength > 0) {
-            downloadProgress.value = Math.round((downloaded / contentLength) * 100)
-          }
-          break
-        case 'Finished':
-          downloadProgress.value = 100
-          break
-      }
-    })
+    try {
+      await update.download(event => {
+        switch (event.event) {
+          case 'Started':
+            contentLength = event.data.contentLength ?? 0
+            break
+          case 'Progress':
+            downloaded += event.data.chunkLength
+            if (contentLength > 0) {
+              downloadProgress.value = Math.round((downloaded / contentLength) * 100)
+            }
+            break
+          case 'Finished':
+            downloadProgress.value = 100
+            break
+        }
+      }, { timeout: UPDATE_DOWNLOAD_TIMEOUT_MS })
+    } catch (e) {
+      downloadFailed.value = true
+      installFailed.value = true
+      error.value = `下载更新失败：${formatUpdateError(e)}`
+      return
+    }
 
     downloading.value = false
     installing.value = true
-    await update.install()
+    try {
+      await update.install()
+    } catch (e) {
+      installFailed.value = true
+      error.value = `安装更新失败：${formatUpdateError(e)}`
+      return
+    }
 
     installFinished.value = true
     updateAvailable.value = false
@@ -193,7 +232,7 @@ async function downloadAndInstall() {
     await relaunch()
   } catch (e) {
     installFailed.value = true
-    error.value = formatUpdateError(e)
+    error.value = `更新失败：${formatUpdateError(e)}`
   } finally {
     downloading.value = false
     installing.value = false
@@ -256,6 +295,7 @@ export function useUpdater() {
     updateInfo,
     installFinished,
     installFailed,
+    downloadFailed,
     updateNoticeDismissed,
     hasVisibleUpdateWork,
     isMacOS,

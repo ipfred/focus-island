@@ -82,7 +82,7 @@
     },
     "updater": {
       "active": true,
-      "dialog": true,
+      "dialog": false,
       "endpoints": [
         "https://github.com/ipfred/focus-island/releases/latest/download/latest.json"
       ],

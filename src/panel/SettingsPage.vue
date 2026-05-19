@@ -18,6 +18,7 @@ const {
   updateInfo,
   installFinished,
   installFailed,
+  downloadFailed,
   checkForUpdate,
   downloadAndInstall,
   openReleasePage,
@@ -45,6 +46,7 @@ const updateStatusText = computed(() => {
 })
 
 const showManualUpdateDownload = computed(() => installFailed.value && Boolean(error.value))
+const updateFailureLabel = computed(() => downloadFailed.value ? '下载失败' : '安装失败')
 
 function formatShortcut(key: string): string {
   if (!key) return '无'
@@ -223,7 +225,7 @@ onUnmounted(() => {
         </span>
       </div>
       <div v-if="showManualUpdateDownload" class="update-recovery">
-        <span>安装失败时，可以从 GitHub Release 手动下载安装包。</span>
+        <span>{{ updateFailureLabel }}，可以从 GitHub Release 手动下载安装包。</span>
         <button type="button" class="update-link-btn" @click="openManualDownload">
           前往 GitHub Release
         </button>
