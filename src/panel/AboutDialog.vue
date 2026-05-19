@@ -2,40 +2,14 @@
 import { onMounted, ref } from 'vue'
 import { open } from '@tauri-apps/plugin-shell'
 import { getName, getVersion } from '@tauri-apps/api/app'
-import { invoke } from '@tauri-apps/api/core'
-import { check } from '@tauri-apps/plugin-updater'
-import { relaunch } from '@tauri-apps/plugin-process'
 
 const emit = defineEmits<{ close: [] }>()
 
 const appName = ref('专注岛')
 const appVersion = ref('')
 
-// 更新状态
-const checking = ref(false)
-const updateAvailable = ref(false)
-const downloading = ref(false)
-const downloadProgress = ref(0)
-const error = ref<string | null>(null)
-const updateInfo = ref<{ version: string; body?: string } | null>(null)
-const checked = ref(false)  // 是否已检查过
-const availableUpdate = ref<Awaited<ReturnType<typeof check>> | null>(null)
-const installFinished = ref(false)
-
-const isMacOS = navigator.userAgent.toLowerCase().includes('mac')
-const macQuarantined = ref(false)
-const macRepairCommand = ref('')
-const macRepairStatus = ref('')
-const copiedRepairCommand = ref(false)
-
 const githubUrl = 'https://github.com/ipfred/focus-island'
 import appIcon from '../../src-tauri/icons/128x128.png'
-
-interface MacosUpdateHealth {
-  app_path: string
-  quarantined: boolean
-  repair_command: string
-}
 
 onMounted(async () => {
   try {
@@ -45,7 +19,6 @@ onMounted(async () => {
     appName.value = '专注岛'
     appVersion.value = '1.3.3'
   }
-  await refreshMacUpdateHealth()
 })
 
 function openGitHub() {
@@ -55,135 +28,6 @@ function openGitHub() {
 function onBackdropClick(event: MouseEvent) {
   if (event.target === event.currentTarget) {
     emit('close')
-  }
-}
-
-async function checkForUpdate() {
-  checking.value = true
-  error.value = null
-  updateAvailable.value = false
-  updateInfo.value = null
-  availableUpdate.value = null
-  installFinished.value = false
-
-  try {
-    console.log('开始检查更新...')
-    const update = await check()
-    console.log('更新检查结果:', update)
-    availableUpdate.value = update
-    if (update) {
-      updateAvailable.value = true
-      updateInfo.value = {
-        version: update.version,
-        body: update.body
-      }
-    }
-    checked.value = true
-  } catch (e) {
-    console.error('更新检查错误:', e)
-    error.value = e instanceof Error ? e.message : '检查更新失败'
-  } finally {
-    checking.value = false
-  }
-}
-
-async function downloadAndInstall() {
-  if (!updateAvailable.value && !availableUpdate.value) return
-
-  downloading.value = true
-  downloadProgress.value = 0
-  error.value = null
-  macRepairStatus.value = ''
-  copiedRepairCommand.value = false
-
-  try {
-    const update = availableUpdate.value ?? await check()
-    if (update) {
-      let downloaded = 0
-      let contentLength = 0
-
-      await update.downloadAndInstall((event) => {
-        switch (event.event) {
-          case 'Started':
-            contentLength = event.data.contentLength ?? 0
-            break
-          case 'Progress':
-            downloaded += event.data.chunkLength
-            if (contentLength > 0) {
-              downloadProgress.value = Math.round((downloaded / contentLength) * 100)
-            }
-            break
-          case 'Finished':
-            downloadProgress.value = 100
-            break
-        }
-      })
-
-      installFinished.value = true
-      updateAvailable.value = false
-      availableUpdate.value = null
-
-      if (isMacOS) {
-        await refreshMacUpdateHealth(true)
-        if (macQuarantined.value) {
-          macRepairStatus.value = '更新已安装，但检测到系统隔离属性，请执行命令后重新检测。'
-          return
-        }
-      }
-
-      // Windows: 延迟重启，避免私有字段访问错误
-      if (!isMacOS) {
-        await new Promise(resolve => setTimeout(resolve, 500))
-      }
-      await relaunch()
-    }
-  } catch (e) {
-    const message = e instanceof Error ? e.message : '下载更新失败'
-    if (/signature|公钥|校验/i.test(message)) {
-      error.value = '更新包签名校验失败，请先配置 updater pubkey 和 latest.json 的 signature。'
-    } else {
-      error.value = message
-    }
-  } finally {
-    downloading.value = false
-  }
-}
-
-async function refreshMacUpdateHealth(showStatus = false) {
-  if (!isMacOS) return
-  try {
-    const health = await invoke<MacosUpdateHealth | null>('get_macos_update_health')
-    if (!health) return
-    if (!macRepairCommand.value || macRepairCommand.value.startsWith('xattr -dr com.apple.quarantine')) {
-      macRepairCommand.value = health.repair_command
-    }
-    macQuarantined.value = health.quarantined
-    if (showStatus) {
-      macRepairStatus.value = health.quarantined
-        ? '仍检测到隔离属性，请在终端执行命令后再次检测。'
-        : '检测通过，正在重启应用...'
-    }
-  } catch {
-    if (showStatus) {
-      macRepairStatus.value = '检测失败，请手动执行命令后再重试。'
-    }
-  }
-}
-
-async function copyRepairCommand() {
-  if (!macRepairCommand.value) return
-  try {
-    await navigator.clipboard.writeText(macRepairCommand.value)
-    copiedRepairCommand.value = true
-  } catch {
-    copiedRepairCommand.value = false
-  }
-}
-
-async function recheckAfterRepair() {
-  await refreshMacUpdateHealth(true)
-  if (installFinished.value && isMacOS && !macQuarantined.value) {
-    await relaunch()
   }
 }
 </script>
@@ -209,71 +53,6 @@ async function recheckAfterRepair() {
         </svg>
         <span>GitHub</span>
       </button>
-
-      <!-- 更新区域 -->
-      <div class="update-area">
-        <!-- 检查更新按钮 -->
-        <button
-          v-if="!updateAvailable && !downloading && !installFinished"
-          class="link-btn"
-          :disabled="checking"
-          @click="checkForUpdate"
-        >
-          <template v-if="checking">
-            <span class="loading-spinner"></span>
-            <span>检查中...</span>
-          </template>
-          <template v-else>
-            <span>检查更新</span>
-          </template>
-        </button>
-
-        <!-- 有更新时显示 -->
-        <template v-if="updateAvailable && !downloading">
-          <div class="update-info">
-            <span class="new-version">发现新版本 v{{ updateInfo?.version }}</span>
-          </div>
-          <button class="link-btn install-btn" @click="downloadAndInstall">
-            <span>安装更新</span>
-          </button>
-        </template>
-
-        <!-- 下载中 -->
-        <template v-if="downloading">
-          <div class="download-progress">
-            <span class="loading-spinner"></span>
-            <span>下载中 {{ downloadProgress }}%</span>
-          </div>
-        </template>
-
-        <!-- macOS 安装后隔离属性修复 -->
-        <template v-if="installFinished && isMacOS">
-          <div class="status-hint">
-            更新已安装
-          </div>
-          <div v-if="macQuarantined" class="mac-repair">
-            <label class="repair-label">若更新后无法打开，请在终端执行（可编辑）：</label>
-            <input v-model="macRepairCommand" class="repair-input" />
-            <div class="repair-actions">
-              <button class="link-btn" @click="copyRepairCommand">
-                {{ copiedRepairCommand ? '已复制' : '复制命令' }}
-              </button>
-              <button class="link-btn install-btn" @click="recheckAfterRepair">
-                重新检测并重启
-              </button>
-            </div>
-            <div v-if="macRepairStatus" class="status-hint">{{ macRepairStatus }}</div>
-          </div>
-        </template>
-
-        <!-- 无更新提示 -->
-        <div v-if="checked && !updateAvailable && !error && !installFinished" class="status-hint">
-          已是最新版本
-        </div>
-
-        <!-- 错误提示 -->
-        <div v-if="error" class="error-msg">{{ error }}</div>
-      </div>
     </div>
   </div>
 </template>
@@ -381,93 +160,5 @@ async function recheckAfterRepair() {
 .link-btn .icon {
   width: 16px;
   height: 16px;
-}
-
-.update-area {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  min-height: 32px;
-}
-
-.update-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.new-version {
-  font-size: 13px;
-  color: var(--focus-color);
-  font-weight: 500;
-}
-
-.install-btn {
-  font-weight: 500;
-}
-
-.download-progress {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.error-msg {
-  font-size: 12px;
-  color: #f87171;
-  text-align: center;
-}
-
-.loading-spinner {
-  width: 12px;
-  height: 12px;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-top-color: currentColor;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.status-hint {
-  font-size: 12px;
-  color: #4ade80;
-}
-
-.mac-repair {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.repair-label {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.55);
-  text-align: left;
-}
-
-.repair-input {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
-  color: #fff;
-  font-size: 11px;
-  padding: 8px;
-}
-
-.repair-actions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
 }
 </style>

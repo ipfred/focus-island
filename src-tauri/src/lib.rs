@@ -11,6 +11,7 @@ use std::sync::{Mutex, OnceLock};
 use core_graphics::event::CGEvent;
 #[cfg(target_os = "macos")]
 use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
+
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::POINT;
 #[cfg(target_os = "windows")]
@@ -43,7 +44,8 @@ fn get_local_audio_path<R: Runtime>(app: AppHandle<R>) -> Result<String, String>
 
 #[tauri::command]
 fn get_update_proxy() -> Option<String> {
-    let keys = [
+    // 1. 优先从环境变量读取（支持终端启动场景）
+    let env_keys = [
         "HTTPS_PROXY",
         "https_proxy",
         "HTTP_PROXY",
@@ -52,7 +54,7 @@ fn get_update_proxy() -> Option<String> {
         "all_proxy",
     ];
 
-    for key in keys {
+    for key in env_keys {
         if let Ok(value) = std::env::var(key) {
             let trimmed = value.trim();
             if trimmed.is_empty() {
@@ -65,6 +67,103 @@ fn get_update_proxy() -> Option<String> {
                 return Some(trimmed.to_string());
             }
             return Some(format!("http://{trimmed}"));
+        }
+    }
+
+    // 2. 如果环境变量没有，尝试读取系统代理配置（支持 Finder 启动场景）
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(proxy) = get_macos_system_proxy() {
+            return Some(proxy);
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(proxy) = get_windows_system_proxy() {
+            return Some(proxy);
+        }
+    }
+
+    None
+}
+
+#[cfg(target_os = "macos")]
+fn get_macos_system_proxy() -> Option<String> {
+    // 使用 scutil 命令读取系统代理配置
+    let output = std::process::Command::new("scutil")
+        .arg("--proxy")
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // 解析输出，查找 HTTPSEnable, HTTPSProxy, HTTPSPort
+    let mut https_enabled = false;
+    let mut https_proxy = String::new();
+    let mut https_port = String::new();
+
+    for line in stdout.lines() {
+        let line = line.trim();
+        if line.starts_with("HTTPSEnable") && line.contains(": 1") {
+            https_enabled = true;
+        } else if line.starts_with("HTTPSProxy") && line.contains(':') {
+            if let Some(value) = line.split(':').nth(1) {
+                https_proxy = value.trim().to_string();
+            }
+        } else if line.starts_with("HTTPSPort") && line.contains(':') {
+            if let Some(value) = line.split(':').nth(1) {
+                https_port = value.trim().to_string();
+            }
+        }
+    }
+
+    if https_enabled && !https_proxy.is_empty() {
+        if !https_port.is_empty() {
+            return Some(format!("http://{}:{}", https_proxy, https_port));
+        } else {
+            return Some(format!("http://{}:80", https_proxy));
+        }
+    }
+
+    None
+}
+
+#[cfg(target_os = "windows")]
+fn get_windows_system_proxy() -> Option<String> {
+    use std::ptr;
+    use windows::Win32::Networking::WinInet::{
+        InternetQueryOptionA, INTERNET_OPTION_PROXY, INTERNET_PROXY_INFO,
+    };
+
+    unsafe {
+        let mut proxy_info: INTERNET_PROXY_INFO = std::mem::zeroed();
+        let mut size = std::mem::size_of::<INTERNET_PROXY_INFO>() as u32;
+
+        if InternetQueryOptionA(
+            None,
+            INTERNET_OPTION_PROXY,
+            Some(&mut proxy_info as *mut _ as *mut _),
+            &mut size,
+        )
+        .is_ok()
+        {
+            if !proxy_info.lpszProxy.is_null() {
+                let proxy_str = std::ffi::CStr::from_ptr(proxy_info.lpszProxy.0)
+                    .to_string_lossy()
+                    .to_string();
+                if !proxy_str.is_empty() && proxy_str != "direct://" {
+                    return Some(if proxy_str.starts_with("http") {
+                        proxy_str
+                    } else {
+                        format!("http://{}", proxy_str)
+                    });
+                }
+            }
         }
     }
 

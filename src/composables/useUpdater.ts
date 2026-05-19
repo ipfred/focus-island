@@ -15,7 +15,7 @@ interface MacosUpdateHealth {
 const AUTO_CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000
 const LAST_AUTO_CHECK_KEY = 'focus-island:last-update-check'
 const GITHUB_RELEASES_URL = 'https://github.com/ipfred/focus-island/releases/latest'
-const UPDATE_CHECK_TIMEOUT_MS = 12000
+const UPDATE_CHECK_TIMEOUT_MS = 30000  // 增加到 30 秒，应对国内网络环境
 const UPDATE_DOWNLOAD_TIMEOUT_MS = 120000
 
 const checking = ref(false)
@@ -81,8 +81,17 @@ async function resolveUpdateProxy() {
   try {
     const proxy = await invoke<string | null>('get_update_proxy')
     resolvedUpdateProxy.value = proxy && proxy.trim().length > 0 ? proxy.trim() : ''
+    if (import.meta.env.DEV) {
+      console.log('[Updater] 代理配置:', resolvedUpdateProxy.value || '未配置（使用系统默认网络）')
+      if (resolvedUpdateProxy.value) {
+        console.log('[Updater] 代理来源:', resolvedUpdateProxy.value.includes('127.0.0.1') || resolvedUpdateProxy.value.includes('localhost') ? '系统代理或本地代理' : '环境变量')
+      }
+    }
     return resolvedUpdateProxy.value || null
-  } catch {
+  } catch (e) {
+    if (import.meta.env.DEV) {
+      console.warn('[Updater] 获取代理配置失败:', e)
+    }
     resolvedUpdateProxy.value = ''
     return null
   }
@@ -104,7 +113,7 @@ function formatUpdateError(e: unknown): string {
 
   // Network-related
   if (/network|fetch|connect|timeout|dns|ENOTFOUND/i.test(message)) {
-    return `网络连接失败：无法获取更新信息。请检查网络连接后重试。\n(${message})`
+    return `网络连接失败：无法获取更新信息。\n\n可能原因：\n1. GitHub 访问超时（国内网络环境）\n2. 未配置代理或代理失效\n3. DNS 解析失败\n\n建议：\n- 配置系统代理后重试\n- 或手动访问 GitHub Releases 页面下载\n\n技术详情：${message}`
   }
 
   // File/permission errors
