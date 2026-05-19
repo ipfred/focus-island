@@ -489,8 +489,13 @@ function handleDoneTask(taskId: string) {
 }
 
 .running-title {
-  color: #fff !important;
-  font-weight: 600 !important;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
+}
+
+.running-title .task-title-text {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
 }
 
 .running-actions {
@@ -503,7 +508,7 @@ function handleDoneTask(taskId: string) {
   padding: 0 10px;
   border-radius: 6px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
   border: 1px solid rgba(255, 255, 255, 0.1);
   transition: all 0.2s;
@@ -513,7 +518,7 @@ function handleDoneTask(taskId: string) {
 .pause-btn {
   flex: 1;
   background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(255, 255, 255, 0.78);
 }
 
 .pause-btn:hover {
