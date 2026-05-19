@@ -12,6 +12,7 @@ const {
   checked,
   updateAvailable,
   downloading,
+  installing,
   downloadProgress,
   error,
   updateInfo,
@@ -35,6 +36,7 @@ const colorModeOptions: Array<{ id: ColorMode; label: string }> = [
 
 const updateStatusText = computed(() => {
   if (downloading.value) return `下载中 ${downloadProgress.value}%`
+  if (installing.value) return '安装中，请稍候...'
   if (updateAvailable.value) return `发现新版本 v${updateInfo.value?.version ?? ''}`
   if (installFinished.value) return '更新已安装，正在准备重启'
   if (error.value) return error.value
@@ -198,7 +200,7 @@ onUnmounted(() => {
         <button
           type="button"
           class="update-btn"
-          :disabled="checking || downloading"
+          :disabled="checking || downloading || installing"
           @click="manualCheckForUpdate"
         >
           <span v-if="checking" class="mini-spinner"></span>
@@ -208,10 +210,10 @@ onUnmounted(() => {
           v-if="updateAvailable"
           type="button"
           class="update-btn primary"
-          :disabled="downloading"
+          :disabled="downloading || installing"
           @click="installUpdate"
         >
-          安装更新
+          {{ installing ? '安装中...' : '下载并安装更新' }}
         </button>
         <span
           class="update-status"
@@ -576,9 +578,8 @@ onUnmounted(() => {
   line-height: 1.4;
   color: rgba(255, 255, 255, 0.42);
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .update-status.success {

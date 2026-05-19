@@ -20,6 +20,7 @@ const checking = ref(false)
 const checked = ref(false)
 const updateAvailable = ref(false)
 const downloading = ref(false)
+const installing = ref(false)
 const downloadProgress = ref(0)
 const error = ref<string | null>(null)
 const updateInfo = ref<{ version: string; body?: string } | null>(null)
@@ -36,7 +37,7 @@ const macRepairStatus = ref('')
 const copiedRepairCommand = ref(false)
 
 const hasVisibleUpdateWork = computed(() =>
-  updateAvailable.value || downloading.value || (installFinished.value && isMacOS),
+  updateAvailable.value || downloading.value || installing.value || (installFinished.value && isMacOS),
 )
 
 watch(updateAvailable, value => {
@@ -65,6 +66,7 @@ function resetCheckState() {
   updateAvailable.value = false
   updateInfo.value = null
   availableUpdate.value = null
+  installing.value = false
   installFinished.value = false
   installFailed.value = false
 }
@@ -102,7 +104,7 @@ function formatUpdateError(e: unknown): string {
 }
 
 async function checkForUpdate(options: { silent?: boolean } = {}) {
-  if (checking.value || downloading.value) return availableUpdate.value
+  if (checking.value || downloading.value || installing.value) return availableUpdate.value
 
   checking.value = true
   resetCheckState()
@@ -139,6 +141,7 @@ async function downloadAndInstall() {
   if (!updateAvailable.value && !availableUpdate.value) return
 
   downloading.value = true
+  installing.value = false
   downloadProgress.value = 0
   error.value = null
   installFailed.value = false
@@ -152,7 +155,7 @@ async function downloadAndInstall() {
     let downloaded = 0
     let contentLength = 0
 
-    await update.downloadAndInstall(event => {
+    await update.download(event => {
       switch (event.event) {
         case 'Started':
           contentLength = event.data.contentLength ?? 0
@@ -168,6 +171,10 @@ async function downloadAndInstall() {
           break
       }
     })
+
+    downloading.value = false
+    installing.value = true
+    await update.install()
 
     installFinished.value = true
     updateAvailable.value = false
@@ -189,6 +196,7 @@ async function downloadAndInstall() {
     error.value = formatUpdateError(e)
   } finally {
     downloading.value = false
+    installing.value = false
   }
 }
 
@@ -242,6 +250,7 @@ export function useUpdater() {
     checked,
     updateAvailable,
     downloading,
+    installing,
     downloadProgress,
     error,
     updateInfo,

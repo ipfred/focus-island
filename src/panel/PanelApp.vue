@@ -35,6 +35,7 @@ const {
   updateAvailable,
   updateInfo,
   downloading,
+  installing,
   downloadProgress,
   error,
   installFinished,
@@ -112,7 +113,7 @@ const currentTitleMeta = computed(() =>
   navItems.find(item => item.key === (currentView.value === 'taskDetail' ? 'todo' : currentView.value)) ?? navItems[0]
 )
 const showUpdateBanner = computed(() => {
-  if (downloading.value || (installFinished.value && isMacOS)) return true
+  if (downloading.value || installing.value || (installFinished.value && isMacOS)) return true
   return updateAvailable.value && !updateNoticeDismissed.value
 })
 const isClosing = ref(false)
@@ -364,6 +365,7 @@ async function closeWindow() {
           <div class="update-banner-copy">
             <span class="update-banner-title">
               <template v-if="downloading">下载更新 {{ downloadProgress }}%</template>
+              <template v-else-if="installing">安装更新中...</template>
               <template v-else-if="installFinished">更新已安装</template>
               <template v-else>新版本 v{{ updateInfo?.version }}</template>
             </span>
@@ -555,9 +557,8 @@ async function closeWindow() {
   font-size: 10px;
   line-height: 1.2;
   color: rgba(255, 255, 255, 0.58);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .update-banner-actions {
