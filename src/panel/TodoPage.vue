@@ -160,7 +160,7 @@ const allTabs = computed<{ key: string; label: string; count: number }[]>(() => 
   const tabs: { key: string; label: string; count: number }[] = [
     { key: 'today', label: '今天', count: todayTasks.value.length },
     { key: 'tomorrow', label: '明天', count: tomorrowTasks.value.length },
-    { key: 'week', label: '一周内', count: weekTasks.value.length },
+    { key: 'week', label: '本周', count: weekTasks.value.length },
     { key: 'completed', label: '已完成', count: completedTasks.value.length },
   ]
   for (const group of groups.value) {
@@ -173,7 +173,16 @@ const allTabs = computed<{ key: string; label: string; count: number }[]>(() => 
 // --- Display tasks ---
 const displayTasks = computed<Task[]>(() => {
   const tab = activeTab.value
-  if (tab === 'today') return todayTasks.value
+  if (tab === 'today') {
+    // Sort so today is first, then overdue
+    return [...todayTasks.value].sort((a, b) => {
+      const catA = getTaskTimeCategory(a)
+      const catB = getTaskTimeCategory(b)
+      if (catA === catB) return 0
+      if (catA === 'today') return -1
+      return 1
+    })
+  }
   if (tab === 'tomorrow') return tomorrowTasks.value
   if (tab === 'week') return weekTasks.value
   if (tab === 'completed') return completedTasks.value
@@ -351,7 +360,13 @@ onBeforeUnmount(() => {
         <span>暂无任务</span>
       </div>
 
-      <template v-for="task in displayVisibleTasks" :key="task.id">
+      <template v-for="(task, index) in displayVisibleTasks" :key="task.id">
+        <div
+          v-if="activeTab === 'today' && getTaskTimeCategory(task) === 'overdue' && (index === 0 || getTaskTimeCategory(displayVisibleTasks[index-1]) === 'today')"
+          class="overdue-divider"
+        >
+          <span class="divider-label">已过期</span>
+        </div>
         <div
           class="task-card"
           :class="{
@@ -798,9 +813,43 @@ onBeforeUnmount(() => {
 
 .tab-count {
   font-size: 10px;
-  font-weight: 600;
-  opacity: 0.7;
-  line-height: 1;
+}
+
+.overdue-divider {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px 6px;
+  gap: 12px;
+}
+
+.overdue-divider::before,
+.overdue-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    to var(--dir, right),
+    color-mix(in srgb, var(--focus-color) 35%, transparent),
+    transparent
+  );
+}
+
+.overdue-divider::before {
+  --dir: left;
+}
+
+.overdue-divider::after {
+  --dir: right;
+}
+
+.divider-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: color-mix(in srgb, var(--focus-color) 60%, transparent);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  font-family: inherit;
 }
 
 .tab-group-dot {

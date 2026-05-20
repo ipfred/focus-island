@@ -135,7 +135,6 @@ fn get_macos_system_proxy() -> Option<String> {
 
 #[cfg(target_os = "windows")]
 fn get_windows_system_proxy() -> Option<String> {
-    use std::ptr;
     use windows::Win32::Networking::WinInet::{
         InternetQueryOptionA, INTERNET_OPTION_PROXY, INTERNET_PROXY_INFO,
     };
@@ -153,7 +152,7 @@ fn get_windows_system_proxy() -> Option<String> {
         .is_ok()
         {
             if !proxy_info.lpszProxy.is_null() {
-                let proxy_str = std::ffi::CStr::from_ptr(proxy_info.lpszProxy.0)
+                let proxy_str = std::ffi::CStr::from_ptr(proxy_info.lpszProxy as *const std::ffi::c_char)
                     .to_string_lossy()
                     .to_string();
                 if !proxy_str.is_empty() && proxy_str != "direct://" {

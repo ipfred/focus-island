@@ -272,7 +272,10 @@ export function useTasks() {
   const completedTasks = computed(() => tasks.value.filter(t => t.completed))
 
   const overdueTasks = computed(() => activeTasks.value.filter(t => getTaskTimeCategory(t) === 'overdue'))
-  const todayTasks = computed(() => activeTasks.value.filter(t => getTaskTimeCategory(t) === 'today'))
+  const todayTasks = computed(() => activeTasks.value.filter(t => {
+    const cat = getTaskTimeCategory(t)
+    return cat === 'today' || cat === 'overdue'
+  }))
   const tomorrowTasks = computed(() => activeTasks.value.filter(t => getTaskTimeCategory(t) === 'tomorrow'))
   const weekTasks = computed(() => activeTasks.value.filter(t => getTaskTimeCategory(t) === 'week'))
   const laterTasks = computed(() => activeTasks.value.filter(t => getTaskTimeCategory(t) === 'later'))

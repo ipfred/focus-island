@@ -16,6 +16,7 @@ const {
   todayTasks,
   tomorrowTasks,
   weekTasks,
+  toggleComplete,
   completedTasks,
 } = useTasks()
 const {
@@ -155,6 +156,7 @@ function handleDoneTask(taskId: string) {
     incrementPomodoro(taskId)
     abandon()
   }
+  toggleComplete(taskId)
 }
 </script>
 
