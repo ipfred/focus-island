@@ -313,7 +313,11 @@ const displayCompleted = computed<Task[]>(() => {
 // --- Context menu ---
 function onContextMenu(e: MouseEvent, task: Task) {
   e.preventDefault()
-  contextMenu.value = { taskId: task.id, x: e.clientX, y: e.clientY }
+  if (contextMenu.value && contextMenu.value.taskId === task.id) {
+    closeContextMenu()
+  } else {
+    contextMenu.value = { taskId: task.id, x: e.clientX, y: e.clientY }
+  }
 }
 
 function closeContextMenu() {
@@ -348,6 +352,24 @@ function onClickOutside() {
   showTabsDropdown.value = false
 }
 
+function onWindowClick(e: MouseEvent) {
+  if (contextMenu.value) {
+    const target = e.target as HTMLElement
+    if (!target.closest('.context-menu')) {
+      closeContextMenu()
+    }
+  }
+}
+
+function onWindowContextMenu(e: MouseEvent) {
+  if (contextMenu.value) {
+    const target = e.target as HTMLElement
+    if (!target.closest('.context-menu') && !target.closest('.task-card')) {
+      closeContextMenu()
+    }
+  }
+}
+
 // Group dropdown label
 const selectedGroupLabel = computed(() => {
   if (!selectedGroupId.value) return '无分组'
@@ -371,6 +393,8 @@ let resizeObserver: ResizeObserver | null = null
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('click', onClickOutside)
+  window.addEventListener('click', onWindowClick, true)
+  window.addEventListener('contextmenu', onWindowContextMenu, true)
 
   if (tabScrollRef.value) {
     checkOverflow()
@@ -400,6 +424,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('click', onClickOutside)
+  window.removeEventListener('click', onWindowClick, true)
+  window.removeEventListener('contextmenu', onWindowContextMenu, true)
 
   if (resizeObserver) {
     resizeObserver.disconnect()
@@ -684,15 +710,15 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Context menu -->
-    <teleport to="body">
+    <teleport to=".panel-inner">
       <div
         v-if="contextMenu"
         class="context-menu"
         :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
         @click.stop
       >
-        <button class="context-menu-item" @click="contextSetDate(formatDateStr(new Date()))">今天</button>
-        <button class="context-menu-item" @click="contextSetDate(formatDateStr(new Date(new Date().setDate(new Date().getDate() + 1))))">明天</button>
+        <button class="context-menu-item" @click="contextSetDate(formatDateStr(new Date()))">今天到期</button>
+        <button class="context-menu-item" @click="contextSetDate(formatDateStr(new Date(new Date().setDate(new Date().getDate() + 1))))">明天到期</button>
         <button class="context-menu-item danger" @click="contextDelete">删除</button>
       </div>
     </teleport>

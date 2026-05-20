@@ -155,15 +155,15 @@ export function useTimer() {
       phaseEndAtMs = Date.now() + breakSecs * 1000
       startTicking()
     } else {
-      // break-done → start new focus (resume not auto-started, clear task)
+      // break-done → start new focus countdown immediately (retain active task)
       phase.value = 'focus'
-      focusStartedAt.value = null
-      phaseEndAtMs = null
+      focusStartedAt.value = Date.now()
       const focusSecs = settings.value.focusDuration * 60
       remaining.value = focusSecs
       totalDuration.value = focusSecs
-      activeTaskId.value = null
-      activeTaskTitle.value = null
+      running.value = true
+      phaseEndAtMs = Date.now() + focusSecs * 1000
+      startTicking()
     }
   }
 
