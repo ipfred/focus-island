@@ -317,6 +317,32 @@ function onContextMenu(e: MouseEvent, task: Task) {
     closeContextMenu()
   } else {
     contextMenu.value = { taskId: task.id, x: e.clientX, y: e.clientY }
+    nextTick(() => {
+      const menuEl = document.querySelector('.context-menu') as HTMLElement | null
+      if (menuEl && contextMenu.value) {
+        const menuWidth = menuEl.offsetWidth
+        const menuHeight = menuEl.offsetHeight
+        
+        let adjustedX = e.clientX
+        let adjustedY = e.clientY
+        
+        // If it overflows the right edge of the window
+        if (e.clientX + menuWidth > window.innerWidth) {
+          adjustedX = Math.max(0, e.clientX - menuWidth)
+        }
+        
+        // If it overflows the bottom edge of the window
+        if (e.clientY + menuHeight > window.innerHeight) {
+          adjustedY = Math.max(0, e.clientY - menuHeight)
+        }
+        
+        contextMenu.value = {
+          taskId: task.id,
+          x: adjustedX,
+          y: adjustedY
+        }
+      }
+    })
   }
 }
 
@@ -335,6 +361,17 @@ function contextDelete() {
   deleteTask(contextMenu.value.taskId)
   closeContextMenu()
 }
+
+function contextMoveToGroup(groupId: string | null) {
+  if (!contextMenu.value) return
+  updateTask(contextMenu.value.taskId, { groupId })
+  closeContextMenu()
+}
+
+const isMenuOnRight = computed(() => {
+  if (!contextMenu.value) return false
+  return contextMenu.value.x > 200
+})
 
 // --- Date picker helpers ---
 function setQuickDate(offset: number) {
@@ -719,6 +756,31 @@ onBeforeUnmount(() => {
       >
         <button class="context-menu-item" @click="contextSetDate(formatDateStr(new Date()))">今天到期</button>
         <button class="context-menu-item" @click="contextSetDate(formatDateStr(new Date(new Date().setDate(new Date().getDate() + 1))))">明天到期</button>
+        
+        <div class="context-menu-item-with-submenu">
+          <button class="context-menu-item submenu-trigger">
+            <span>移动至分组</span>
+            <span class="submenu-arrow">›</span>
+          </button>
+          <div class="context-sub-menu" :class="{ 'pos-left': isMenuOnRight }">
+            <button class="context-menu-item flex-item" @click="contextMoveToGroup(null)">
+              <span class="group-dot-sm" style="background-color: rgba(255, 255, 255, 0.2)"></span>
+              <span class="context-menu-text">无分组</span>
+            </button>
+            <div v-if="groups.length > 0" class="context-menu-divider"></div>
+            <button
+              v-for="group in groups"
+              :key="group.id"
+              class="context-menu-item flex-item"
+              @click="contextMoveToGroup(group.id)"
+            >
+              <span class="group-dot-sm" :style="{ backgroundColor: getCategoryColor(group.color).icon }"></span>
+              <span class="context-menu-text">{{ group.name }}</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="context-menu-divider"></div>
         <button class="context-menu-item danger" @click="contextDelete">删除</button>
       </div>
     </teleport>
@@ -1523,6 +1585,68 @@ onBeforeUnmount(() => {
 .context-menu-item.danger:hover {
   background: rgba(248, 113, 113, 0.12);
   color: #fca5a5;
+}
+
+.context-menu-item.flex-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.context-menu-item.submenu-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.context-menu-item-with-submenu {
+  position: relative;
+}
+
+.context-sub-menu {
+  position: absolute;
+  left: 100%;
+  top: -4px;
+  min-width: 130px;
+  padding: 4px;
+  border-radius: 10px;
+  background: rgba(28, 28, 32, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px);
+  display: none;
+  z-index: 1010;
+  margin-left: 4px;
+}
+
+.context-sub-menu.pos-left {
+  left: auto;
+  right: 100%;
+  margin-left: 0;
+  margin-right: 4px;
+}
+
+.context-menu-item-with-submenu:hover .context-sub-menu {
+  display: block;
+}
+
+.context-menu-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 4px 8px;
+}
+
+.submenu-arrow {
+  opacity: 0.4;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.context-menu-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Collapse transition */
