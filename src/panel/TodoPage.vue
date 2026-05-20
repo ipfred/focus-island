@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useTasks, getTaskTimeCategory, type Task } from '../composables/useTasks'
 import { useTaskGroups } from '../composables/useTaskGroups'
 import { useTimerBridge } from '../composables/useTimerBridge'
@@ -8,7 +8,10 @@ import TaskGroupDialog from './TaskGroupDialog.vue'
 import CalendarDatePicker from './CalendarDatePicker.vue'
 
 const props = defineProps<{ initialTab?: string }>()
-const emit = defineEmits<{ viewDetail: [taskId: string] }>()
+const emit = defineEmits<{
+  viewDetail: [taskId: string],
+  tabChange: [tab: string]
+}>()
 
 const {
   tasks,
@@ -46,8 +49,97 @@ const activeTab = ref<TabKey>(props.initialTab ?? 'today')
 
 // Watch for external tab changes (e.g. navigation from home page)
 watch(() => props.initialTab, (tab) => {
-  if (tab) activeTab.value = tab
+  if (tab) {
+    activeTab.value = tab
+    nextTick(() => {
+      setTimeout(() => {
+        const el = tabScrollRef.value?.querySelector(`.tab-item.active`)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+        }
+      }, 50)
+    })
+  }
 })
+
+// --- Category Tabs Dropdown & Overflow check ---
+const tabScrollRef = ref<HTMLElement | null>(null)
+const hasOverflow = ref(false)
+const showTabsDropdown = ref(false)
+
+const checkOverflow = () => {
+  if (tabScrollRef.value) {
+    const el = tabScrollRef.value
+    hasOverflow.value = el.scrollWidth > el.clientWidth
+  }
+}
+
+const selectTab = (key: string) => {
+  activeTab.value = key
+  showTabsDropdown.value = false
+  nextTick(() => {
+    const el = tabScrollRef.value?.querySelector(`.tab-item.active`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
+    }
+  })
+}
+
+let targetScrollLeft = 0
+let currentScrollLeft = 0
+let isScrolling = false
+
+const handleWheel = (e: WheelEvent) => {
+  if (!tabScrollRef.value) return
+  
+  const el = tabScrollRef.value
+  
+  // Sync target and high-precision current scrollLeft with the actual scroll position if not animating
+  if (!isScrolling) {
+    targetScrollLeft = el.scrollLeft
+    currentScrollLeft = el.scrollLeft
+  }
+  
+  // Decrease delta step multiplier to 0.35 (from 0.5) to make it tighter and more precise
+  const multiplier = 0.35
+  const maxScroll = el.scrollWidth - el.clientWidth
+  
+  // Accumulate the target scroll
+  targetScrollLeft = Math.max(0, Math.min(maxScroll, targetScrollLeft + e.deltaY * multiplier))
+  
+  if (!isScrolling) {
+    isScrolling = true
+    const animate = () => {
+      if (!tabScrollRef.value) {
+        isScrolling = false
+        return
+      }
+      
+      const container = tabScrollRef.value
+      
+      // If external scroll happens (e.g. click to center), sync currentScrollLeft
+      if (Math.abs(container.scrollLeft - Math.round(currentScrollLeft)) > 1) {
+        currentScrollLeft = container.scrollLeft
+      }
+      
+      const diff = targetScrollLeft - currentScrollLeft
+      
+      // Increase damping factor to 0.28 (from 0.15) to make it catch up faster, eliminating lag/choppiness
+      if (Math.abs(diff) > 0.5) {
+        currentScrollLeft += diff * 0.28
+        container.scrollLeft = Math.round(currentScrollLeft)
+        requestAnimationFrame(animate)
+      } else {
+        currentScrollLeft = targetScrollLeft
+        container.scrollLeft = Math.round(targetScrollLeft)
+        isScrolling = false
+      }
+    }
+    requestAnimationFrame(animate)
+  }
+}
+
+
 const showGroupDialog = ref(false)
 
 // --- Quick-add state ---
@@ -87,10 +179,19 @@ function loadMore() {
   visibleCount.value += PAGE_SIZE
 }
 
-// reset pagination on tab change
-watch(activeTab, () => {
+// reset pagination on tab change & sync tab selection back to parent & update default group for new tasks
+watch(activeTab, (newTab) => {
   visibleCount.value = PAGE_SIZE
-})
+  emit('tabChange', newTab)
+  
+  // Set default group for new tasks if the selected tab is a custom group
+  const systemTabs = ['today', 'tomorrow', 'week', 'later', 'completed']
+  if (systemTabs.includes(newTab)) {
+    selectedGroupId.value = null
+  } else {
+    selectedGroupId.value = newTab
+  }
+}, { immediate: true })
 
 // --- Context menu ---
 const contextMenu = ref<{ taskId: string; x: number; y: number } | null>(null)
@@ -244,6 +345,7 @@ function onClickOutside() {
   closeContextMenu()
   showDatePicker.value = false
   showGroupDropdown.value = false
+  showTabsDropdown.value = false
 }
 
 // Group dropdown label
@@ -264,14 +366,44 @@ function onKeydown(e: KeyboardEvent) {
   }
 }
 
+let resizeObserver: ResizeObserver | null = null
+
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('click', onClickOutside)
+
+  if (tabScrollRef.value) {
+    checkOverflow()
+    resizeObserver = new ResizeObserver(() => {
+      checkOverflow()
+    })
+    resizeObserver.observe(tabScrollRef.value)
+  }
+  // Watch allTabs changes to recalculate overflow
+  watch(() => allTabs.value, () => {
+    nextTick(() => {
+      checkOverflow()
+    })
+  }, { deep: true })
+
+  // Instantly scroll active tab into view on mount (so returning from detail page centers the tab)
+  nextTick(() => {
+    setTimeout(() => {
+      const el = tabScrollRef.value?.querySelector(`.tab-item.active`)
+      if (el) {
+        el.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'center' })
+      }
+    }, 50)
+  })
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('click', onClickOutside)
+
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+  }
 })
 </script>
 
@@ -279,13 +411,13 @@ onBeforeUnmount(() => {
   <div class="todo-page" @click="onClickOutside">
     <!-- Tab bar as header -->
     <header class="todo-header" @click.stop>
-      <div class="tab-scroll">
+      <div class="tab-scroll" ref="tabScrollRef" @wheel.prevent="handleWheel">
         <button
           v-for="tab in allTabs"
           :key="tab.key"
           class="tab-item"
           :class="{ active: activeTab === tab.key }"
-          @click="activeTab = tab.key"
+          @click="selectTab(tab.key)"
         >
           <span
             v-if="tab.key !== 'today' && tab.key !== 'tomorrow' && tab.key !== 'week' && tab.key !== 'later' && tab.key !== 'completed' && groups.find(g => g.id === tab.key)"
@@ -296,10 +428,44 @@ onBeforeUnmount(() => {
           <span v-if="tab.count > 0" class="tab-count">{{ tab.count }}</span>
         </button>
       </div>
+
+      <!-- Category dropdown when overflowing -->
+      <div v-if="hasOverflow" class="tabs-dropdown-container">
+        <button
+          class="header-btn dropdown-trigger"
+          :class="{ active: showTabsDropdown }"
+          @click.stop="showTabsDropdown = !showTabsDropdown"
+          title="选择分类"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+        <div v-if="showTabsDropdown" class="tabs-dropdown-menu">
+          <button
+            v-for="tab in allTabs"
+            :key="'drop-' + tab.key"
+            class="tabs-dropdown-item"
+            :class="{ active: activeTab === tab.key }"
+            @click="selectTab(tab.key)"
+          >
+            <div class="tabs-drop-left">
+              <span
+                v-if="tab.key !== 'today' && tab.key !== 'tomorrow' && tab.key !== 'week' && tab.key !== 'later' && tab.key !== 'completed' && groups.find(g => g.id === tab.key)"
+                class="tab-group-dot"
+                :style="{ backgroundColor: getCategoryColor(groups.find(g => g.id === tab.key)!.color).icon }"
+              ></span>
+              <span class="tabs-drop-label">{{ tab.label }}</span>
+            </div>
+            <span v-if="tab.count > 0" class="tabs-drop-count">{{ tab.count }}</span>
+          </button>
+        </div>
+      </div>
+
       <button class="header-btn gear-btn" @click.stop="showGroupDialog = !showGroupDialog" title="管理分组">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c0 .66.39 1.26 1 1.51.16.07.33.1.51.1H21a2 2 0 0 1 0 4h-.09c-.66 0-1.26.39-1.51 1Z"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1 1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c0 .66.39 1.26 1 1.51.16.07.33.1.51.1H21a2 2 0 0 1 0 4h-.09c-.66 0-1.26.39-1.51 1Z"/>
         </svg>
       </button>
     </header>
@@ -1349,5 +1515,126 @@ onBeforeUnmount(() => {
 .collapse-enter-to,
 .collapse-leave-from {
   max-height: 1000px;
+}
+
+/* Categories Dropdown Container */
+.tabs-dropdown-container {
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+
+.dropdown-trigger {
+  position: relative;
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.dropdown-trigger:hover {
+  transform: translateY(0.5px);
+}
+
+.dropdown-trigger.active {
+  background: color-mix(in srgb, var(--focus-color) 15%, transparent);
+  border-color: color-mix(in srgb, var(--focus-color) 40%, transparent);
+  color: var(--focus-color);
+  transform: rotate(180deg);
+}
+
+/* Dropdown Menu */
+.tabs-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 140px;
+  background: rgba(30, 30, 35, 0.85);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  transform-origin: top right;
+  animation: dropdown-fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dropdown-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.tabs-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 6px;
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.tabs-dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.95);
+  padding-left: 12px; /* Subtle hover slide-in micro-animation */
+}
+
+.tabs-dropdown-item.active {
+  background: color-mix(in srgb, var(--focus-color) 12%, transparent);
+  color: var(--focus-color);
+  font-weight: 600;
+}
+
+.tabs-drop-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.tabs-drop-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.tabs-drop-count {
+  font-size: 9px;
+  padding: 1.5px 5px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 600;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.tabs-dropdown-item:hover .tabs-drop-count {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.tabs-dropdown-item.active .tabs-drop-count {
+  background: color-mix(in srgb, var(--focus-color) 20%, transparent);
+  color: var(--focus-color);
 }
 </style>

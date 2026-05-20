@@ -353,7 +353,7 @@ async function closeWindow() {
       />
       <div class="panel-body">
         <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" @navigate-to-todo="navigateToTodo" />
-        <TodoPage v-else-if="currentView === 'todo'" :initial-tab="todoInitialTab" @view-detail="taskId => { taskIdForDetail = taskId; currentView = 'taskDetail' }" />
+        <TodoPage v-else-if="currentView === 'todo'" :initial-tab="todoInitialTab" @view-detail="taskId => { taskIdForDetail = taskId; currentView = 'taskDetail' }" @tab-change="tab => { todoInitialTab = tab }" />
         <TaskDetailPage v-else-if="currentView === 'taskDetail'" :task-id="taskIdForDetail" @back="currentView = 'todo'" />
         <SettingsPage v-else-if="currentView === 'settings'" @back="currentView = 'tasks'" />
         <MemoPage v-else-if="currentView === 'memos'" @back="currentView = 'tasks'" />

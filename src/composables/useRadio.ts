@@ -106,16 +106,25 @@ function getAudio(): HTMLAudioElement {
     audio = new Audio()
     audio.preload = 'auto'
 
-    audio.addEventListener('playing', () => { playing.value = true })
+    audio.addEventListener('playing', () => {
+      playing.value = true
+      loading.value = false
+      error.value = null
+    })
     audio.addEventListener('pause', () => {
       // Only set false if it wasn't paused due to buffering
       if (!audio!.seeking && audio!.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
         playing.value = false
       }
+      loading.value = false
     })
-    audio.addEventListener('ended', () => { playing.value = false })
+    audio.addEventListener('ended', () => {
+      playing.value = false
+      loading.value = false
+    })
     audio.addEventListener('error', () => {
       playing.value = false
+      loading.value = false
       const err = audio!.error
       if (err) {
         switch (err.code) {
@@ -131,6 +140,8 @@ function getAudio(): HTMLAudioElement {
           default:
             error.value = '音频播放错误'
         }
+      } else {
+        error.value = '音频播放错误'
       }
     })
     audio.addEventListener('waiting', () => { loading.value = true })
@@ -216,6 +227,7 @@ async function play(stationId?: string) {
     }
 
     a.src = src
+    a.load()
     a.volume = radioSettings.value.volume / 100
     await a.play()
   } catch (e) {
@@ -226,16 +238,19 @@ async function play(stationId?: string) {
 }
 
 async function pause() {
-  getAudio().pause()
+  const a = getAudio()
+  a.pause()
+  playing.value = false
+  loading.value = false
 }
 
 async function toggle() {
-  if (playing.value) {
+  if (playing.value || loading.value) {
     pause()
   } else {
     const a = getAudio()
-    // If we already have a source loaded, try to resume
-    if (radioSettings.value.currentStationId && a.src && a.src !== window.location.href) {
+    // If we already have a source loaded, try to resume (only if there was no error)
+    if (radioSettings.value.currentStationId && a.src && a.src !== window.location.href && !error.value) {
       try {
         await a.play()
       } catch {
