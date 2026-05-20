@@ -5,6 +5,7 @@ import { useTaskGroups } from '../composables/useTaskGroups'
 import { useTimerBridge } from '../composables/useTimerBridge'
 import { getCategoryColor } from '../composables/useMemos'
 import TaskGroupDialog from './TaskGroupDialog.vue'
+import CalendarDatePicker from './CalendarDatePicker.vue'
 
 const props = defineProps<{ initialTab?: string }>()
 const emit = defineEmits<{ viewDetail: [taskId: string] }>()
@@ -21,6 +22,7 @@ const {
   todayTasks,
   tomorrowTasks,
   weekTasks,
+  laterTasks,
   completedTasks,
   groupTasks,
 } = useTasks()
@@ -51,7 +53,7 @@ const showGroupDialog = ref(false)
 // --- Quick-add state ---
 const newTitle = ref('')
 const selectedGroupId = ref<string | null>(null)
-const selectedDate = ref(formatDateStr(new Date()))
+const selectedDate = ref<string | null>(formatDateStr(new Date()))
 const showDatePicker = ref(false)
 const showGroupDropdown = ref(false)
 const quickAddRef = ref<HTMLInputElement | null>(null)
@@ -161,6 +163,7 @@ const allTabs = computed<{ key: string; label: string; count: number }[]>(() => 
     { key: 'today', label: '今天', count: todayTasks.value.length },
     { key: 'tomorrow', label: '明天', count: tomorrowTasks.value.length },
     { key: 'week', label: '本周', count: weekTasks.value.length },
+    { key: 'later', label: '稍后', count: laterTasks.value.length },
     { key: 'completed', label: '已完成', count: completedTasks.value.length },
   ]
   for (const group of groups.value) {
@@ -185,6 +188,7 @@ const displayTasks = computed<Task[]>(() => {
   }
   if (tab === 'tomorrow') return tomorrowTasks.value
   if (tab === 'week') return weekTasks.value
+  if (tab === 'later') return laterTasks.value
   if (tab === 'completed') return completedTasks.value
   return groupTasks(tab)
 })
@@ -196,7 +200,9 @@ const displayCompleted = computed<Task[]>(() => {
   if (tab === 'tomorrow') {
     currentCompleted = tasks.value.filter(t => t.completed && getTaskTimeCategory(t) === 'tomorrow')
   } else if (tab === 'week') {
-    currentCompleted = tasks.value.filter(t => t.completed && (getTaskTimeCategory(t) === 'week' || getTaskTimeCategory(t) === 'later'))
+    currentCompleted = tasks.value.filter(t => t.completed && getTaskTimeCategory(t) === 'week')
+  } else if (tab === 'later') {
+    currentCompleted = tasks.value.filter(t => t.completed && getTaskTimeCategory(t) === 'later')
   } else {
     currentCompleted = tasks.value.filter(t => t.completed && t.groupId === tab)
   }
@@ -282,7 +288,7 @@ onBeforeUnmount(() => {
           @click="activeTab = tab.key"
         >
           <span
-            v-if="tab.key !== 'today' && tab.key !== 'tomorrow' && tab.key !== 'week' && tab.key !== 'completed' && groups.find(g => g.id === tab.key)"
+            v-if="tab.key !== 'today' && tab.key !== 'tomorrow' && tab.key !== 'week' && tab.key !== 'later' && tab.key !== 'completed' && groups.find(g => g.id === tab.key)"
             class="tab-group-dot"
             :style="{ backgroundColor: getCategoryColor(groups.find(g => g.id === tab.key)!.color).icon }"
           ></span>
@@ -315,11 +321,11 @@ onBeforeUnmount(() => {
           @click.stop
           @focus="showGroupDropdown = false; showDatePicker = false"
         />
-        <button class="inline-chip date-chip" :class="{ active: showDatePicker }" @click.stop="showDatePicker = !showDatePicker; showGroupDropdown = false" :title="'到期: ' + formatShortDate(selectedDate)">
+        <button class="inline-chip date-chip" :class="{ active: showDatePicker }" @click.stop="showDatePicker = !showDatePicker; showGroupDropdown = false" :title="'到期: ' + (formatShortDate(selectedDate) || '无日期')">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
           </svg>
-          <span class="chip-label">{{ formatShortDate(selectedDate) }}</span>
+          <span class="chip-label">{{ formatShortDate(selectedDate) || '无日期' }}</span>
         </button>
       </div>
       <!-- Group dropdown popup -->
@@ -340,14 +346,11 @@ onBeforeUnmount(() => {
       </div>
       <!-- Date picker popup -->
       <div v-if="showDatePicker" class="chip-dropdown date-picker-menu" @click.stop>
-        <button class="date-picker-item" @click="setQuickDate(0)">今天</button>
-        <button class="date-picker-item" @click="setQuickDate(1)">明天</button>
-        <button class="date-picker-item" @click="setQuickDate(2)">后天</button>
-        <button class="date-picker-item" @click="setQuickDate(3)">大后天</button>
-        <label class="date-picker-item date-picker-custom">
-          自定义
-          <input type="date" :value="selectedDate" @change="selectedDate = ($event.target as HTMLInputElement).value; showDatePicker = false" />
-        </label>
+        <CalendarDatePicker
+          v-model="selectedDate"
+          :clearable="true"
+          @close="showDatePicker = false"
+        />
       </div>
     </div>
 
@@ -666,6 +669,7 @@ onBeforeUnmount(() => {
 
 .chip-dropdown {
   position: absolute;
+  top: calc(100% - 10px);
   z-index: 50;
   min-width: 140px;
   padding: 4px;
@@ -674,7 +678,7 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(12px);
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
 .group-dropdown-menu {
@@ -727,41 +731,6 @@ onBeforeUnmount(() => {
   height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
-}
-
-.date-picker-item {
-  display: block;
-  width: 100%;
-  padding: 7px 12px;
-  border-radius: 6px;
-  background: transparent;
-  border: none;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.15s;
-  font-family: inherit;
-  text-align: left;
-}
-
-.date-picker-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-}
-
-.date-picker-custom {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  position: relative;
-}
-
-.date-picker-custom input[type="date"] {
-  position: absolute;
-  right: 4px;
-  width: 20px;
-  opacity: 0;
-  cursor: pointer;
 }
 
 /* Tabs in header */

@@ -4,6 +4,7 @@ import { useTasks, type Task } from '../composables/useTasks'
 import { useTaskGroups } from '../composables/useTaskGroups'
 import { useTimerBridge } from '../composables/useTimerBridge'
 import { getCategoryColor } from '../composables/useMemos'
+import CalendarDatePicker from './CalendarDatePicker.vue'
 
 const props = defineProps<{ taskId: string }>()
 const emit = defineEmits<{ back: [] }>()
@@ -96,13 +97,10 @@ function setQuickDate(offset: number) {
   showDatePicker.value = false
 }
 
-function onCustomDateChange(e: Event) {
+function onCustomDateChange(val: string | null) {
   if (!task.value) return
-  const val = (e.target as HTMLInputElement).value
-  if (val) {
-    updateTask(task.value.id, { dueDate: val })
-    showDatePicker.value = false
-  }
+  updateTask(task.value.id, { dueDate: val })
+  showDatePicker.value = false
 }
 
 // --- Group ---
@@ -214,7 +212,7 @@ onBeforeUnmount(() => {
             <path d="M19 12H5M12 19l-7-7 7-7"/>
           </svg>
         </button>
-        <span class="header-title">TODO</span>
+        <span class="header-title">任务详情</span>
         <button v-if="!showDeleteConfirm" class="header-btn delete-header-btn" @click.stop="confirmDelete" title="删除任务">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
@@ -282,13 +280,12 @@ onBeforeUnmount(() => {
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
             </button>
             <div v-if="showDatePicker" class="dropdown-menu" @click.stop>
-              <button class="dropdown-item" @click="setQuickDate(0)">今天</button>
-              <button class="dropdown-item" @click="setQuickDate(1)">明天</button>
-              <button class="dropdown-item" @click="setQuickDate(2)">后天</button>
-              <label class="dropdown-item custom-date-label">
-                自定义
-                <input type="date" :value="task!.dueDate ?? ''" @change="onCustomDateChange" />
-              </label>
+              <CalendarDatePicker
+                :model-value="task!.dueDate"
+                :clearable="true"
+                @update:model-value="onCustomDateChange"
+                @close="showDatePicker = false"
+              />
             </div>
           </div>
         </div>
@@ -325,69 +322,72 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- Subtasks -->
-      <div class="subtask-section">
-        <div class="section-label-row">
-          <span class="section-label">子任务</span>
-          <button class="add-subtask-btn" @click.stop>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            添加
-          </button>
-        </div>
+      <!-- Scrollable content: subtasks & notes -->
+      <div class="detail-scroll-area">
+        <!-- Subtasks -->
+        <div class="subtask-section">
+          <div class="section-label-row">
+            <span class="section-label">子任务</span>
+            <button class="add-subtask-btn" @click.stop>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              添加
+            </button>
+          </div>
 
-        <!-- Subtask list -->
-        <div v-if="task!.subtasks.length > 0" class="subtask-list">
-          <div
-            v-for="sub in task!.subtasks"
-            :key="sub.id"
-            class="subtask-row"
-            :class="{ 'is-active-sub': activeSubtaskId === sub.id, completed: sub.completed }"
-          >
-            <button
-              class="subtask-checkbox"
-              :class="{ checked: sub.completed }"
-              @click.stop="toggleSubtask(task!.id, sub.id)"
+          <!-- Subtask list -->
+          <div v-if="task!.subtasks.length > 0" class="subtask-list">
+            <div
+              v-for="sub in task!.subtasks"
+              :key="sub.id"
+              class="subtask-row"
+              :class="{ 'is-active-sub': activeSubtaskId === sub.id, completed: sub.completed }"
             >
-              <svg v-if="sub.completed" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
-            </button>
-            <span class="subtask-title" :class="{ 'line-through': sub.completed }">{{ sub.title }}</span>
-            <span v-if="sub.pomodoroCount > 0" class="subtask-pomodoro">🍅{{ sub.pomodoroCount }}</span>
-            <button
-              class="subtask-play-btn"
-              :class="{ active: activeSubtaskId === sub.id }"
-              @click.stop="handleStartSubtask(sub.id, sub.title)"
-              title="开始子任务"
-            >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>
-            </button>
-            <button class="subtask-delete-btn" @click.stop="deleteSubtask(task!.id, sub.id)" title="删除子任务">
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
+              <button
+                class="subtask-checkbox"
+                :class="{ checked: sub.completed }"
+                @click.stop="toggleSubtask(task!.id, sub.id)"
+              >
+                <svg v-if="sub.completed" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+              </button>
+              <span class="subtask-title" :class="{ 'line-through': sub.completed }">{{ sub.title }}</span>
+              <span v-if="sub.pomodoroCount > 0" class="subtask-pomodoro">🍅{{ sub.pomodoroCount }}</span>
+              <button
+                class="subtask-play-btn"
+                :class="{ active: activeSubtaskId === sub.id }"
+                @click.stop="handleStartSubtask(sub.id, sub.title)"
+                title="开始子任务"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>
+              </button>
+              <button class="subtask-delete-btn" @click.stop="deleteSubtask(task!.id, sub.id)" title="删除子任务">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <!-- Add subtask -->
+          <div class="subtask-add" @click.stop>
+            <input
+              v-model="newSubtaskTitle"
+              class="subtask-add-input"
+              placeholder="添加子任务..."
+              @keydown.enter="handleAddSubtask"
+              @click.stop
+            />
           </div>
         </div>
 
-        <!-- Add subtask -->
-        <div class="subtask-add" @click.stop>
-          <input
-            v-model="newSubtaskTitle"
-            class="subtask-add-input"
-            placeholder="添加子任务..."
-            @keydown.enter="handleAddSubtask"
-            @click.stop
-          />
+        <!-- Notes -->
+        <div class="note-section">
+          <div class="section-label">备注</div>
+          <textarea
+            class="note-textarea"
+            :value="task!.note"
+            @input="onNoteInput"
+            placeholder="添加备注..."
+            rows="4"
+          ></textarea>
         </div>
-      </div>
-
-      <!-- Notes -->
-      <div class="note-section">
-        <div class="section-label">备注</div>
-        <textarea
-          class="note-textarea"
-          :value="task!.note"
-          @input="onNoteInput"
-          placeholder="添加备注..."
-          rows="4"
-        ></textarea>
       </div>
 
       <!-- Timer on subtask indicator -->
@@ -424,15 +424,22 @@ onBeforeUnmount(() => {
   flex-direction: column;
   width: 100%;
   height: 100%;
-  overflow-y: auto;
+  overflow: hidden;
   background: transparent;
   color: rgba(255, 255, 255, 0.9);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-.detail-page::-webkit-scrollbar { width: 4px; }
-.detail-page::-webkit-scrollbar-track { background: transparent; }
-.detail-page::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+.detail-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+.detail-scroll-area::-webkit-scrollbar { width: 4px; }
+.detail-scroll-area::-webkit-scrollbar-track { background: transparent; }
+.detail-scroll-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
 
 /* Not found */
 .not-found {
@@ -794,19 +801,6 @@ onBeforeUnmount(() => {
 .dropdown-item.active {
   background: color-mix(in srgb, var(--focus-color) 15%, transparent);
   color: var(--focus-color);
-}
-
-.custom-date-label {
-  position: relative;
-  justify-content: space-between;
-}
-
-.custom-date-label input[type="date"] {
-  position: absolute;
-  right: 4px;
-  width: 20px;
-  opacity: 0;
-  cursor: pointer;
 }
 
 /* Notes section */
