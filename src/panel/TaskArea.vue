@@ -3,8 +3,12 @@ import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useTasks, type Task } from '../composables/useTasks'
 import { useTimerBridge } from '../composables/useTimerBridge'
 import { useRadio } from '../composables/useRadio'
+import { useTaskGroups } from '../composables/useTaskGroups'
+import { getCategoryColor } from '../composables/useMemos'
 
 const emit = defineEmits<{ close: []; navigateToTodo: [tab?: string] }>()
+
+const { groups } = useTaskGroups()
 
 const {
   tasks,
@@ -201,6 +205,10 @@ function handleDoneTask(taskId: string) {
                 <span class="task-title running-title" @mouseenter="startScroll(task.id, $event.currentTarget)" @mouseleave="stopScroll(task.id)">
                   <span class="task-title-text">{{ task.title }}</span>
                 </span>
+                <span v-if="task.groupId" class="task-group-badge">
+                  <span class="group-dot-sm" :style="{ backgroundColor: getCategoryColor(groups.find(g => g.id === task.groupId)?.color ?? 'yellow').icon }"></span>
+                  {{ groups.find(g => g.id === task.groupId)?.name ?? '' }}
+                </span>
                 <span class="task-timer">{{ displayTime }}</span>
               </div>
               <div class="running-actions">
@@ -217,6 +225,10 @@ function handleDoneTask(taskId: string) {
                 <span class="running-dot paused-dot">●</span>
                 <span class="task-title running-title" @mouseenter="startScroll(task.id, $event.currentTarget)" @mouseleave="stopScroll(task.id)">
                   <span class="task-title-text">{{ task.title }}</span>
+                </span>
+                <span v-if="task.groupId" class="task-group-badge">
+                  <span class="group-dot-sm" :style="{ backgroundColor: getCategoryColor(groups.find(g => g.id === task.groupId)?.color ?? 'yellow').icon }"></span>
+                  {{ groups.find(g => g.id === task.groupId)?.name ?? '' }}
                 </span>
                 <span class="task-timer">{{ displayTime }}</span>
               </div>
@@ -237,11 +249,12 @@ function handleDoneTask(taskId: string) {
             <span class="task-title" @mouseenter="startScroll(task.id, $event.currentTarget)" @mouseleave="stopScroll(task.id)">
               <span class="task-title-text">{{ task.title }}</span>
             </span>
+            <span v-if="task.groupId" class="task-group-badge">
+              <span class="group-dot-sm" :style="{ backgroundColor: getCategoryColor(groups.find(g => g.id === task.groupId)?.color ?? 'yellow').icon }"></span>
+              {{ groups.find(g => g.id === task.groupId)?.name ?? '' }}
+            </span>
             <span class="pomo-count" v-if="task.pomodoroCount > 0">● {{ task.pomodoroCount }}</span>
             <span class="task-time">{{ formatTime(task.createdAt) }}</span>
-            <div class="task-actions">
-              <button class="act-btn delete" @click="deleteTask(task.id)" title="删除">✕</button>
-            </div>
             <button class="start-btn" @click="handleStartTask(task)" title="开始">▶</button>
           </div>
         </template>
@@ -907,5 +920,26 @@ function handleDoneTask(taskId: string) {
   font-weight: 700;
   color: rgba(255, 255, 255, 0.9);
   line-height: 1;
+}
+
+.task-group-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 1px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-left: 6px;
+}
+
+.group-dot-sm {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 </style>
