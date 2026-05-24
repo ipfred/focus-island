@@ -1,6 +1,7 @@
 import { ref, computed, watch, watchEffect } from 'vue'
 import { readTextFile, writeTextFile, mkdir, BaseDirectory } from '@tauri-apps/plugin-fs'
 import { emit } from '@tauri-apps/api/event'
+import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart'
 
 export interface ThemePreset {
   id: string
@@ -24,6 +25,7 @@ export interface Settings {
   shortcutKey: string        // 全局快捷键，如 "Alt+Space"
   autoCheckUpdates: boolean  // 启动后自动检查更新
   notificationSound: boolean // 通知提示音开关
+  autoLaunch: boolean       // 开机自动启动
 }
 
 export const presetThemes: ThemePreset[] = [
@@ -47,6 +49,7 @@ const DEFAULT_SETTINGS: Settings = {
   shortcutKey: 'Alt+Space',
   autoCheckUpdates: true,
   notificationSound: true,
+  autoLaunch: true,
 }
 
 const settings = ref<Settings>({ ...DEFAULT_SETTINGS })
@@ -111,6 +114,16 @@ async function load() {
     settings.value = { ...DEFAULT_SETTINGS }
   }
   loaded.value = true
+  // Sync autoLaunch with OS autostart state
+  try {
+    const enabled = await isEnabled()
+    settings.value.autoLaunch = enabled
+  } catch {
+    // autostart plugin unavailable (e.g. unsupported platform)
+  }
+  if (settings.value.autoLaunch) {
+    enable().catch(() => {})
+  }
 }
 
 async function save() {
@@ -130,6 +143,15 @@ watch(settings, () => {
   }
   suppressEmit = false
 }, { deep: true })
+
+watch(() => settings.value.autoLaunch, (val) => {
+  if (!loaded.value) return
+  if (val) {
+    enable().catch(() => { settings.value.autoLaunch = false })
+  } else {
+    disable().catch(() => {})
+  }
+})
 
 watchEffect(() => {
   if (loaded.value) applyThemeToDOM()

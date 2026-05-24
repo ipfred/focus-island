@@ -187,8 +187,18 @@ onUnmounted(() => {
 
     <!-- 更新 -->
     <div class="settings-section">
-      <div class="section-title">更新</div>
+      <div class="section-title">通用</div>
       <div class="update-toggle-row">
+        <div class="update-copy">
+          <span class="update-label">开机自动启动</span>
+          <span class="update-hint">系统启动时自动运行 Focus Island</span>
+        </div>
+        <label class="switch" aria-label="开机自动启动">
+          <input v-model="settings.autoLaunch" type="checkbox" />
+          <span class="switch-track"></span>
+        </label>
+      </div>
+      <div class="update-toggle-row" style="margin-top: 8px;">
         <div class="update-copy">
           <span class="update-label">自动检查更新</span>
           <span class="update-hint">启动后静默检查，不打断专注</span>
