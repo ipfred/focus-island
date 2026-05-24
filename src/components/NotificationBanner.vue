@@ -9,10 +9,18 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   confirm: []
+  extend: []
   dismiss: []
 }>()
 
 const isFocusDone = computed(() => props.type === 'focus-done')
+
+// Primary color guides the recommended next step:
+// - focus-done → recommend break (green)
+// - break-done → recommend focus (orange)
+const primaryColor = computed(() => isFocusDone.value ? '#3a9e6e' : '#e85d3a')
+
+const extendColor = computed(() => isFocusDone.value ? '#e85d3a' : '#3a9e6e')
 </script>
 
 <template>
@@ -22,7 +30,8 @@ const isFocusDone = computed(() => props.type === 'focus-done')
       class="notif-banner"
       :style="{
         '--notif-scale': scale,
-        '--accent': isFocusDone ? '#e88a3a' : '#3a9e6e',
+        '--accent': primaryColor,
+        '--extend-color': extendColor,
       }"
     >
       <div class="notif-icon">{{ isFocusDone ? '✅' : '⏰' }}</div>
@@ -32,9 +41,12 @@ const isFocusDone = computed(() => props.type === 'focus-done')
       </div>
       <div class="notif-actions">
         <button class="notif-btn primary" @click="emit('confirm')">
-          {{ isFocusDone ? '休息' : '继续' }}
+          {{ isFocusDone ? '休息' : '专注' }}
         </button>
-        <button class="notif-btn secondary" @click="emit('dismiss')">退出</button>
+        <button class="notif-btn extend" @click="emit('extend')">
+          {{ isFocusDone ? '专注' : '休息' }}
+        </button>
+        <button class="notif-btn dismiss" @click="emit('dismiss')">退出</button>
       </div>
     </div>
   </transition>
@@ -44,7 +56,7 @@ const isFocusDone = computed(() => props.type === 'focus-done')
 @reference "../styles.css";
 
 .notif-banner {
-  width: calc(316px * var(--notif-scale, 1));
+  width: calc(352px * var(--notif-scale, 1));
   height: calc(60px * var(--notif-scale, 1));
   border-radius: calc(24px * var(--notif-scale, 1));
   background: rgba(30, 30, 36, 0.96);
@@ -101,7 +113,7 @@ const isFocusDone = computed(() => props.type === 'focus-done')
 
 .notif-actions {
   display: flex;
-  gap: calc(6px * var(--notif-scale, 1));
+  gap: calc(5px * var(--notif-scale, 1));
   flex-shrink: 0;
 }
 
@@ -128,16 +140,27 @@ const isFocusDone = computed(() => props.type === 'focus-done')
   filter: brightness(1.15);
 }
 
-.notif-btn.secondary {
+.notif-btn.extend {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--extend-color);
+  color: var(--extend-color);
 }
 
-.notif-btn.secondary:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.35);
+.notif-btn.extend:hover {
+  background: color-mix(in srgb, var(--extend-color) 15%, transparent);
   color: #fff;
+}
+
+.notif-btn.dismiss {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.notif-btn.dismiss:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.7);
 }
 
 /* Transition animation */

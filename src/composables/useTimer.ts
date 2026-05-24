@@ -167,6 +167,34 @@ export function useTimer() {
     }
   }
 
+  /** User chose "继续专注" / "再休息会儿" — reset current phase countdown */
+  function extendNotification() {
+    const notif = pendingNotification.value
+    if (!notif) return
+    pendingNotification.value = null
+    if (notif === 'focus-done') {
+      // Reset focus countdown, keep working
+      phase.value = 'focus'
+      focusStartedAt.value = Date.now()
+      const focusSecs = settings.value.focusDuration * 60
+      remaining.value = focusSecs
+      totalDuration.value = focusSecs
+      running.value = true
+      phaseEndAtMs = Date.now() + focusSecs * 1000
+      startTicking()
+    } else {
+      // Reset break countdown, keep resting
+      phase.value = 'break'
+      focusStartedAt.value = null
+      const breakSecs = settings.value.breakDuration * 60
+      remaining.value = breakSecs
+      totalDuration.value = breakSecs
+      running.value = true
+      phaseEndAtMs = Date.now() + breakSecs * 1000
+      startTicking()
+    }
+  }
+
   /** User chose "退出" — return to idle */
   function dismissNotification() {
     pendingNotification.value = null
@@ -218,6 +246,7 @@ export function useTimer() {
     skipBreak,
     abandon,
     confirmNotification,
+    extendNotification,
     dismissNotification,
     onPhaseDoneCallback,
     setSubtaskContext,

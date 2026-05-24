@@ -99,6 +99,8 @@ export function useTimerBridge() {
     listen<string>('notification-action', ({ payload }) => {
       if (payload === 'confirm') {
         timer.confirmNotification()
+      } else if (payload === 'extend') {
+        timer.extendNotification()
       } else if (payload === 'dismiss') {
         timer.dismissNotification()
       }

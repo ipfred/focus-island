@@ -66,6 +66,11 @@ function onNotifConfirm() {
     emit("notification-action", "confirm");
 }
 
+function onNotifExtend() {
+    notificationType.value = null;
+    emit("notification-action", "extend");
+}
+
 function onNotifDismiss() {
     notificationType.value = null;
     emit("notification-action", "dismiss");
@@ -266,6 +271,7 @@ onUnmounted(() => {
                 :type="notificationType"
                 :scale="settings.islandScale ?? 1"
                 @confirm="onNotifConfirm"
+                @extend="onNotifExtend"
                 @dismiss="onNotifDismiss"
             />
         </div>
