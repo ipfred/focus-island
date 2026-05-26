@@ -13,7 +13,7 @@ export function useIslandState() {
 
   watch(idle, (isIdle) => {
     if (notificationVisible.value) return // don't override during notification
-    if (isIdle && (state.value === 'focus' || state.value === 'idle')) {
+    if (isIdle && state.value === 'idle') {
       prevState.value = state.value
       state.value = 'alert'
     } else if (!isIdle && state.value === 'alert') {
