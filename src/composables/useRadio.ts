@@ -3,7 +3,9 @@ import { readTextFile, writeTextFile, mkdir, BaseDirectory } from '@tauri-apps/p
 import { emit } from '@tauri-apps/api/event'
 import { invoke, convertFileSrc } from '@tauri-apps/api/core'
 
-export type StationIcon = 'code' | 'wave' | 'drone' | 'planet' | 'star' | 'pill' | 'folder'
+export type StationIcon = 'code' | 'wave' | 'drone' | 'planet' | 'star' | 'pill' | 'folder' | 'coffee' | 'jazz' | 'spy' | 'hacker'
+
+export type StationCategory = 'focus' | 'ambient' | 'lofi' | 'jazz'
 
 export interface RadioStation {
   id: string
@@ -12,6 +14,8 @@ export interface RadioStation {
   description: string
   icon: StationIcon
   keyword: string
+  category: StationCategory
+  tags: string[]
 }
 
 export interface RadioSettings {
@@ -19,46 +23,75 @@ export interface RadioSettings {
   volume: number
 }
 
+export const CATEGORY_LABELS: Record<StationCategory, string> = {
+  focus: '编程 / 专注',
+  ambient: '氛围 / 冥想',
+  lofi: 'Lo-Fi / 轻松',
+  jazz: '爵士 / 古典',
+}
+
 export const PRESET_STATIONS: RadioStation[] = [
+  // 编程 / 专注
   {
     id: 'coderadio',
     name: 'Code Radio',
     streamUrl: 'https://coderadio-admin-v2.freecodecamp.org/listen/coderadio/radio.mp3',
     description: 'freeCodeCamp 24h 编程音乐电台',
     icon: 'code',
-    keyword: '编程音乐',
+    keyword: '编程',
+    category: 'focus',
+    tags: ['编程', '专注', '无人声'],
+  },
+  {
+    id: 'defcon',
+    name: 'DEF CON Radio',
+    streamUrl: 'https://ice1.somafm.com/defcon-128-mp3',
+    description: '黑客大会电台，节奏感强，适合敲代码提速',
+    icon: 'hacker',
+    keyword: '黑客',
+    category: 'focus',
+    tags: ['极客', '节奏', '编程'],
   },
   {
     id: 'groovesalad',
     name: 'Groove Salad',
-    streamUrl: 'https://ice5.somafm.com/groovesalad-128-mp3',
-    description: 'SomaFM 氛围缓拍电子，适合专注工作',
+    streamUrl: 'https://ice1.somafm.com/groovesalad-128-mp3',
+    description: '缓拍电子氛围，轻微节奏，适合日常办公',
     icon: 'wave',
-    keyword: '缓拍电子',
+    keyword: '缓拍',
+    category: 'focus',
+    tags: ['电子', '节奏', '办公'],
   },
+  // 氛围 / 冥想
   {
     id: 'dronezone',
     name: 'Drone Zone',
-    streamUrl: 'https://ice5.somafm.com/dronezone-128-mp3',
-    description: 'SomaFM 极简氛围音景，深度专注',
+    streamUrl: 'https://ice1.somafm.com/dronezone-128-mp3',
+    description: '深邃氛围音景，极简无节拍，深度专注',
     icon: 'drone',
-    keyword: '极简氛围',
+    keyword: '极简',
+    category: 'ambient',
+    tags: ['氛围', '冥想', '无节拍'],
   },
   {
     id: 'deepspaceone',
     name: 'Deep Space One',
-    streamUrl: 'https://ice5.somafm.com/deepspaceone-128-mp3',
-    description: 'SomaFM 深邃太空电子，沉浸式专注',
+    streamUrl: 'https://ice1.somafm.com/deepspaceone-128-mp3',
+    description: '深邃太空电子，沉浸式专注体验',
     icon: 'planet',
-    keyword: '太空电子',
+    keyword: '太空',
+    category: 'ambient',
+    tags: ['太空', '电子', '沉浸'],
   },
   {
     id: 'spacestation',
     name: 'Space Station',
-    streamUrl: 'https://ice5.somafm.com/spacestation-128-mp3',
-    description: 'SomaFM 中速太空音乐，轻松聚焦',
+    streamUrl: 'https://ice1.somafm.com/spacestation-128-mp3',
+    description: '中速太空音乐，轻松聚焦',
     icon: 'star',
-    keyword: '太空音乐',
+    keyword: '星际',
+    category: 'ambient',
+    tags: ['太空', '轻松', '专注'],
   },
   {
     id: 'ambientpill',
@@ -67,14 +100,71 @@ export const PRESET_STATIONS: RadioStation[] = [
     description: '24h 纯氛围音乐，无节拍无广告',
     icon: 'pill',
     keyword: '纯氛围',
+    category: 'ambient',
+    tags: ['氛围', '无广告', '24h'],
   },
+  // Lo-Fi / 轻松
+  {
+    id: 'lofi',
+    name: 'Lo-Fi Hip Hop',
+    streamUrl: 'https://lofi.stream.laut.fm/lofi',
+    description: '经典 Lofi 纯音乐，轻微鼓点，复古怀旧',
+    icon: 'coffee',
+    keyword: 'Lofi',
+    category: 'lofi',
+    tags: ['Lofi', '学习', '放松'],
+  },
+  {
+    id: 'chillout',
+    name: 'Chillout Lounge',
+    streamUrl: 'https://chillout.stream.laut.fm/chillout',
+    description: '沙发音乐，适合下午茶或轻松事务',
+    icon: 'coffee',
+    keyword: '沙发',
+    category: 'lofi',
+    tags: ['放松', '沙发', '下午茶'],
+  },
+  // 爵士 / 古典
+  {
+    id: 'smoothjazz',
+    name: 'Smooth Jazz',
+    streamUrl: 'https://strm112.1.fm/smoothjazz_mobile_mp3',
+    description: '平滑柔和的纯乐器爵士，适合阅读写作',
+    icon: 'jazz',
+    keyword: '爵士',
+    category: 'jazz',
+    tags: ['爵士', '乐器', '写作'],
+  },
+  {
+    id: 'swissjazz',
+    name: 'Radio Swiss Jazz',
+    streamUrl: 'https://stream.srg-ssr.ch/m/rsj/mp3_128',
+    description: '瑞士爵士电台，传统爵士，无广告',
+    icon: 'jazz',
+    keyword: '传统',
+    category: 'jazz',
+    tags: ['爵士', '传统', '无广告'],
+  },
+  {
+    id: 'secretagent',
+    name: 'Secret Agent',
+    streamUrl: 'https://ice1.somafm.com/secretagent-128-mp3',
+    description: '60 年代复古电影配乐，神秘爵士感',
+    icon: 'spy',
+    keyword: '特工',
+    category: 'jazz',
+    tags: ['复古', '电影', '神秘'],
+  },
+  // 本地音乐
   {
     id: 'local-music',
     name: '本地音乐',
     streamUrl: '__LOCAL__',
-    description: '离线专注音乐（需要在 assets/audio/ 放置 focus-music.mp3）',
+    description: '离线专注音乐（需在 assets/audio/ 放置 focus-music.mp3）',
     icon: 'folder',
-    keyword: '离线音乐',
+    keyword: '离线',
+    category: 'focus',
+    tags: ['本地', '离线', '自定义'],
   },
 ]
 
