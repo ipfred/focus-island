@@ -270,6 +270,12 @@ export function useTasks() {
 
   const activeTasks = computed(() => tasks.value.filter(t => !t.completed))
   const completedTasks = computed(() => tasks.value.filter(t => t.completed))
+  const recentFocusTasks = computed(() =>
+    activeTasks.value
+      .filter(t => t.lastActiveAt > 0)
+      .sort((a, b) => b.lastActiveAt - a.lastActiveAt)
+      .slice(0, 3)
+  )
 
   const overdueTasks = computed(() => activeTasks.value.filter(t => getTaskTimeCategory(t) === 'overdue'))
   const todayTasks = computed(() => activeTasks.value.filter(t => {
@@ -300,6 +306,7 @@ export function useTasks() {
     tasks,
     activeTasks,
     completedTasks,
+    recentFocusTasks,
     overdueTasks,
     todayTasks,
     tomorrowTasks,

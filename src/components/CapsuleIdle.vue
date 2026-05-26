@@ -3,17 +3,10 @@ import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useTasks } from "../composables/useTasks";
 import { useSettings } from "../composables/useSettings";
 
-const { todayTasks } = useTasks();
+const { recentFocusTasks } = useTasks();
 const { settings } = useSettings()
 
 defineProps<{ radioPlaying?: boolean }>();
-
-const focusTasks = computed(() =>
-    todayTasks.value
-        .filter((t) => t.priority > 0)
-        .sort((a, b) => a.priority - b.priority)
-        .slice(0, 3),
-);
 
 const DEFAULT_MOTTOS = [
     "深呼吸，然后开始",
@@ -51,7 +44,7 @@ interface CarouselItem {
 }
 
 const carouselItems = computed<CarouselItem[]>(() => {
-    const tasks = focusTasks.value;
+    const tasks = recentFocusTasks.value;
     if (tasks.length === 0) {
         // No tasks at all: only mottos
         return mottos.value.map((m, i) => ({

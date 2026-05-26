@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onBeforeUnmount } from 'vue'
+import { ref, onBeforeUnmount } from 'vue'
 import { useTasks, type Task } from '../composables/useTasks'
 import { useTimerBridge } from '../composables/useTimerBridge'
 import { useRadio } from '../composables/useRadio'
@@ -11,12 +11,10 @@ const emit = defineEmits<{ close: []; navigateToTodo: [tab?: string] }>()
 const { groups } = useTaskGroups()
 
 const {
-  tasks,
+  recentFocusTasks: recentTasks,
   addTask,
-  deleteTask,
   setTaskPriority,
   incrementPomodoro,
-  touchTask,
   todayTasks,
   tomorrowTasks,
   weekTasks,
@@ -38,19 +36,6 @@ const { playing, loading, currentStation, toggle: toggleRadio } = useRadio()
 // --- Quick-add state ---
 const newTitle = ref('')
 const quickAddRef = ref<HTMLInputElement | null>(null)
-
-// Touch lastActiveAt when a task starts
-watch(activeTaskId, (newId) => {
-  if (newId) touchTask(newId)
-})
-
-// Recent 3 tasks by lastActiveAt
-const recentTasks = computed<Task[]>(() => {
-  return tasks.value
-    .filter(t => !t.completed && t.lastActiveAt > 0)
-    .sort((a, b) => b.lastActiveAt - a.lastActiveAt)
-    .slice(0, 3)
-})
 
 // --- Title scroll animation ---
 type ScrollPhase = 'start' | 'scroll' | 'end'
@@ -150,7 +135,6 @@ function handleStartTask(task: Task) {
     if (running.value) pause()
     else resume()
   } else {
-    touchTask(task.id)
     start(task.id, task.title)
   }
 }

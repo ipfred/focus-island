@@ -26,7 +26,7 @@ let bridgeStarted = false
 
 export function useTimerBridge() {
   const timer = useTimer()
-  const { tasks, incrementPomodoro } = useTasks()
+  const { tasks, incrementPomodoro, touchTask } = useTasks()
   const { recordPomodoro } = useDailyStats()
   const { recordPomodoro: recordAchievementPomodoro, recordEarlyBird, recordNightOwl } = useAchievements()
   const { settings } = useSettings()
@@ -117,6 +117,13 @@ export function useTimerBridge() {
       ],
       () => emitTimerState(),
       { immediate: true },
+    )
+
+    watch(
+      () => timer.activeTaskId.value,
+      (taskId) => {
+        if (taskId) touchTask(taskId)
+      },
     )
 
     // 任务标题被编辑时（activeTaskTitle 为空、依赖 tasks 回退）也要同步到灵动岛。
