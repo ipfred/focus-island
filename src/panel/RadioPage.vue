@@ -657,11 +657,11 @@ async function scrollToPlaying() {
 }
 
 .scroll-to-playing-btn {
-  position: fixed;
-  bottom: 24px;
-  right: 24px;
-  width: 44px;
-  height: 44px;
+  position: absolute;
+  bottom: 18px;
+  right: 14px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -685,8 +685,8 @@ async function scrollToPlaying() {
 }
 
 .scroll-to-playing-btn svg {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
 }
 
 .fade-scale-enter-active,
