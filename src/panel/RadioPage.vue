@@ -35,7 +35,7 @@ async function scrollToPlaying() {
 </script>
 
 <template>
-  <div class="radio-page" ref="scrollContainer" @scroll="handleScroll">
+  <div class="radio-page">
     <!-- Now Playing (Fixed) -->
     <div class="now-playing">
       <div class="radio-frame">
@@ -86,7 +86,7 @@ async function scrollToPlaying() {
     </div>
 
     <!-- Scrollable Content -->
-    <div class="station-list-wrapper">
+    <div class="station-list-wrapper" ref="scrollContainer" @scroll="handleScroll">
       <!-- Station List by Category -->
       <div v-for="[category, categoryStations] in stationsByCategory" :key="category" class="category-section">
         <div class="category-title">{{ CATEGORY_LABELS[category] }}</div>
@@ -197,8 +197,9 @@ async function scrollToPlaying() {
   flex-direction: column;
   gap: 0;
   padding: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
   position: relative;
 }
 
@@ -472,6 +473,7 @@ async function scrollToPlaying() {
 
 .station-list-wrapper {
   flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -698,15 +700,15 @@ async function scrollToPlaying() {
   transform: scale(0.8);
 }
 
-.radio-page::-webkit-scrollbar {
+.station-list-wrapper::-webkit-scrollbar {
   width: 4px;
 }
 
-.radio-page::-webkit-scrollbar-track {
+.station-list-wrapper::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.radio-page::-webkit-scrollbar-thumb {
+.station-list-wrapper::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.12);
   border-radius: 2px;
 }
