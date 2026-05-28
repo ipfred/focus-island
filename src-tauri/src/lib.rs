@@ -375,6 +375,20 @@ fn position_panel_under_island_inner<R: Runtime>(app: &AppHandle<R>) {
     let _ = panel.set_position(target_pos);
 }
 
+fn focus_panel<R: Runtime>(app: &AppHandle<R>) {
+    let Some(panel) = app.get_webview_window("panel") else {
+        return;
+    };
+
+    let _ = panel.unminimize();
+    if panel.is_visible().unwrap_or(false) {
+        position_panel_under_island_inner(app);
+    } else {
+        animate_panel_open(app.clone());
+    }
+    let _ = panel.set_focus();
+}
+
 #[tauri::command]
 fn position_panel_under_island<R: Runtime>(app: AppHandle<R>) {
     position_panel_under_island_inner(&app);
@@ -574,6 +588,9 @@ fn get_macos_update_health<R: Runtime>(_app: AppHandle<R>) -> Option<MacosUpdate
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            focus_panel(app);
+        }))
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
