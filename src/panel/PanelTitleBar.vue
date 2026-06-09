@@ -125,20 +125,21 @@ const displayIconPaths = computed(() => props.iconPaths?.length ? props.iconPath
   gap: 6px;
   padding: 0 10px;
   height: 26px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   transition: all 0.2s;
 }
 
 .titlebar-search:focus-within {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.13);
   border-color: color-mix(in srgb, var(--focus-color) 55%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-color) 14%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-color) 14%, transparent), 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .search-icon {
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.4);
   flex-shrink: 0;
 }
 
@@ -159,7 +160,7 @@ const displayIconPaths = computed(() => props.iconPaths?.length ? props.iconPath
 }
 
 .search-input::placeholder {
-  color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.35);
 }
 
 .search-clear {
@@ -167,7 +168,7 @@ const displayIconPaths = computed(() => props.iconPaths?.length ? props.iconPath
   height: 16px;
   border-radius: 50%;
   border: none;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.5);
   cursor: pointer;
   display: inline-flex;
@@ -179,7 +180,7 @@ const displayIconPaths = computed(() => props.iconPaths?.length ? props.iconPath
 }
 
 .search-clear:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.22);
   color: #fff;
 }
 
