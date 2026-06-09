@@ -154,6 +154,77 @@ const quickAddRef = ref<HTMLInputElement | null>(null)
 // --- Completed section ---
 const showCompleted = ref(false)
 
+// --- Batch operations (completed tab) ---
+const selectedIds = ref<Set<string>>(new Set())
+const selectionMode = ref(false)
+
+const allCompletedIds = computed(() => displayTasks.value.map(t => t.id))
+const allSelected = computed(() => allCompletedIds.value.length > 0 && allCompletedIds.value.every(id => selectedIds.value.has(id)))
+const someSelected = computed(() => selectedIds.value.size > 0)
+const olderThan7dCount = computed(() => {
+  const cutoff = Date.now() - 7 * 86400000
+  return completedTasks.value.filter(t => t.updatedAt < cutoff).length
+})
+
+function toggleOneSelected(id: string) {
+  const next = new Set(selectedIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  selectedIds.value = next
+  if (next.size === 0) selectionMode.value = false
+}
+
+function toggleSelectAll() {
+  if (allSelected.value) {
+    selectedIds.value = new Set()
+    selectionMode.value = false
+  } else {
+    selectedIds.value = new Set(allCompletedIds.value)
+    selectionMode.value = true
+  }
+}
+
+function deleteSelected() {
+  if (selectedIds.value.size === 0) return
+  const ids = [...selectedIds.value]
+  for (const id of ids) deleteTask(id)
+  selectedIds.value = new Set()
+  selectionMode.value = false
+}
+
+function restoreSelected() {
+  if (selectedIds.value.size === 0) return
+  const ids = [...selectedIds.value]
+  for (const id of ids) toggleComplete(id)
+  selectedIds.value = new Set()
+  selectionMode.value = false
+}
+
+function deleteOlderThan7d() {
+  const cutoff = Date.now() - 7 * 86400000
+  const ids = completedTasks.value.filter(t => t.updatedAt < cutoff).map(t => t.id)
+  if (ids.length === 0) return
+  for (const id of ids) deleteTask(id)
+  selectedIds.value = new Set()
+  selectionMode.value = false
+}
+
+function deleteAllCompleted() {
+  const ids = completedTasks.value.map(t => t.id)
+  if (ids.length === 0) return
+  for (const id of ids) deleteTask(id)
+  selectedIds.value = new Set()
+  selectionMode.value = false
+}
+
+// Clear selection when leaving the completed tab
+watch(activeTab, (tab) => {
+  if (tab !== 'completed') {
+    selectedIds.value = new Set()
+    selectionMode.value = false
+  }
+})
+
 // --- Subtask expand state ---
 const expandedSubtasks = ref<Set<string>>(new Set())
 
@@ -453,7 +524,10 @@ const selectedGroupLabel = computed(() => {
 // Keyboard handler for Escape
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') {
-    if (showGroupDialog.value) {
+    if (selectionMode.value) {
+      selectionMode.value = false
+      selectedIds.value = new Set()
+    } else if (showGroupDialog.value) {
       showGroupDialog.value = false
     } else if (contextMenu.value) {
       closeContextMenu()
@@ -569,8 +643,8 @@ onBeforeUnmount(() => {
       </button>
     </header>
 
-    <!-- Quick-add row -->
-    <div class="quick-add" @click.stop>
+    <!-- Quick-add row (hidden on completed tab) -->
+    <div v-if="activeTab !== 'completed'" class="quick-add" @click.stop>
       <div class="quick-add-input-row">
         <button class="inline-chip group-chip" :class="{ active: showGroupDropdown }" @click.stop="showGroupDropdown = !showGroupDropdown; showDatePicker = false" :title="'分组: ' + selectedGroupLabel">
           <span v-if="selectedGroupId" class="group-dot" :style="{ backgroundColor: getCategoryColor(groups.find(g => g.id === selectedGroupId)?.color ?? 'yellow').icon }"></span>
@@ -619,6 +693,40 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
+    <!-- Completed tab: batch toolbar -->
+    <div v-if="activeTab === 'completed' && displayTasks.length > 0" class="batch-toolbar" @click.stop>
+      <div class="batch-left">
+        <button
+          class="batch-select-all"
+          :class="{ checked: allSelected, partial: someSelected && !allSelected }"
+          @click="toggleSelectAll"
+          :title="allSelected ? '取消全选' : '全选'"
+        >
+          <svg v-if="allSelected" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+          <span v-else-if="someSelected" class="partial-bar"></span>
+        </button>
+        <span class="batch-hint" @click="selectionMode = !selectionMode">
+          {{ someSelected ? `已选 ${selectedIds.size}` : (selectionMode ? '点击任务进行选择' : '批量管理') }}
+        </span>
+      </div>
+      <div class="batch-right">
+        <button v-if="someSelected" class="batch-btn restore" @click="restoreSelected" title="恢复所选任务">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+          <span>恢复</span>
+        </button>
+        <button v-if="someSelected" class="batch-btn danger" @click="deleteSelected" title="删除所选">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+          <span>删除所选</span>
+        </button>
+        <button v-if="olderThan7dCount > 0" class="batch-btn subtle" @click="deleteOlderThan7d" title="删除 7 天前的已完成任务">
+          清理7天前
+        </button>
+        <button v-if="displayTasks.length > 0" class="batch-btn subtle danger" @click="deleteAllCompleted" title="删除全部已完成任务">
+          全部删除
+        </button>
+      </div>
+    </div>
+
     <!-- Task list -->
     <div class="task-list">
       <div v-if="displayTasks.length === 0 && displayCompleted.length === 0" class="empty-state">
@@ -644,11 +752,22 @@ onBeforeUnmount(() => {
           :class="{
             'is-running': activeTaskId === task.id,
             'is-completed': task.completed,
+            'is-selected': activeTab === 'completed' && selectedIds.has(task.id),
           }"
           @contextmenu="onContextMenu($event, task)"
+          @click="activeTab === 'completed' && selectionMode ? toggleOneSelected(task.id) : null"
         >
           <!-- Row 1: checkbox + title + actions -->
           <div class="task-row">
+            <button
+              v-if="activeTab === 'completed'"
+              class="task-checkbox batch-checkbox"
+              :class="{ checked: selectedIds.has(task.id) }"
+              @click.stop="toggleOneSelected(task.id)"
+              :title="selectedIds.has(task.id) ? '取消选择' : '选择'"
+            >
+              <svg v-if="selectedIds.has(task.id)" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+            </button>
             <button
               class="task-checkbox"
               :class="{ checked: task.completed }"
@@ -1825,6 +1944,169 @@ onBeforeUnmount(() => {
 
 .tabs-dropdown-item.active .tabs-drop-count {
   background: color-mix(in srgb, var(--focus-color) 20%, transparent);
+  color: var(--focus-color);
+}
+
+/* Completed tab: batch toolbar */
+.batch-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+
+.batch-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.batch-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.batch-select-all {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: transparent;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.batch-select-all:hover {
+  border-color: var(--focus-color);
+  background: color-mix(in srgb, var(--focus-color) 15%, transparent);
+  color: var(--focus-color);
+}
+
+.batch-select-all.checked {
+  border-color: color-mix(in srgb, var(--focus-color) 70%, transparent);
+  background: color-mix(in srgb, var(--focus-color) 25%, transparent);
+  color: var(--focus-color);
+}
+
+.batch-select-all.partial {
+  border-color: color-mix(in srgb, var(--focus-color) 70%, transparent);
+  background: color-mix(in srgb, var(--focus-color) 10%, transparent);
+  color: var(--focus-color);
+}
+
+.batch-select-all .partial-bar {
+  width: 8px;
+  height: 2px;
+  background: var(--focus-color);
+  border-radius: 1px;
+  display: block;
+}
+
+.batch-hint {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.batch-hint:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.batch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.batch-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.batch-btn.restore {
+  color: color-mix(in srgb, var(--break-color) 80%, #fff);
+  border-color: color-mix(in srgb, var(--break-color) 20%, rgba(255, 255, 255, 0.08));
+}
+
+.batch-btn.restore:hover {
+  background: color-mix(in srgb, var(--break-color) 15%, transparent);
+  border-color: color-mix(in srgb, var(--break-color) 35%, transparent);
+  color: var(--break-color);
+}
+
+.batch-btn.danger {
+  color: rgba(248, 113, 113, 0.8);
+  border-color: rgba(248, 113, 113, 0.15);
+}
+
+.batch-btn.danger:hover {
+  background: rgba(248, 113, 113, 0.12);
+  border-color: rgba(248, 113, 113, 0.35);
+  color: #fca5a5;
+}
+
+.batch-btn.subtle {
+  background: transparent;
+  border-color: transparent;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.batch-btn.subtle:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.batch-btn.subtle.danger:hover {
+  background: rgba(248, 113, 113, 0.1);
+  color: #fca5a5;
+}
+
+/* Selected card highlight */
+.task-card.is-selected {
+  background: color-mix(in srgb, var(--focus-color) 8%, rgba(255, 255, 255, 0.05));
+  border-color: color-mix(in srgb, var(--focus-color) 35%, transparent);
+}
+
+/* Batch-select checkbox beside each completed task */
+.batch-checkbox {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border-width: 1.5px;
+  margin-right: -2px;
+}
+
+.batch-checkbox.checked {
+  border-color: color-mix(in srgb, var(--focus-color) 70%, transparent);
+  background: color-mix(in srgb, var(--focus-color) 25%, transparent);
   color: var(--focus-color);
 }
 </style>
