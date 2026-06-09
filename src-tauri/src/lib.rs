@@ -376,7 +376,18 @@ fn position_panel_under_island_inner<R: Runtime>(app: &AppHandle<R>) {
 }
 
 fn focus_panel<R: Runtime>(app: &AppHandle<R>) {
+    // Ensure the main (island) window is visible first
+    if let Some(main) = app.get_webview_window("main") {
+        if !main.is_visible().unwrap_or(false) {
+            let _ = main.show();
+        }
+    }
+
     let Some(panel) = app.get_webview_window("panel") else {
+        // No panel window yet, just focus main
+        if let Some(main) = app.get_webview_window("main") {
+            let _ = main.set_focus();
+        }
         return;
     };
 
@@ -387,6 +398,16 @@ fn focus_panel<R: Runtime>(app: &AppHandle<R>) {
         animate_panel_open(app.clone());
     }
     let _ = panel.set_focus();
+
+    // On Windows, background apps cannot steal foreground focus
+    // due to OS restrictions. Use AllowSetForegroundWindow workaround.
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::System::Threading::{AllowSetForegroundWindow, ASFW_ANY};
+        unsafe {
+            let _ = AllowSetForegroundWindow(ASFW_ANY);
+        }
+    }
 }
 
 #[tauri::command]
