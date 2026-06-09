@@ -271,7 +271,7 @@ watch(() => props.searchQuery, () => {
 })
 
 // --- Context menu ---
-const contextMenu = ref<{ taskId: string; x: number; y: number } | null>(null)
+const contextMenu = ref<{ taskId: string; x: number; y: number; completed: boolean } | null>(null)
 
 // --- Helpers ---
 function formatDateStr(d: Date): string {
@@ -423,7 +423,7 @@ function onContextMenu(e: MouseEvent, task: Task) {
   if (contextMenu.value && contextMenu.value.taskId === task.id) {
     closeContextMenu()
   } else {
-    contextMenu.value = { taskId: task.id, x: e.clientX, y: e.clientY }
+    contextMenu.value = { taskId: task.id, x: e.clientX, y: e.clientY, completed: task.completed }
     nextTick(() => {
       const menuEl = document.querySelector('.context-menu') as HTMLElement | null
       if (menuEl && contextMenu.value) {
@@ -446,7 +446,8 @@ function onContextMenu(e: MouseEvent, task: Task) {
         contextMenu.value = {
           taskId: task.id,
           x: adjustedX,
-          y: adjustedY
+          y: adjustedY,
+          completed: task.completed
         }
       }
     })
@@ -466,6 +467,12 @@ function contextSetDate(dateStr: string) {
 function contextDelete() {
   if (!contextMenu.value) return
   deleteTask(contextMenu.value.taskId)
+  closeContextMenu()
+}
+
+function contextRestore() {
+  if (!contextMenu.value) return
+  toggleComplete(contextMenu.value.taskId)
   closeContextMenu()
 }
 
@@ -913,33 +920,39 @@ onBeforeUnmount(() => {
         :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
         @click.stop
       >
-        <button class="context-menu-item" @click="contextSetDate(formatDateStr(new Date()))">今天到期</button>
-        <button class="context-menu-item" @click="contextSetDate(formatDateStr(new Date(new Date().setDate(new Date().getDate() + 1))))">明天到期</button>
-        
-        <div class="context-menu-item-with-submenu">
-          <button class="context-menu-item submenu-trigger">
-            <span>移动至分组</span>
-            <span class="submenu-arrow">›</span>
-          </button>
-          <div class="context-sub-menu" :class="{ 'pos-left': isMenuOnRight }">
-            <button class="context-menu-item flex-item" @click="contextMoveToGroup(null)">
-              <span class="group-dot-sm" style="background-color: rgba(255, 255, 255, 0.2)"></span>
-              <span class="context-menu-text">无分组</span>
+        <template v-if="!contextMenu.completed">
+          <button class="context-menu-item" @click="contextSetDate(formatDateStr(new Date()))">今天到期</button>
+          <button class="context-menu-item" @click="contextSetDate(formatDateStr(new Date(new Date().setDate(new Date().getDate() + 1))))">明天到期</button>
+          
+          <div class="context-menu-item-with-submenu">
+            <button class="context-menu-item submenu-trigger">
+              <span>移动至分组</span>
+              <span class="submenu-arrow">›</span>
             </button>
-            <div v-if="groups.length > 0" class="context-menu-divider"></div>
-            <button
-              v-for="group in groups"
-              :key="group.id"
-              class="context-menu-item flex-item"
-              @click="contextMoveToGroup(group.id)"
-            >
-              <span class="group-dot-sm" :style="{ backgroundColor: getCategoryColor(group.color).icon }"></span>
-              <span class="context-menu-text">{{ group.name }}</span>
-            </button>
+            <div class="context-sub-menu" :class="{ 'pos-left': isMenuOnRight }">
+              <button class="context-menu-item flex-item" @click="contextMoveToGroup(null)">
+                <span class="group-dot-sm" style="background-color: rgba(255, 255, 255, 0.2)"></span>
+                <span class="context-menu-text">无分组</span>
+              </button>
+              <div v-if="groups.length > 0" class="context-menu-divider"></div>
+              <button
+                v-for="group in groups"
+                :key="group.id"
+                class="context-menu-item flex-item"
+                @click="contextMoveToGroup(group.id)"
+              >
+                <span class="group-dot-sm" :style="{ backgroundColor: getCategoryColor(group.color).icon }"></span>
+                <span class="context-menu-text">{{ group.name }}</span>
+              </button>
+            </div>
           </div>
-        </div>
 
-        <div class="context-menu-divider"></div>
+          <div class="context-menu-divider"></div>
+        </template>
+        <template v-else>
+          <button class="context-menu-item" @click="contextRestore">恢复</button>
+          <div class="context-menu-divider"></div>
+        </template>
         <button class="context-menu-item danger" @click="contextDelete">删除</button>
       </div>
     </teleport>
