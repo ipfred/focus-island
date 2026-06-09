@@ -61,11 +61,19 @@ const IS_MACOS = navigator.userAgent.toLowerCase().includes('mac')
 const currentView = ref<'tasks' | 'todo' | 'taskDetail' | 'settings' | 'memos' | 'stats' | 'radio'>('tasks')
 const taskIdForDetail = ref<string>('')
 const todoInitialTab = ref<string | undefined>(undefined)
+const todoSearchQuery = ref('')
+const todoActiveTabLabel = ref('')
 
 function navigateToTodo(tab?: string) {
   todoInitialTab.value = tab
   currentView.value = 'todo'
 }
+
+watch(currentView, (v) => {
+  if (v !== 'todo' && v !== 'taskDetail') {
+    todoSearchQuery.value = ''
+  }
+})
 
 const navItems = [
   {
@@ -349,11 +357,15 @@ async function closeWindow() {
       <PanelTitleBar
         :title="currentTitleMeta.title"
         :icon-paths="[...currentTitleMeta.iconPaths]"
+        :show-search="currentView === 'todo'"
+        :search-query="todoSearchQuery"
+        :search-placeholder="todoActiveTabLabel ? `搜索「${todoActiveTabLabel}」...` : '搜索当前分类...'"
+        @update:search-query="todoSearchQuery = $event"
         @close="closeWindow"
       />
       <div class="panel-body">
         <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" @navigate-to-todo="navigateToTodo" />
-        <TodoPage v-else-if="currentView === 'todo'" :initial-tab="todoInitialTab" @view-detail="taskId => { taskIdForDetail = taskId; currentView = 'taskDetail' }" @tab-change="tab => { todoInitialTab = tab }" />
+        <TodoPage v-else-if="currentView === 'todo'" :initial-tab="todoInitialTab" :search-query="todoSearchQuery" @view-detail="taskId => { taskIdForDetail = taskId; currentView = 'taskDetail' }" @tab-change="tab => { todoInitialTab = tab }" @active-tab-label="todoActiveTabLabel = $event" />
         <TaskDetailPage v-else-if="currentView === 'taskDetail'" :task-id="taskIdForDetail" @back="currentView = 'todo'" />
         <SettingsPage v-else-if="currentView === 'settings'" @back="currentView = 'tasks'" />
         <MemoPage v-else-if="currentView === 'memos'" @back="currentView = 'tasks'" />

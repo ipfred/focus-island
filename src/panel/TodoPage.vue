@@ -7,10 +7,11 @@ import { getCategoryColor } from '../composables/useMemos'
 import TaskGroupDialog from './TaskGroupDialog.vue'
 import CalendarDatePicker from './CalendarDatePicker.vue'
 
-const props = defineProps<{ initialTab?: string }>()
+const props = defineProps<{ initialTab?: string; searchQuery?: string }>()
 const emit = defineEmits<{
   viewDetail: [taskId: string],
-  tabChange: [tab: string]
+  tabChange: [tab: string],
+  activeTabLabel: [label: string]
 }>()
 
 const {
@@ -193,6 +194,11 @@ watch(activeTab, (newTab) => {
   }
 }, { immediate: true })
 
+// Reset pagination when search query changes
+watch(() => props.searchQuery, () => {
+  visibleCount.value = PAGE_SIZE
+})
+
 // --- Context menu ---
 const contextMenu = ref<{ taskId: string; x: number; y: number } | null>(null)
 
@@ -258,6 +264,17 @@ function handleDoneTimer() {
   abandon()
 }
 
+// --- Search ---
+function taskMatchesQuery(task: Task, query: string): boolean {
+  if (!query) return true
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  if (task.title.toLowerCase().includes(q)) return true
+  if (task.note && task.note.toLowerCase().includes(q)) return true
+  if (task.subtasks && task.subtasks.some(s => s.title.toLowerCase().includes(q))) return true
+  return false
+}
+
 // --- Tabs ---
 const allTabs = computed<{ key: string; label: string; count: number }[]>(() => {
   const tabs: { key: string; label: string; count: number }[] = [
@@ -274,28 +291,46 @@ const allTabs = computed<{ key: string; label: string; count: number }[]>(() => 
   return tabs
 })
 
+const activeTabLabel = computed(() => {
+  const tab = allTabs.value.find(t => t.key === activeTab.value)
+  return tab?.label ?? ''
+})
+
+watch(activeTabLabel, (label) => {
+  emit('activeTabLabel', label)
+}, { immediate: true })
+
 // --- Display tasks ---
 const displayTasks = computed<Task[]>(() => {
   const tab = activeTab.value
+  const q = props.searchQuery ?? ''
+  let list: Task[]
   if (tab === 'today') {
-    // Sort so today is first, then overdue
-    return [...todayTasks.value].sort((a, b) => {
+    list = [...todayTasks.value].sort((a, b) => {
       const catA = getTaskTimeCategory(a)
       const catB = getTaskTimeCategory(b)
       if (catA === catB) return 0
       if (catA === 'today') return -1
       return 1
     })
+  } else if (tab === 'tomorrow') {
+    list = tomorrowTasks.value
+  } else if (tab === 'week') {
+    list = weekTasks.value
+  } else if (tab === 'later') {
+    list = laterTasks.value
+  } else if (tab === 'completed') {
+    list = completedTasks.value
+  } else {
+    list = groupTasks(tab)
   }
-  if (tab === 'tomorrow') return tomorrowTasks.value
-  if (tab === 'week') return weekTasks.value
-  if (tab === 'later') return laterTasks.value
-  if (tab === 'completed') return completedTasks.value
-  return groupTasks(tab)
+  if (!q.trim()) return list
+  return list.filter(t => taskMatchesQuery(t, q))
 })
 
 const displayCompleted = computed<Task[]>(() => {
   const tab = activeTab.value
+  const q = (props.searchQuery ?? '').trim()
   if (tab === 'completed' || tab === 'today') return []
   let currentCompleted: Task[]
   if (tab === 'tomorrow') {
@@ -307,7 +342,8 @@ const displayCompleted = computed<Task[]>(() => {
   } else {
     currentCompleted = tasks.value.filter(t => t.completed && t.groupId === tab)
   }
-  return currentCompleted
+  if (!q) return currentCompleted
+  return currentCompleted.filter(t => taskMatchesQuery(t, q))
 })
 
 // --- Context menu ---
@@ -586,10 +622,14 @@ onBeforeUnmount(() => {
     <!-- Task list -->
     <div class="task-list">
       <div v-if="displayTasks.length === 0 && displayCompleted.length === 0" class="empty-state">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5">
+        <svg v-if="searchQuery" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="7"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <svg v-else width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5">
           <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
         </svg>
-        <span>暂无任务</span>
+        <span>{{ searchQuery ? '没有匹配的任务' : '暂无任务' }}</span>
       </div>
 
       <template v-for="(task, index) in displayVisibleTasks" :key="task.id">
