@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useMemos, type Memo } from '../composables/useMemos'
 import MemoEditor from './MemoEditor.vue'
 import MemoCategoryDialog from './MemoCategoryDialog.vue'
 import MemoCategoryDropdown from './MemoCategoryDropdown.vue'
 import MemoCategoryTag from './MemoCategoryTag.vue'
 
+const props = defineProps<{ searchQuery?: string }>()
 const emit = defineEmits<{
   back: []
 }>()
@@ -57,6 +58,40 @@ function getContentPreview(content: string, maxLength: number = 40): string {
   if (plainText.length <= maxLength) return plainText
   return plainText.slice(0, maxLength) + '...'
 }
+
+// Cache plain-text content for search (avoid repeated regex on every keystroke)
+const plainTextCache = new Map<string, string>()
+function getPlainContent(memo: Memo): string {
+  const cached = plainTextCache.get(memo.id)
+  if (cached !== undefined) return cached
+  const text = memo.content.replace(/<[^>]+>/g, '').trim().toLowerCase()
+  plainTextCache.set(memo.id, text)
+  return text
+}
+
+// Invalidate cache when memo content changes (purge stale entries periodically)
+const filteredMemosIds = computed(() => new Set(filteredMemos.value.map(m => m.id)))
+watch(filteredMemosIds, (ids) => {
+  for (const key of plainTextCache.keys()) {
+    if (!ids.has(key)) plainTextCache.delete(key)
+  }
+})
+
+// Search matching
+function memoMatchesQuery(memo: Memo, query: string): boolean {
+  if (!query) return true
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  if (memo.title.toLowerCase().includes(q)) return true
+  if (getPlainContent(memo).includes(q)) return true
+  return false
+}
+
+const displayMemos = computed<Memo[]>(() => {
+  const q = props.searchQuery ?? ''
+  if (!q.trim()) return filteredMemos.value
+  return filteredMemos.value.filter(m => memoMatchesQuery(m, q))
+})
 
 // Create new memo
 function handleNewMemo() {
@@ -175,7 +210,7 @@ function handleCloseCategoryDialog() {
       <!-- Memo List -->
       <div class="memo-list">
         <div
-          v-for="memo in filteredMemos"
+          v-for="memo in displayMemos"
           :key="memo.id"
           class="memo-item"
           :class="{ 'is-pinned': memo.isPinned }"
@@ -214,10 +249,14 @@ function handleCloseCategoryDialog() {
         </div>
 
         <!-- Empty State -->
-        <div v-if="filteredMemos.length === 0" class="memo-empty-state">
-          <div class="empty-icon">📝</div>
-          <div class="empty-text">还没有备忘录</div>
-          <button class="empty-action-btn" @click="handleNewMemo">
+        <div v-if="displayMemos.length === 0" class="memo-empty-state">
+          <svg v-if="searchQuery" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="7"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <div v-else class="empty-icon">📝</div>
+          <div class="empty-text">{{ searchQuery ? '没有匹配的备忘录' : '还没有备忘录' }}</div>
+          <button v-if="!searchQuery" class="empty-action-btn" @click="handleNewMemo">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="12" y1="5" x2="12" y2="19"/>
               <line x1="5" y1="12" x2="19" y2="12"/>

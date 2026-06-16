@@ -62,6 +62,7 @@ const currentView = ref<'tasks' | 'todo' | 'taskDetail' | 'settings' | 'memos' |
 const taskIdForDetail = ref<string>('')
 const todoInitialTab = ref<string | undefined>(undefined)
 const todoSearchQuery = ref('')
+const memoSearchQuery = ref('')
 const todoActiveTabLabel = ref('')
 
 function navigateToTodo(tab?: string) {
@@ -72,6 +73,9 @@ function navigateToTodo(tab?: string) {
 watch(currentView, (v) => {
   if (v !== 'todo' && v !== 'taskDetail') {
     todoSearchQuery.value = ''
+  }
+  if (v !== 'memos') {
+    memoSearchQuery.value = ''
   }
 })
 
@@ -357,10 +361,10 @@ async function closeWindow() {
       <PanelTitleBar
         :title="currentTitleMeta.title"
         :icon-paths="[...currentTitleMeta.iconPaths]"
-        :show-search="currentView === 'todo'"
-        :search-query="todoSearchQuery"
-        :search-placeholder="todoActiveTabLabel ? `搜索「${todoActiveTabLabel}」...` : '搜索当前分类...'"
-        @update:search-query="todoSearchQuery = $event"
+        :show-search="currentView === 'todo' || currentView === 'memos'"
+        :search-query="currentView === 'memos' ? memoSearchQuery : todoSearchQuery"
+        :search-placeholder="currentView === 'memos' ? '搜索备忘录...' : (todoActiveTabLabel ? `搜索「${todoActiveTabLabel}」...` : '搜索当前分类...')"
+        @update:search-query="currentView === 'memos' ? (memoSearchQuery = $event) : (todoSearchQuery = $event)"
         @close="closeWindow"
       />
       <div class="panel-body">
@@ -368,7 +372,7 @@ async function closeWindow() {
         <TodoPage v-else-if="currentView === 'todo'" :initial-tab="todoInitialTab" :search-query="todoSearchQuery" @view-detail="taskId => { taskIdForDetail = taskId; currentView = 'taskDetail' }" @tab-change="tab => { todoInitialTab = tab }" @active-tab-label="todoActiveTabLabel = $event" />
         <TaskDetailPage v-else-if="currentView === 'taskDetail'" :task-id="taskIdForDetail" @back="currentView = 'todo'" />
         <SettingsPage v-else-if="currentView === 'settings'" @back="currentView = 'tasks'" />
-        <MemoPage v-else-if="currentView === 'memos'" @back="currentView = 'tasks'" />
+        <MemoPage v-else-if="currentView === 'memos'" :search-query="memoSearchQuery" @back="currentView = 'tasks'" />
         <StatsPage v-else-if="currentView === 'stats'" @back="currentView = 'tasks'" />
         <RadioPage v-else-if="currentView === 'radio'" @back="currentView = 'tasks'" />
       </div>
