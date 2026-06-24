@@ -41,6 +41,7 @@ const state = ref<AchievementState>({
   nightOwlCount: 0,
 })
 const loaded = ref(false)
+let loadPromise: Promise<void> | null = null
 
 async function load() {
   try {
@@ -59,6 +60,13 @@ async function load() {
     achievements.value = JSON.parse(JSON.stringify(defaultAchievements))
   }
   loaded.value = true
+}
+
+function ensureLoaded() {
+  if (loaded.value || loadPromise) return
+  loadPromise = load().finally(() => {
+    loadPromise = null
+  })
 }
 
 async function save() {
@@ -96,7 +104,7 @@ function updateProgress(id: string, progress: number) {
 }
 
 export function useAchievements() {
-  if (!loaded.value) load()
+  ensureLoaded()
 
   function recordPomodoro() {
     state.value.totalPomodoros++

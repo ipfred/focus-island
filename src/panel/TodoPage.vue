@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, onActivated, onDeactivated, nextTick } from 'vue'
 import { useTasks, getTaskTimeCategory, type Task } from '../composables/useTasks'
 import { useTaskGroups } from '../composables/useTaskGroups'
 import { useTimerBridge } from '../composables/useTimerBridge'
@@ -487,14 +487,6 @@ const isMenuOnRight = computed(() => {
   return contextMenu.value.x > 200
 })
 
-// --- Date picker helpers ---
-function setQuickDate(offset: number) {
-  const d = new Date()
-  d.setDate(d.getDate() + offset)
-  selectedDate.value = formatDateStr(d)
-  showDatePicker.value = false
-}
-
 // --- Click outside ---
 function onClickOutside() {
   closeContextMenu()
@@ -543,19 +535,57 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 let resizeObserver: ResizeObserver | null = null
+let windowListenersBound = false
 
-onMounted(() => {
+function bindWindowListeners() {
+  if (windowListenersBound) return
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('click', onClickOutside)
   window.addEventListener('click', onWindowClick, true)
   window.addEventListener('contextmenu', onWindowContextMenu, true)
+  windowListenersBound = true
+}
 
-  if (tabScrollRef.value) {
+function unbindWindowListeners() {
+  if (!windowListenersBound) return
+  window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('click', onClickOutside)
+  window.removeEventListener('click', onWindowClick, true)
+  window.removeEventListener('contextmenu', onWindowContextMenu, true)
+  windowListenersBound = false
+}
+
+function observeTabOverflow() {
+  if (resizeObserver || !tabScrollRef.value) return
+  checkOverflow()
+  resizeObserver = new ResizeObserver(() => {
     checkOverflow()
-    resizeObserver = new ResizeObserver(() => {
-      checkOverflow()
-    })
-    resizeObserver.observe(tabScrollRef.value)
+  })
+  resizeObserver.observe(tabScrollRef.value)
+}
+
+function stopObservingTabOverflow() {
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
+}
+
+function scrollActiveTabIntoView(behavior: ScrollBehavior) {
+  nextTick(() => {
+    setTimeout(() => {
+      const el = tabScrollRef.value?.querySelector(`.tab-item.active`)
+      if (el) {
+        el.scrollIntoView({ behavior, block: 'nearest', inline: 'center' })
+      }
+    }, 50)
+  })
+}
+
+onMounted(() => {
+  bindWindowListeners()
+  if (tabScrollRef.value) {
+    observeTabOverflow()
   }
   // Watch allTabs changes to recalculate overflow
   watch(() => allTabs.value, () => {
@@ -565,25 +595,26 @@ onMounted(() => {
   }, { deep: true })
 
   // Instantly scroll active tab into view on mount (so returning from detail page centers the tab)
-  nextTick(() => {
-    setTimeout(() => {
-      const el = tabScrollRef.value?.querySelector(`.tab-item.active`)
-      if (el) {
-        el.scrollIntoView({ behavior: 'auto', block: 'nearest', inline: 'center' })
-      }
-    }, 50)
-  })
+  scrollActiveTabIntoView('auto')
+})
+
+onActivated(() => {
+  bindWindowListeners()
+  observeTabOverflow()
+})
+
+onDeactivated(() => {
+  unbindWindowListeners()
+  stopObservingTabOverflow()
+  closeContextMenu()
+  showDatePicker.value = false
+  showGroupDropdown.value = false
+  showTabsDropdown.value = false
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('keydown', onKeydown)
-  window.removeEventListener('click', onClickOutside)
-  window.removeEventListener('click', onWindowClick, true)
-  window.removeEventListener('contextmenu', onWindowContextMenu, true)
-
-  if (resizeObserver) {
-    resizeObserver.disconnect()
-  }
+  unbindWindowListeners()
+  stopObservingTabOverflow()
 })
 </script>
 

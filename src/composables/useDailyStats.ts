@@ -12,6 +12,7 @@ const STATS_FILE = 'focus-island/daily-stats.json'
 
 const dailyStats = ref<DailyStat[]>([])
 const loaded = ref(false)
+let loadPromise: Promise<void> | null = null
 
 function getDateString(date: Date = new Date()): string {
   return date.toISOString().split('T')[0]
@@ -31,6 +32,13 @@ async function load() {
   loaded.value = true
 }
 
+function ensureLoaded() {
+  if (loaded.value || loadPromise) return
+  loadPromise = load().finally(() => {
+    loadPromise = null
+  })
+}
+
 async function save() {
   if (!loaded.value) return
   try {
@@ -44,7 +52,7 @@ async function save() {
 watch(dailyStats, save, { deep: true })
 
 export function useDailyStats() {
-  if (!loaded.value) load()
+  ensureLoaded()
 
   function recordPomodoro(focusMinutes: number) {
     const today = getDateString()

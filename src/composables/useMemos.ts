@@ -57,6 +57,7 @@ const memos = ref<Memo[]>([])
 const categories = ref<MemoCategory[]>([...DEFAULT_CATEGORIES])
 const loaded = ref(false)
 const currentCategoryId = ref<string>('all')
+let loadPromise: Promise<void> | null = null
 
 let isSyncingMemos = false
 let isSyncingCategories = false
@@ -85,6 +86,13 @@ async function loadCategories() {
 async function load() {
   await Promise.all([loadMemos(), loadCategories()])
   loaded.value = true
+}
+
+function ensureLoaded() {
+  if (loaded.value || loadPromise) return
+  loadPromise = load().finally(() => {
+    loadPromise = null
+  })
 }
 
 async function saveMemos() {
@@ -145,7 +153,7 @@ function extractTitleFromContent(content: string, maxLength: number = 10): strin
 }
 
 export function useMemos() {
-  if (!loaded.value) load()
+  ensureLoaded()
 
   function addMemo(categoryId: string = 'all'): Memo {
     const now = Date.now()
@@ -231,7 +239,7 @@ export function useMemos() {
     if (currentCategoryId.value !== 'all') {
       result = result.filter(m => m.categoryId === currentCategoryId.value)
     }
-    return result.sort((a, b) => {
+    return [...result].sort((a, b) => {
       if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1
       return b.updatedAt - a.updatedAt
     })

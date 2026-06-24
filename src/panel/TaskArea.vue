@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onBeforeUnmount } from 'vue'
+import { ref, onBeforeUnmount, onDeactivated } from 'vue'
 import { useTasks, type Task } from '../composables/useTasks'
 import { useTimerBridge } from '../composables/useTimerBridge'
 import { useRadio } from '../composables/useRadio'
@@ -106,6 +106,7 @@ function stopScroll(taskId?: string) {
   activeScroll = null
 }
 
+onDeactivated(() => { stopScroll() })
 onBeforeUnmount(() => { stopScroll() })
 
 function formatTime(ts: number) {
