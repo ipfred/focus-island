@@ -15,7 +15,9 @@ use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 #[cfg(target_os = "windows")]
 use windows::Win32::Foundation::POINT;
 #[cfg(target_os = "windows")]
-use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+use windows::Win32::UI::WindowsAndMessaging::{
+    AllowSetForegroundWindow, GetCursorPos, ASFW_ANY,
+};
 
 #[cfg(target_os = "linux")]
 use x11::xlib;
@@ -403,7 +405,6 @@ fn focus_panel<R: Runtime>(app: &AppHandle<R>) {
     // due to OS restrictions. Use AllowSetForegroundWindow workaround.
     #[cfg(target_os = "windows")]
     {
-        use windows::Win32::System::Threading::{AllowSetForegroundWindow, ASFW_ANY};
         unsafe {
             let _ = AllowSetForegroundWindow(ASFW_ANY);
         }

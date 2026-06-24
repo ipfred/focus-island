@@ -8,6 +8,12 @@ import { useTimerBridge } from '../composables/useTimerBridge'
 import { useSettings } from '../composables/useSettings'
 import { useShortcut } from '../composables/useShortcut'
 import { useUpdater } from '../composables/useUpdater'
+import { useTasks } from '../composables/useTasks'
+import { useTaskGroups } from '../composables/useTaskGroups'
+import { useMemos } from '../composables/useMemos'
+import { useDailyStats } from '../composables/useDailyStats'
+import { useAchievements } from '../composables/useAchievements'
+import { useRadio } from '../composables/useRadio'
 import TodoPage from './TodoPage.vue'
 import TaskArea from './TaskArea.vue'
 import TaskDetailPage from './TaskDetailPage.vue'
@@ -31,6 +37,18 @@ interface PanelTransitionMetrics {
 const { startBridge } = useTimerBridge()
 const { settings, settingsReady } = useSettings()
 useShortcut()
+
+function prewarmPanelData() {
+  useTasks()
+  useTaskGroups()
+  useMemos()
+  useDailyStats()
+  useAchievements()
+  useRadio()
+}
+
+prewarmPanelData()
+
 const {
   updateAvailable,
   updateInfo,
@@ -64,6 +82,7 @@ const todoInitialTab = ref<string | undefined>(undefined)
 const todoSearchQuery = ref('')
 const memoSearchQuery = ref('')
 const todoActiveTabLabel = ref('')
+const cachedPanelViews = ['TaskArea', 'TodoPage', 'SettingsPage', 'MemoPage', 'StatsPage', 'RadioPage']
 
 function navigateToTodo(tab?: string) {
   todoInitialTab.value = tab
@@ -368,13 +387,15 @@ async function closeWindow() {
         @close="closeWindow"
       />
       <div class="panel-body">
-        <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" @navigate-to-todo="navigateToTodo" />
-        <TodoPage v-else-if="currentView === 'todo'" :initial-tab="todoInitialTab" :search-query="todoSearchQuery" @view-detail="taskId => { taskIdForDetail = taskId; currentView = 'taskDetail' }" @tab-change="tab => { todoInitialTab = tab }" @active-tab-label="todoActiveTabLabel = $event" />
-        <TaskDetailPage v-else-if="currentView === 'taskDetail'" :task-id="taskIdForDetail" @back="currentView = 'todo'" />
-        <SettingsPage v-else-if="currentView === 'settings'" @back="currentView = 'tasks'" />
-        <MemoPage v-else-if="currentView === 'memos'" :search-query="memoSearchQuery" @back="currentView = 'tasks'" />
-        <StatsPage v-else-if="currentView === 'stats'" @back="currentView = 'tasks'" />
-        <RadioPage v-else-if="currentView === 'radio'" @back="currentView = 'tasks'" />
+        <KeepAlive :include="cachedPanelViews">
+          <TaskArea v-if="currentView === 'tasks'" category="today" @close="closeWindow" @navigate-to-todo="navigateToTodo" />
+          <TodoPage v-else-if="currentView === 'todo'" :initial-tab="todoInitialTab" :search-query="todoSearchQuery" @view-detail="taskId => { taskIdForDetail = taskId; currentView = 'taskDetail' }" @tab-change="tab => { todoInitialTab = tab }" @active-tab-label="todoActiveTabLabel = $event" />
+          <TaskDetailPage v-else-if="currentView === 'taskDetail'" :task-id="taskIdForDetail" @back="currentView = 'todo'" />
+          <SettingsPage v-else-if="currentView === 'settings'" @back="currentView = 'tasks'" />
+          <MemoPage v-else-if="currentView === 'memos'" :search-query="memoSearchQuery" @back="currentView = 'tasks'" />
+          <StatsPage v-else-if="currentView === 'stats'" @back="currentView = 'tasks'" />
+          <RadioPage v-else-if="currentView === 'radio'" @back="currentView = 'tasks'" />
+        </KeepAlive>
       </div>
       <transition name="update-banner">
         <div v-if="showUpdateBanner" class="update-banner" role="status" aria-live="polite">

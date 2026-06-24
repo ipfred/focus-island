@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, nextTick, onMounted, onUnmounted } from 'vue'
+import { computed, ref, nextTick, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
 import { useSettings, presetThemes, type ColorMode } from '../composables/useSettings'
 import { useUpdater } from '../composables/useUpdater'
 import AboutDialog from './AboutDialog.vue'
@@ -118,10 +118,14 @@ function onRecordKeyup(e: KeyboardEvent) {
   }
 }
 
-function goBack() {
-  showAbout.value = false
+function resetRecording() {
   stopRecording()
   recordedKey = ''
+}
+
+function goBack() {
+  showAbout.value = false
+  resetRecording()
   nextTick()
   emit('back')
 }
@@ -143,14 +147,37 @@ function openManualDownload() {
   openReleasePage()
 }
 
-onMounted(() => {
+let recordListenersBound = false
+
+function bindRecordListeners() {
+  if (recordListenersBound) return
   document.addEventListener('keydown', onRecordKeydown, true)
   document.addEventListener('keyup', onRecordKeyup, true)
+  recordListenersBound = true
+}
+
+function unbindRecordListeners() {
+  if (!recordListenersBound) return
+  document.removeEventListener('keydown', onRecordKeydown, true)
+  document.removeEventListener('keyup', onRecordKeyup, true)
+  recordListenersBound = false
+}
+
+onMounted(() => {
+  bindRecordListeners()
+})
+
+onActivated(() => {
+  bindRecordListeners()
+})
+
+onDeactivated(() => {
+  resetRecording()
+  unbindRecordListeners()
 })
 
 onUnmounted(() => {
-  document.removeEventListener('keydown', onRecordKeydown, true)
-  document.removeEventListener('keyup', onRecordKeyup, true)
+  unbindRecordListeners()
 })
 </script>
 

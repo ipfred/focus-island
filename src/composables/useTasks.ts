@@ -52,6 +52,19 @@ export interface Task {
   lastActiveAt: number
 }
 
+interface TaskBuckets {
+  active: Task[]
+  completed: Task[]
+  recentFocus: Task[]
+  overdue: Task[]
+  today: Task[]
+  tomorrow: Task[]
+  week: Task[]
+  later: Task[]
+  nodate: Task[]
+  groups: Map<string, Task[]>
+}
+
 export function getTaskTimeCategory(task: Task): TimeCategory {
   if (!task.dueDate) return 'nodate'
   const today = startOfToday()
@@ -70,6 +83,7 @@ const TASKS_FILE = 'focus-island/tasks.json'
 
 const tasks = ref<Task[]>([])
 const loaded = ref(false)
+let loadPromise: Promise<void> | null = null
 
 // --- Persistence ---
 
@@ -107,6 +121,13 @@ async function load() {
   loaded.value = true
 }
 
+function ensureLoaded() {
+  if (loaded.value || loadPromise) return
+  loadPromise = load().finally(() => {
+    loadPromise = null
+  })
+}
+
 let isSyncing = false
 
 async function save() {
@@ -142,7 +163,7 @@ listen<string>('tasks-updated', (event) => {
 // --- Composable ---
 
 export function useTasks() {
-  if (!loaded.value) load()
+  ensureLoaded()
   const { recordTaskCompleted } = useDailyStats()
 
   function addTask(title: string, dueDate?: string | null, groupId?: string | null, priority?: TaskPriority) {
@@ -268,27 +289,76 @@ export function useTasks() {
 
   // --- Computed views ---
 
-  const activeTasks = computed(() => tasks.value.filter(t => !t.completed))
-  const completedTasks = computed(() => tasks.value.filter(t => t.completed))
-  const recentFocusTasks = computed(() =>
-    activeTasks.value
-      .filter(t => t.lastActiveAt > 0)
-      .sort((a, b) => b.lastActiveAt - a.lastActiveAt)
-      .slice(0, 3)
-  )
+  const taskBuckets = computed<TaskBuckets>(() => {
+    const buckets: TaskBuckets = {
+      active: [],
+      completed: [],
+      recentFocus: [],
+      overdue: [],
+      today: [],
+      tomorrow: [],
+      week: [],
+      later: [],
+      nodate: [],
+      groups: new Map(),
+    }
 
-  const overdueTasks = computed(() => activeTasks.value.filter(t => getTaskTimeCategory(t) === 'overdue'))
-  const todayTasks = computed(() => activeTasks.value.filter(t => {
-    const cat = getTaskTimeCategory(t)
-    return cat === 'today' || cat === 'overdue'
-  }))
-  const tomorrowTasks = computed(() => activeTasks.value.filter(t => getTaskTimeCategory(t) === 'tomorrow'))
-  const weekTasks = computed(() => activeTasks.value.filter(t => getTaskTimeCategory(t) === 'week'))
-  const laterTasks = computed(() => activeTasks.value.filter(t => getTaskTimeCategory(t) === 'later'))
-  const nodateTasks = computed(() => activeTasks.value.filter(t => getTaskTimeCategory(t) === 'nodate'))
+    for (const task of tasks.value) {
+      if (task.completed) {
+        buckets.completed.push(task)
+        continue
+      }
+
+      buckets.active.push(task)
+
+      if (task.lastActiveAt > 0) {
+        buckets.recentFocus.push(task)
+      }
+
+      if (task.groupId) {
+        const groupTasks = buckets.groups.get(task.groupId)
+        if (groupTasks) {
+          groupTasks.push(task)
+        } else {
+          buckets.groups.set(task.groupId, [task])
+        }
+      }
+
+      const category = getTaskTimeCategory(task)
+      if (category === 'overdue') {
+        buckets.overdue.push(task)
+        buckets.today.push(task)
+      } else if (category === 'today') {
+        buckets.today.push(task)
+      } else if (category === 'tomorrow') {
+        buckets.tomorrow.push(task)
+      } else if (category === 'week') {
+        buckets.week.push(task)
+      } else if (category === 'later') {
+        buckets.later.push(task)
+      } else {
+        buckets.nodate.push(task)
+      }
+    }
+
+    buckets.recentFocus.sort((a, b) => b.lastActiveAt - a.lastActiveAt)
+    buckets.recentFocus = buckets.recentFocus.slice(0, 3)
+    return buckets
+  })
+
+  const activeTasks = computed(() => taskBuckets.value.active)
+  const completedTasks = computed(() => taskBuckets.value.completed)
+  const recentFocusTasks = computed(() => taskBuckets.value.recentFocus)
+
+  const overdueTasks = computed(() => taskBuckets.value.overdue)
+  const todayTasks = computed(() => taskBuckets.value.today)
+  const tomorrowTasks = computed(() => taskBuckets.value.tomorrow)
+  const weekTasks = computed(() => taskBuckets.value.week)
+  const laterTasks = computed(() => taskBuckets.value.later)
+  const nodateTasks = computed(() => taskBuckets.value.nodate)
 
   function groupTasks(groupId: string): Task[] {
-    return activeTasks.value.filter(t => t.groupId === groupId)
+    return taskBuckets.value.groups.get(groupId) ?? []
   }
 
   const todayStats = computed(() => {

@@ -15,6 +15,7 @@ const GROUPS_FILE = 'focus-island/task-groups.json'
 
 const groups = ref<TaskGroup[]>([])
 const loaded = ref(false)
+let loadPromise: Promise<void> | null = null
 
 // --- Persistence ---
 
@@ -26,6 +27,13 @@ async function load() {
     groups.value = []
   }
   loaded.value = true
+}
+
+function ensureLoaded() {
+  if (loaded.value || loadPromise) return
+  loadPromise = load().finally(() => {
+    loadPromise = null
+  })
 }
 
 let isSyncing = false
@@ -61,7 +69,7 @@ listen<string>('task-groups-updated', (event) => {
 // --- Composable ---
 
 export function useTaskGroups() {
-  if (!loaded.value) load()
+  ensureLoaded()
 
   function addGroup(name: string, colorId: CategoryColorId = 'blue'): TaskGroup {
     const maxOrder = groups.value.length > 0
