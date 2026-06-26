@@ -39,7 +39,7 @@ export const presetThemes: ThemePreset[] = [
 const SETTINGS_FILE = 'focus-island/settings.json'
 
 const DEFAULT_SETTINGS: Settings = {
-  islandOpacity: 0.18,
+  islandOpacity: 0.25,
   islandScale: 1.0,
   focusDuration: 25,
   breakDuration: 5,

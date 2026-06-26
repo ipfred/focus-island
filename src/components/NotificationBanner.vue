@@ -59,17 +59,15 @@ const extendColor = computed(() => isFocusDone.value ? '#e85d3a' : '#3a9e6e')
   width: calc(352px * var(--notif-scale, 1));
   height: calc(60px * var(--notif-scale, 1));
   border-radius: calc(24px * var(--notif-scale, 1));
-  background: rgba(30, 30, 36, 0.96);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(0, 0, 0, 0.98);
   display: flex;
   align-items: center;
   gap: calc(8px * var(--notif-scale, 1));
   padding: 0 calc(12px * var(--notif-scale, 1));
   box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.45),
     0 0 0 1px rgba(255, 255, 255, 0.08) inset;
   pointer-events: auto;
+  contain: layout style paint;
 }
 
 .notif-icon {

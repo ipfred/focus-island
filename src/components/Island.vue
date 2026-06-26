@@ -223,6 +223,7 @@ onUnmounted(() => {
                 :class="{
                     'panel-launching': panelMotionState === 'opening',
                     'panel-receiving': panelMotionState === 'closing',
+                    'animating': panelMotionState !== 'idle',
                 }"
             >
                 <div
@@ -292,18 +293,17 @@ onUnmounted(() => {
 
 .capsule-motion {
     transform-origin: center top;
+}
+
+.capsule-motion.animating {
     will-change: transform;
 }
 
 .capsule-shell {
-    background: rgba(20, 20, 22, var(--island-opacity, 0.82));
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    -webkit-mask-image: -webkit-radial-gradient(white, black);
-    box-shadow: 0 4px 32px rgba(0, 0, 0, 0.45);
-    transition: box-shadow 0.4s ease, width 0.3s ease, height 0.3s ease;
-    isolation: isolate;
-    will-change: box-shadow;
+    /* 纯黑背景，参考 iPhone 灵动岛：rgba(0,0,0,0.95+) */
+    background: rgba(0, 0, 0, var(--island-opacity, 0.95));
+    transition: width 0.3s ease, height 0.3s ease;
+    contain: layout style paint;
 }
 
 .capsule-shell::before,
@@ -316,9 +316,7 @@ onUnmounted(() => {
 .capsule-shell::before {
     inset: 1px;
     border-radius: inherit;
-    background:
-        radial-gradient(circle at 50% 40%, rgba(255, 255, 255, 0.18), transparent 58%),
-        linear-gradient(180deg, rgba(255, 255, 255, 0.09), transparent 56%);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 56%);
     opacity: 0;
     transform: scale(0.88, 0.82);
 }
@@ -329,21 +327,15 @@ onUnmounted(() => {
     width: 42%;
     height: 46%;
     border-radius: 999px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0));
-    filter: blur(7px);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0));
     opacity: 0;
     transform: translate(-50%, -42%) scale(0.42, 0.16);
 }
 
-.ring-focus {
-    box-shadow: 0 4px 32px rgba(0, 0, 0, 0.45);
-}
-
-.ring-break {
-    box-shadow: 0 4px 32px rgba(0, 0, 0, 0.45);
-}
+/* ring-focus/ring-break 不再加 box-shadow，避免胶囊四周出现浅色矩形光晕 */
 
 .panel-launching {
+    will-change: transform;
     animation: island-release 280ms cubic-bezier(0.2, 0.88, 0.26, 1) both;
 }
 
@@ -356,6 +348,7 @@ onUnmounted(() => {
 }
 
 .panel-receiving {
+    will-change: transform;
     animation: island-receive 240ms cubic-bezier(0.34, 0, 0.72, 0.2) both;
 }
 
