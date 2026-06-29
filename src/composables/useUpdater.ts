@@ -77,7 +77,10 @@ function resetCheckState() {
 }
 
 async function resolveUpdateProxy() {
-  if (resolvedUpdateProxy.value !== null) return resolvedUpdateProxy.value
+  // Cache only when a proxy was actually found. If none was detected, re-query
+  // on the next check so a proxy enabled after launch (e.g. the user toggles
+  // the Windows system proxy) is picked up without restarting the app.
+  if (resolvedUpdateProxy.value) return resolvedUpdateProxy.value
   try {
     const proxy = await invoke<string | null>('get_update_proxy')
     resolvedUpdateProxy.value = proxy && proxy.trim().length > 0 ? proxy.trim() : ''

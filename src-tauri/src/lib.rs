@@ -141,34 +141,91 @@ fn get_windows_system_proxy() -> Option<String> {
         InternetQueryOptionA, INTERNET_OPTION_PROXY, INTERNET_PROXY_INFO,
     };
 
+    #[repr(C)]
+    struct ProxyQueryBuffer {
+        info: INTERNET_PROXY_INFO,
+        tail: [u8; 512],
+    }
+
     unsafe {
-        let mut proxy_info: INTERNET_PROXY_INFO = std::mem::zeroed();
-        let mut size = std::mem::size_of::<INTERNET_PROXY_INFO>() as u32;
+        let mut buf = ProxyQueryBuffer {
+            info: std::mem::zeroed(),
+            tail: [0u8; 512],
+        };
+        let mut size = std::mem::size_of::<ProxyQueryBuffer>() as u32;
 
         if InternetQueryOptionA(
             None,
             INTERNET_OPTION_PROXY,
-            Some(&mut proxy_info as *mut _ as *mut _),
+            Some(&mut buf.info as *mut INTERNET_PROXY_INFO as *mut _),
             &mut size,
         )
-        .is_ok()
+        .is_err()
         {
-            if !proxy_info.lpszProxy.is_null() {
-                let proxy_str = std::ffi::CStr::from_ptr(proxy_info.lpszProxy as *const std::ffi::c_char)
-                    .to_string_lossy()
-                    .to_string();
-                if !proxy_str.is_empty() && proxy_str != "direct://" {
-                    return Some(if proxy_str.starts_with("http") {
-                        proxy_str
-                    } else {
-                        format!("http://{}", proxy_str)
-                    });
-                }
-            }
+            return None;
         }
+
+        if buf.info.lpszProxy.is_null() {
+            return None;
+        }
+
+        let proxy_str = std::ffi::CStr::from_ptr(buf.info.lpszProxy as *const std::ffi::c_char)
+            .to_string_lossy()
+            .to_string();
+
+        parse_windows_proxy_string(&proxy_str)
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn parse_windows_proxy_string(raw: &str) -> Option<String> {
+    let raw = raw.trim();
+    if raw.is_empty() || raw.eq_ignore_ascii_case("direct") || raw == "direct://" {
+        return None;
     }
 
-    None
+    // Already a full URL.
+    if raw.starts_with("http://")
+        || raw.starts_with("https://")
+        || raw.starts_with("socks5://")
+    {
+        return Some(raw.to_string());
+    }
+
+    // Per-protocol form: `http=...;https=...;socks=...`
+    if raw.contains('=') {
+        let mut http_proxy: Option<&str> = None;
+        let mut https_proxy: Option<&str> = None;
+        let mut socks_proxy: Option<&str> = None;
+        for part in raw.split(';') {
+            let part = part.trim();
+            let Some((scheme, addr)) = part.split_once('=') else {
+                continue;
+            };
+            let addr = addr.trim();
+            if addr.is_empty() {
+                continue;
+            }
+            match scheme.trim().to_ascii_lowercase().as_str() {
+                "https" => https_proxy = Some(addr),
+                "http" => http_proxy = Some(addr),
+                "socks" | "socks5" => socks_proxy = Some(addr),
+                _ => {}
+            }
+        }
+        // The updater downloads over HTTPS, so prefer the https entry; an http
+        // proxy works too because reqwest tunnels https through it via CONNECT.
+        if let Some(addr) = https_proxy.or(http_proxy) {
+            return Some(format!("http://{addr}"));
+        }
+        if let Some(addr) = socks_proxy {
+            return Some(format!("socks5://{addr}"));
+        }
+        return None;
+    }
+
+    // Bare `host:port` — applies to all protocols.
+    Some(format!("http://{raw}"))
 }
 
 #[derive(serde::Serialize, Clone, Copy)]
