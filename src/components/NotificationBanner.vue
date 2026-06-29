@@ -59,13 +59,13 @@ const extendColor = computed(() => isFocusDone.value ? '#e85d3a' : '#3a9e6e')
   width: calc(352px * var(--notif-scale, 1));
   height: calc(60px * var(--notif-scale, 1));
   border-radius: calc(24px * var(--notif-scale, 1));
-  background: rgba(0, 0, 0, 0.98);
+  background: var(--notif-bg);
+  border: 1px solid var(--notif-border);
+  box-shadow: var(--notif-shadow);
   display: flex;
   align-items: center;
   gap: calc(8px * var(--notif-scale, 1));
   padding: 0 calc(12px * var(--notif-scale, 1));
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.08) inset;
   pointer-events: auto;
   contain: layout style paint;
 }
@@ -74,7 +74,7 @@ const extendColor = computed(() => isFocusDone.value ? '#e85d3a' : '#3a9e6e')
   width: calc(36px * var(--notif-scale, 1));
   height: calc(36px * var(--notif-scale, 1));
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--notif-icon-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -93,7 +93,7 @@ const extendColor = computed(() => isFocusDone.value ? '#e85d3a' : '#3a9e6e')
 .notif-title {
   font-size: calc(12px * var(--notif-scale, 1));
   font-weight: 700;
-  color: #efefef;
+  color: var(--notif-title-color);
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
@@ -102,7 +102,7 @@ const extendColor = computed(() => isFocusDone.value ? '#e85d3a' : '#3a9e6e')
 
 .notif-sub {
   font-size: calc(10px * var(--notif-scale, 1));
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--notif-sub-color);
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
@@ -146,19 +146,19 @@ const extendColor = computed(() => isFocusDone.value ? '#e85d3a' : '#3a9e6e')
 
 .notif-btn.extend:hover {
   background: color-mix(in srgb, var(--extend-color) 15%, transparent);
-  color: #fff;
+  color: var(--notif-title-color);
 }
 
 .notif-btn.dismiss {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.45);
+  border: 1px solid var(--notif-dismiss-border);
+  color: var(--notif-dismiss-color);
 }
 
 .notif-btn.dismiss:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.25);
-  color: rgba(255, 255, 255, 0.7);
+  background: var(--notif-dismiss-hover-bg);
+  border-color: var(--notif-dismiss-hover-border);
+  color: var(--notif-dismiss-hover-color);
 }
 
 /* Transition animation */

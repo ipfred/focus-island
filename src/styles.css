@@ -24,6 +24,19 @@
     radial-gradient(circle at 50% 0, rgba(255, 255, 255, 0.12), transparent 46%);
   --panel-vignette-bg: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.14));
   --panel-vignette-opacity: 0.8;
+
+  /* Notification banner — dark defaults */
+  --notif-bg: rgba(20, 20, 24, 0.96);
+  --notif-border: rgba(255, 255, 255, 0.10);
+  --notif-shadow: 0 10px 28px rgba(0, 0, 0, 0.48);
+  --notif-icon-bg: rgba(255, 255, 255, 0.10);
+  --notif-title-color: #efefef;
+  --notif-sub-color: rgba(255, 255, 255, 0.55);
+  --notif-dismiss-border: rgba(255, 255, 255, 0.14);
+  --notif-dismiss-color: rgba(255, 255, 255, 0.50);
+  --notif-dismiss-hover-bg: rgba(255, 255, 255, 0.08);
+  --notif-dismiss-hover-border: rgba(255, 255, 255, 0.25);
+  --notif-dismiss-hover-color: rgba(255, 255, 255, 0.78);
 }
 
 :root[data-color-mode="light"] {
@@ -37,6 +50,19 @@
     radial-gradient(circle at 50% 0, rgba(255, 255, 255, 0.8), transparent 48%);
   --panel-vignette-bg: linear-gradient(180deg, rgba(20, 30, 48, 0), rgba(20, 30, 48, 0.06));
   --panel-vignette-opacity: 1;
+
+  /* Notification banner — light overrides */
+  --notif-bg: rgba(252, 253, 255, 0.98);
+  --notif-border: rgba(22, 34, 52, 0.12);
+  --notif-shadow: 0 10px 28px rgba(44, 59, 84, 0.20);
+  --notif-icon-bg: rgba(22, 34, 52, 0.06);
+  --notif-title-color: #1f2a3a;
+  --notif-sub-color: rgba(22, 34, 52, 0.60);
+  --notif-dismiss-border: rgba(22, 34, 52, 0.16);
+  --notif-dismiss-color: rgba(22, 34, 52, 0.55);
+  --notif-dismiss-hover-bg: rgba(22, 34, 52, 0.06);
+  --notif-dismiss-hover-border: rgba(22, 34, 52, 0.28);
+  --notif-dismiss-hover-color: rgba(22, 34, 52, 0.82);
 }
 
 :root[data-color-mode="light"] .panel-root img,
