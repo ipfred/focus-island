@@ -8,19 +8,19 @@ const prevState = ref<IslandState>('idle')
 const interacting = ref(false)
 const notificationVisible = ref(false)
 
+const { idle } = useIdle(5 * 60 * 1000) // 5 minutes
+
+watch(idle, (isIdle) => {
+  if (notificationVisible.value) return // don't override during notification
+  if (isIdle && state.value === 'idle') {
+    prevState.value = state.value
+    state.value = 'alert'
+  } else if (!isIdle && state.value === 'alert') {
+    state.value = prevState.value
+  }
+})
+
 export function useIslandState() {
-  const { idle } = useIdle(5 * 60 * 1000) // 5 minutes
-
-  watch(idle, (isIdle) => {
-    if (notificationVisible.value) return // don't override during notification
-    if (isIdle && state.value === 'idle') {
-      prevState.value = state.value
-      state.value = 'alert'
-    } else if (!isIdle && state.value === 'alert') {
-      state.value = prevState.value
-    }
-  })
-
   function setState(s: IslandState) {
     if (notificationVisible.value) return // don't override during notification
     if (state.value !== 'hide') prevState.value = state.value

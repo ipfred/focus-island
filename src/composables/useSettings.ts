@@ -14,9 +14,12 @@ export interface ThemePreset {
 
 export type ColorMode = 'dark' | 'light' | 'system'
 
+export type IslandDisplayMode = 'resident' | 'dock'
+
 export interface Settings {
   islandOpacity: number      // 透明度 0~0.7，值越大越透明，CSS alpha = 1 - value
   islandScale: number        // 灵动岛缩放比例 0.5~1.5
+  islandDisplayMode: IslandDisplayMode  // 灵动岛显示方式：常驻 / 边缘停靠
   focusDuration: number
   breakDuration: number
   colorMode: ColorMode
@@ -41,6 +44,7 @@ const SETTINGS_FILE = 'focus-island/settings.json'
 const DEFAULT_SETTINGS: Settings = {
   islandOpacity: 0.25,
   islandScale: 1.0,
+  islandDisplayMode: 'resident',
   focusDuration: 25,
   breakDuration: 5,
   colorMode: 'system',

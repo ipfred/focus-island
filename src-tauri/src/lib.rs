@@ -247,8 +247,7 @@ struct MacosUpdateHealth {
     repair_command: String,
 }
 
-#[tauri::command]
-fn get_mouse_position() -> (f64, f64) {
+fn mouse_position_raw() -> (f64, f64) {
     #[cfg(target_os = "macos")]
     if let Ok(source) = CGEventSource::new(CGEventSourceStateID::CombinedSessionState) {
         if let Ok(event) = CGEvent::new(source) {
@@ -294,6 +293,32 @@ fn get_mouse_position() -> (f64, f64) {
     }
 
     (0.0, 0.0)
+}
+
+#[tauri::command]
+fn get_mouse_position() -> (f64, f64) {
+    mouse_position_raw()
+}
+
+#[tauri::command]
+fn is_mouse_over_window<R: Runtime>(window: WebviewWindow<R>, pad: f64) -> bool {
+    let (mx, my) = mouse_position_raw();
+    let Ok(pos) = window.outer_position() else { return false };
+    let Ok(size) = window.outer_size() else { return false };
+    let scale = window.scale_factor().unwrap_or(1.0);
+
+    // macOS: CGEvent location is in points with top-left origin; convert to physical px.
+    #[cfg(target_os = "macos")]
+    let (mx_px, my_px) = (mx * scale, my * scale);
+    // Windows/Linux: GetCursorPos / XQueryPointer already return physical px.
+    #[cfg(not(target_os = "macos"))]
+    let (mx_px, my_px) = (mx, my);
+
+    let x0 = pos.x as f64 - pad;
+    let y0 = pos.y as f64 - pad;
+    let x1 = pos.x as f64 + size.width as f64 + pad;
+    let y1 = pos.y as f64 + size.height as f64 + pad;
+    mx_px >= x0 && mx_px <= x1 && my_px >= y0 && my_px <= y1
 }
 
 #[tauri::command]
@@ -390,7 +415,18 @@ fn get_main_rect<R: Runtime>(
     let main = app.get_webview_window("main")?;
     let pos = main.outer_position().ok()?;
     let size = main.outer_size().ok()?;
-    Some((pos, size))
+    // In dock/strip mode the actual window height is only the strip height.
+    // Panel positioning and animation should use the effective full-capsule
+    // height. The window width is always 360 * island_scale * scale_factor,
+    // so the full capsule height = width / 360 * 42. Keep the actual height
+    // when it is already larger (e.g. notification banner).
+    let full_capsule_h = if size.width > 0 {
+        size.width * 42 / 360
+    } else {
+        size.height
+    };
+    let effective_h = size.height.max(full_capsule_h);
+    Some((pos, tauri::PhysicalSize::new(size.width, effective_h)))
 }
 
 fn panel_target_position(
@@ -693,6 +729,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_mouse_position,
+            is_mouse_over_window,
             set_click_through,
             set_island_height,
             set_island_size,

@@ -5,7 +5,9 @@ import { invoke } from "@tauri-apps/api/core";
 import { useIslandState } from "../composables/useIslandState";
 import { useTimer, type NotificationType } from "../composables/useTimer";
 import { useSettings, type Settings } from "../composables/useSettings";
+import { useDockMode } from "../composables/useDockMode";
 import CapsuleIdle from "./CapsuleIdle.vue";
+import DockStrip from "./DockStrip.vue";
 import CapsuleFocus from "./CapsuleFocus.vue";
 import NotificationBanner from "./NotificationBanner.vue";
 import type { TimerStatePayload } from "../composables/useTimerBridge";
@@ -13,6 +15,8 @@ import type { TimerStatePayload } from "../composables/useTimerBridge";
 const { state, setState, setNotificationVisible } = useIslandState();
 const timer = useTimer();
 const { settings, applyExternalSettings } = useSettings();
+const { dockCollapsed, stripProgress, stripColor, DOCK_STRIP_WINDOW_H } = useDockMode();
+const showStrip = computed(() => dockCollapsed.value);
 
 let unlisten: (() => void) | null = null;
 let unlistenSettings: (() => void) | null = null;
@@ -23,22 +27,36 @@ let unlistenNotification: (() => void) | null = null;
 const radioPlaying = ref(false);
 const notificationType = ref<NotificationType>(null);
 
+// Compute and apply the main window size based on notification / dock / capsule state.
+function applyWindowSize() {
+    const scale = settings.value.islandScale ?? 1;
+    if (notificationType.value !== null) {
+        // Expand window to fit capsule + gap + notification banner
+        const width = 360 * scale;
+        const height = (BASE_HEIGHT + 6 + 60) * scale;
+        invoke("set_island_custom_size", { width, height });
+    } else if (showStrip.value) {
+        // Docked thin strip at the top edge
+        invoke("set_island_custom_size", {
+            width: 360 * scale,
+            height: DOCK_STRIP_WINDOW_H * scale,
+        });
+    } else {
+        // Normal capsule size
+        invoke("set_island_size", { scale });
+    }
+}
+
 // Watch notification visibility and toggle click-through + resize window
 watch(notificationType, (val) => {
     const visible = val !== null;
     setNotificationVisible(visible);
     invoke("set_click_through", { ignore: !visible });
-    const scale = settings.value.islandScale ?? 1;
-    if (visible) {
-        // Expand window to fit capsule + gap + notification banner
-        const width = 360 * scale;
-        const height = (BASE_HEIGHT + 6 + 60) * scale;
-        invoke("set_island_custom_size", { width, height });
-    } else {
-        // Restore normal island size
-        invoke("set_island_size", { scale });
-    }
+    applyWindowSize();
 });
+
+// Resize when dock strip state or island scale changes
+watch([showStrip, () => settings.value.islandScale], applyWindowSize);
 
 function playNotificationSound() {
     if (!settings.value.notificationSound) return;
@@ -138,10 +156,8 @@ function startLocalCountdown(endAt: number) {
 onMounted(async () => {
     invoke("set_click_through", { ignore: true });
     
-    // 初始化时应用当前 scale
-    if (settings.value.islandScale) {
-        invoke("set_island_size", { scale: settings.value.islandScale });
-    }
+    // 初始化时应用窗口尺寸（胶囊 / 停靠细条 / 通知）
+    applyWindowSize();
 
     unlisten = await listen<TimerStatePayload>(
         "timer-state-update",
@@ -181,9 +197,7 @@ onMounted(async () => {
 
     unlistenSettings = await listen<Settings>("settings-changed", ({ payload }) => {
         applyExternalSettings(payload);
-        if (payload.islandScale !== undefined) {
-            invoke("set_island_size", { scale: payload.islandScale });
-        }
+        applyWindowSize();
     });
 
     unlistenPanelMotion = await listen<string>("island-panel-motion", ({ payload }) => {
@@ -233,6 +247,7 @@ onUnmounted(() => {
                             timer.phase.value === 'focus' && timer.running.value,
                         'ring-break':
                             timer.phase.value === 'break' && timer.running.value,
+                        'strip-mode': showStrip,
                     }"
                     :style="{
                         '--ring-progress': progressScale,
@@ -240,32 +255,40 @@ onUnmounted(() => {
                         '--ring-opacity': timer.running.value ? 1 : 0.35,
                         '--island-scale': settings.islandScale ?? 1,
                         width: capsuleWidth + 'px',
-                        height: capsuleHeight + 'px',
-                        borderRadius: capsuleRadius + 'px',
+                        height: (showStrip ? DOCK_STRIP_WINDOW_H * (settings.islandScale ?? 1) : capsuleHeight) + 'px',
+                        borderRadius: (showStrip ? 4 : capsuleRadius) + 'px',
                     }"
                 >
-                    <CapsuleIdle v-if="state === 'idle' || state === 'alert'" :radio-playing="radioPlaying" />
-                    <CapsuleFocus v-else-if="state === 'focus' || state === 'break'" :radio-playing="radioPlaying" />
-                    <svg class="progress-ring" :viewBox="`0 0 ${capsuleWidth} ${capsuleHeight}`" aria-hidden="true">
-                        <rect
-                            class="ring-track"
-                            :x="1.5 * settings.islandScale"
-                            :y="1.5 * settings.islandScale"
-                            :width="capsuleWidth - 3 * settings.islandScale"
-                            :height="capsuleHeight - 3 * settings.islandScale"
-                            :rx="capsuleRadius - 1.5 * settings.islandScale"
-                            pathLength="1"
-                        />
-                        <rect
-                            class="ring-progress"
-                            :x="1.5 * settings.islandScale"
-                            :y="1.5 * settings.islandScale"
-                            :width="capsuleWidth - 3 * settings.islandScale"
-                            :height="capsuleHeight - 3 * settings.islandScale"
-                            :rx="capsuleRadius - 1.5 * settings.islandScale"
-                            pathLength="1"
-                        />
-                    </svg>
+                    <DockStrip
+                        v-if="showStrip"
+                        :progress="stripProgress"
+                        :color="stripColor"
+                        :scale="settings.islandScale ?? 1"
+                    />
+                    <template v-else>
+                        <CapsuleIdle v-if="state === 'idle' || state === 'alert'" :radio-playing="radioPlaying" />
+                        <CapsuleFocus v-else-if="state === 'focus' || state === 'break'" :radio-playing="radioPlaying" />
+                        <svg class="progress-ring" :viewBox="`0 0 ${capsuleWidth} ${capsuleHeight}`" aria-hidden="true">
+                            <rect
+                                class="ring-track"
+                                :x="1.5 * settings.islandScale"
+                                :y="1.5 * settings.islandScale"
+                                :width="capsuleWidth - 3 * settings.islandScale"
+                                :height="capsuleHeight - 3 * settings.islandScale"
+                                :rx="capsuleRadius - 1.5 * settings.islandScale"
+                                pathLength="1"
+                            />
+                            <rect
+                                class="ring-progress"
+                                :x="1.5 * settings.islandScale"
+                                :y="1.5 * settings.islandScale"
+                                :width="capsuleWidth - 3 * settings.islandScale"
+                                :height="capsuleHeight - 3 * settings.islandScale"
+                                :rx="capsuleRadius - 1.5 * settings.islandScale"
+                                pathLength="1"
+                            />
+                        </svg>
+                    </template>
                 </div>
             </div>
             <NotificationBanner
@@ -304,6 +327,10 @@ onUnmounted(() => {
     background: rgba(0, 0, 0, var(--island-opacity, 0.95));
     transition: width 0.3s ease, height 0.3s ease;
     contain: layout style paint;
+}
+
+.capsule-shell.strip-mode {
+    background: transparent;
 }
 
 .capsule-shell::before,

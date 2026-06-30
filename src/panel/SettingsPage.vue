@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, nextTick, onMounted, onUnmounted, onActivated, onDeactivated } from 'vue'
-import { useSettings, presetThemes, type ColorMode } from '../composables/useSettings'
+import { useSettings, presetThemes, type ColorMode, type IslandDisplayMode } from '../composables/useSettings'
 import { useUpdater } from '../composables/useUpdater'
 import AboutDialog from './AboutDialog.vue'
 
@@ -33,6 +33,11 @@ const colorModeOptions: Array<{ id: ColorMode; label: string }> = [
   { id: 'dark', label: '深色' },
   { id: 'light', label: '浅色' },
   { id: 'system', label: '跟随系统' },
+]
+
+const displayModeOptions: Array<{ id: IslandDisplayMode; label: string; hint: string }> = [
+  { id: 'resident', label: '常驻', hint: '胶囊始终显示在屏幕顶部' },
+  { id: 'dock', label: '边缘停靠', hint: '贴边收起为专注条，鼠标悬停时展开' },
 ]
 
 const updateStatusText = computed(() => {
@@ -208,6 +213,21 @@ onUnmounted(() => {
           @click="switchColorMode(option.id)"
         >
           {{ option.label }}
+        </button>
+      </div>
+
+      <div class="section-subtitle">显示方式</div>
+      <div class="mode-toggle" role="group" aria-label="灵动岛显示方式">
+        <button
+          v-for="opt in displayModeOptions"
+          :key="opt.id"
+          type="button"
+          class="mode-btn"
+          :class="{ active: settings.islandDisplayMode === opt.id }"
+          @click="settings.islandDisplayMode = opt.id"
+          :title="opt.hint"
+        >
+          {{ opt.label }}
         </button>
       </div>
     </div>
@@ -446,6 +466,15 @@ onUnmounted(() => {
   color: rgba(255, 255, 255, 0.4);
   font-weight: 500;
   letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.section-subtitle {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  margin-top: 10px;
   margin-bottom: 6px;
 }
 
