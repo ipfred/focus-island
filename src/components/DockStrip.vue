@@ -12,7 +12,7 @@ const barHeight = computed(() => `${Math.max(2, 4 * props.scale)}px`)
 </script>
 
 <template>
-  <div class="dock-strip">
+  <div class="dock-strip" :style="{ '--strip-color': color }">
     <div class="track" :style="{ height: barHeight }">
       <div class="fill" :style="{ width: fillWidth, height: barHeight, background: color }" />
     </div>
@@ -31,7 +31,7 @@ const barHeight = computed(() => `${Math.max(2, 4 * props.scale)}px`)
 .track {
   width: 80%;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--strip-color) 38%, transparent);
   overflow: hidden;
   display: flex;
   align-items: stretch;
