@@ -52,7 +52,7 @@ export function useDockMode() {
         return
       }
       try {
-        const over = await invoke<boolean>('is_mouse_over_window', { pad: 10 })
+        const over = await invoke<boolean>('is_mouse_over_window', { pad: 2 })
         if (over) {
           if (collapseTimer !== null) {
             clearTimeout(collapseTimer)
