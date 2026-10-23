@@ -5,8 +5,25 @@ import { useRadio, CATEGORY_LABELS, type StationCategory, type RadioStation } fr
 const {
   stations, currentStation, playing, loading, error, volume,
   toggle, switchStation, setVolume,
-  importFromUrl, importFromFile, removeCustomStation,
+  importFromUrl, importFromFile, removeCustomStation, renameCustomStation,
 } = useRadio()
+
+const renamingId = ref('')
+const renamingValue = ref('')
+
+function startRename(station: RadioStation, event: Event) {
+  event.stopPropagation()
+  renamingId.value = station.id
+  renamingValue.value = station.name
+}
+
+function commitRename(station: RadioStation) {
+  if (renamingId.value === station.id) {
+    const name = renamingValue.value.trim()
+    if (name && name !== station.name) renameCustomStation(station.id, name)
+    renamingId.value = ''
+  }
+}
 
 const stationsByCategory = computed(() => {
   const grouped = new Map<StationCategory, RadioStation[]>()
@@ -230,7 +247,21 @@ async function scrollToPlaying() {
             </div>
             <div class="item-content">
               <div class="item-header">
-                <div class="item-name">{{ station.name }}</div>
+                <input
+                  v-if="station.category === 'custom' && renamingId === station.id"
+                  v-model="renamingValue"
+                  class="rename-input"
+                  @keydown.enter="commitRename(station)"
+                  @blur="commitRename(station)"
+                />
+                <div
+                  v-else
+                  class="item-name"
+                  :style="station.category === 'custom' ? 'cursor: text' : ''"
+                  @dblclick="station.category === 'custom' && startRename(station, $event)"
+                >
+                  {{ station.name }}
+                </div>
                 <div class="item-tags">
                   <span v-for="tag in station.tags.slice(0, 2)" :key="tag" class="tag">{{ tag }}</span>
                 </div>
@@ -238,7 +269,18 @@ async function scrollToPlaying() {
               <div class="item-desc">{{ station.description }}</div>
             </div>
             <button
-              v-if="station.category === 'custom'"
+              v-if="station.category === 'custom' && renamingId !== station.id"
+              class="item-rename"
+              title="重命名（双击名称也可）"
+              @click="startRename(station, $event)"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+              </svg>
+            </button>
+            <button
+              v-if="station.category === 'custom' && renamingId !== station.id"
               class="item-remove"
               title="删除"
               @click="removeStation(station.id, $event)"
@@ -346,6 +388,40 @@ async function scrollToPlaying() {
   grid-column: 1 / -1;
   font-size: 10px;
   color: rgba(255, 255, 255, 0.55);
+}
+
+.item-rename {
+  display: none;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  width: 22px;
+  height: 22px;
+  padding: 3px;
+  border-radius: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.station-item:hover .item-rename {
+  display: block;
+}
+
+.item-rename:hover {
+  color: #7cc4ff;
+  background: rgba(124, 196, 255, 0.12);
+}
+
+.rename-input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: inherit;
+  font-size: 12px;
+  padding: 2px 6px;
+  outline: none;
 }
 
 .item-remove {

@@ -302,6 +302,12 @@ async function addCustomStations(stations: RadioStation[]): Promise<number> {
   return fresh.length
 }
 
+function renameCustomStation(id: string, name: string) {
+  const name2 = name.trim()
+  if (!name2) return
+  customStations.value = customStations.value.map(s => (s.id === id ? { ...s, name: name2 } : s))
+}
+
 function removeCustomStation(id: string) {
   customStations.value = customStations.value.filter(s => s.id !== id)
   if (radioSettings.value.currentStationId === id) {
@@ -593,5 +599,6 @@ export function useRadio() {
     importFromUrl,
     importFromFile,
     removeCustomStation,
+    renameCustomStation,
   }
 }

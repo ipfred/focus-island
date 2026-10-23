@@ -524,6 +524,8 @@ fn resolve_audio_url(app: AppHandle, url: String) -> Result<AudioResolution, Str
                 "-f",
                 "bestaudio",
                 "--no-warnings",
+                "--encoding",
+                "utf-8",
                 "--socket-timeout",
                 "30",
                 "--retries",
@@ -576,6 +578,8 @@ fn import_media_entries(app: AppHandle, url: String) -> Result<Vec<MediaEntry>, 
             .args([
                 "--flat-playlist",
                 "--no-warnings",
+                "--encoding",
+                "utf-8",
                 "--socket-timeout",
                 "30",
                 "--retries",
@@ -1181,10 +1185,7 @@ pub fn run() {
                 let _ = panel.set_background_color(Some(Color(0, 0, 0, 0)));
                 let _ = panel.set_shadow(false);
                 #[cfg(target_os = "windows")]
-                {
-                    let _ = window_vibrancy::apply_acrylic(&panel, Some((16, 16, 20, 90)));
-                    apply_dwm_round_corners(&panel);
-                }
+                apply_dwm_round_corners(&panel);
                 let app_handle = app.handle().clone();
                 panel.on_window_event(move |event| {
                     if let WindowEvent::Resized(size) = event {
