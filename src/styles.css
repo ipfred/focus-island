@@ -15,8 +15,8 @@
   --alert-color: #e8a23a;
   --island-opacity: 0.75;
   --panel-root-filter: none;
-  /* 深色 = FocuSD 式暖黑整块材质 */
-  --panel-shell-bg: linear-gradient(180deg, #1b1b21, #101014);
+  /* 深色 = 低透明深磨砂叠系统磨砂（同浅色方向的深色版） */
+  --panel-shell-bg: linear-gradient(180deg, rgba(29, 29, 36, 0.72), rgba(18, 18, 23, 0.76));
   --panel-text: #f8f6f0;
   --panel-hairline: rgba(255, 255, 255, 0.07);
   --panel-card: rgba(255, 255, 255, 0.045);

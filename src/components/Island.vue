@@ -370,8 +370,11 @@ onUnmounted(() => {
 }
 
 .capsule-shell {
-    /* 深色 = 整块黑玻璃：单一连续渐变，无分层热点、无白色描边，颗粒即材质 */
-    background: linear-gradient(180deg, #17171c, #0d0d11);
+    /* 深色 = 深磨砂玻璃：低透明深色层叠在系统磨砂上（深色主题下是真磨砂） */
+    background: linear-gradient(180deg, rgba(23, 23, 28, 0.62), rgba(13, 13, 17, 0.66));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.25);
     transition:
         width 0.32s cubic-bezier(0.16, 1, 0.3, 1),
         height 0.32s cubic-bezier(0.16, 1, 0.3, 1),
@@ -385,15 +388,15 @@ onUnmounted(() => {
         width 0.15s cubic-bezier(0.3, 0, 0.2, 1),
         height 0.15s cubic-bezier(0.3, 0, 0.2, 1),
         border-radius 0.15s cubic-bezier(0.3, 0, 0.2, 1);
-    /* 刘海体 = 同一块黑玻璃 */
-    background: linear-gradient(180deg, #17171c, #101014);
+    /* 刘海体 = 同一块深磨砂玻璃 */
+    background: linear-gradient(180deg, rgba(23, 23, 28, 0.62), rgba(16, 16, 20, 0.66));
 }
 
 /* ===== 浅色模式 = 系统磨砂上的低透明白玻璃 ===== */
 :root[data-color-mode="light"] .capsule-shell {
     background:
-        linear-gradient(145deg, rgba(255, 255, 255, 0.42), transparent 45%),
-        rgba(250, 252, 255, 0.30);
+        linear-gradient(145deg, rgba(255, 255, 255, 0.5), transparent 45%),
+        rgba(250, 252, 255, 0.42);
     box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.65),
         inset 0 -1px 0 rgba(120, 140, 170, 0.14),

@@ -1169,10 +1169,8 @@ pub fn run() {
                     let _ = window.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
                 }
                 let _ = window.set_background_color(Some(Color(0, 0, 0, 0)));
-                // 舞台常开系统 Acrylic：跟随系统主题（浅色主题 = 浅磨砂），
-                // 浅色模式胶囊/面板用它做真磨砂底；深色模式由 CSS 黑玻璃覆盖
-                #[cfg(target_os = "windows")]
-                let _ = window_vibrancy::apply_acrylic(&window, Some((16, 16, 20, 60)));
+                // 注意：舞台窗口不能开系统 Acrylic——刘海只覆盖舞台一小部分，
+                // 磨砂会把整个窗口矩形染成一块可见的毛玻璃板（浅色主题尤其明显）
             }
 
             if let Some(panel) = app.get_webview_window("panel") {
