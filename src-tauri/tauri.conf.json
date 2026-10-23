@@ -15,8 +15,8 @@
       {
         "label": "main",
         "title": "FocusIsland",
-        "width": 520,
-        "height": 220,
+        "width": 500,
+        "height": 160,
         "minWidth": 4,
         "minHeight": 2,
         "resizable": false,

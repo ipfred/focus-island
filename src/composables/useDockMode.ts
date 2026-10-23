@@ -52,7 +52,13 @@ export function useDockMode() {
         return
       }
       try {
-        const over = await invoke<boolean>('is_mouse_over_island', { pad: 2 })
+        const input = await invoke<{ over: boolean; clicked: boolean }>('poll_island_input', { pad: 2 })
+        // 点击展开的胶囊 → 打开/关闭面板（舞台本身永远穿透，不挡下层点击）
+        if (input.clicked && !panelVisible.value) {
+          void invoke('toggle_panel')
+          return
+        }
+        const over = input.over
         if (over) {
           if (collapseTimer !== null) {
             clearTimeout(collapseTimer)
@@ -108,10 +114,10 @@ export function useDockMode() {
     }).catch(() => {})
   }
 
-  // 悬停展开/通知时窗口可点击（打开面板），收起时恢复点击穿透
+  // 舞台永远点击穿透（点击由输入轮询判定）；仅通知横幅需要接收点击
   watchEffect(() => {
     if (!dockMode.value) return
-    void invoke('set_click_through', { ignore: dockExpanded.value || forceExpanded.value })
+    void invoke('set_click_through', { ignore: notificationVisible.value })
   })
 
   return {

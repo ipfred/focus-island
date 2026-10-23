@@ -44,7 +44,7 @@ export const PRESET_STATIONS: RadioStation[] = [
   {
     id: 'coderadio',
     name: 'Code Radio',
-    streamUrl: 'https://coderadio-admin-v2.freecodecamp.org/listen/coderadio/radio.mp3',
+    streamUrl: 'https://coderadio.stream.laut.fm/coderadio',
     description: 'freeCodeCamp 24h 编程音乐电台',
     icon: 'code',
     keyword: '编程',
@@ -54,7 +54,7 @@ export const PRESET_STATIONS: RadioStation[] = [
   {
     id: 'defcon',
     name: 'DEF CON Radio',
-    streamUrl: 'https://ice1.somafm.com/defcon-128-mp3',
+    streamUrl: 'https://ice2.somafm.com/defcon-128-mp3',
     description: '黑客大会电台，节奏感强，适合敲代码提速',
     icon: 'hacker',
     keyword: '黑客',
@@ -64,7 +64,7 @@ export const PRESET_STATIONS: RadioStation[] = [
   {
     id: 'groovesalad',
     name: 'Groove Salad',
-    streamUrl: 'https://ice1.somafm.com/groovesalad-128-mp3',
+    streamUrl: 'https://ice2.somafm.com/groovesalad-128-mp3',
     description: '缓拍电子氛围，轻微节奏，适合日常办公',
     icon: 'wave',
     keyword: '缓拍',
@@ -75,7 +75,7 @@ export const PRESET_STATIONS: RadioStation[] = [
   {
     id: 'dronezone',
     name: 'Drone Zone',
-    streamUrl: 'https://ice1.somafm.com/dronezone-128-mp3',
+    streamUrl: 'https://ice2.somafm.com/dronezone-128-mp3',
     description: '深邃氛围音景，极简无节拍，深度专注',
     icon: 'drone',
     keyword: '极简',
@@ -85,7 +85,7 @@ export const PRESET_STATIONS: RadioStation[] = [
   {
     id: 'deepspaceone',
     name: 'Deep Space One',
-    streamUrl: 'https://ice1.somafm.com/deepspaceone-128-mp3',
+    streamUrl: 'https://ice2.somafm.com/deepspaceone-128-mp3',
     description: '深邃太空电子，沉浸式专注体验',
     icon: 'planet',
     keyword: '太空',
@@ -95,7 +95,7 @@ export const PRESET_STATIONS: RadioStation[] = [
   {
     id: 'spacestation',
     name: 'Space Station',
-    streamUrl: 'https://ice1.somafm.com/spacestation-128-mp3',
+    streamUrl: 'https://ice2.somafm.com/spacestation-128-mp3',
     description: '中速太空音乐，轻松聚焦',
     icon: 'star',
     keyword: '星际',
@@ -157,7 +157,7 @@ export const PRESET_STATIONS: RadioStation[] = [
   {
     id: 'secretagent',
     name: 'Secret Agent',
-    streamUrl: 'https://ice1.somafm.com/secretagent-128-mp3',
+    streamUrl: 'https://ice2.somafm.com/secretagent-128-mp3',
     description: '60 年代复古电影配乐，神秘爵士感',
     icon: 'spy',
     keyword: '特工',

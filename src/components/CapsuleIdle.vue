@@ -129,8 +129,8 @@ onUnmounted(() => {
             <div
                 v-if="currentItem"
                 :key="currentItem.key"
-                class="absolute inset-0 flex items-center pl-4 pr-12 gap-2"
-                :class="currentItem.type === 'motto' ? 'justify-center' : ''"
+                class="absolute inset-0 flex items-center gap-2"
+                :class="currentItem.type === 'motto' ? 'justify-center px-4' : 'pl-4 pr-12'"
             >
                 <!-- Task item -->
                 <template v-if="currentItem.type === 'task'">
@@ -190,7 +190,7 @@ onUnmounted(() => {
 }
 .wave-bars {
     position: absolute;
-    right: calc(12px * var(--island-scale, 1));
+    right: calc(44px * var(--island-scale, 1));
     top: 50%;
     transform: translateY(-50%);
     display: flex;

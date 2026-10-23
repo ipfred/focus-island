@@ -705,8 +705,7 @@ fn set_island_layout<R: Runtime>(window: WebviewWindow<R>, x: f64, y: f64, w: f6
     }
 }
 
-#[tauri::command]
-fn is_mouse_over_island<R: Runtime>(window: WebviewWindow<R>, pad: f64) -> bool {
+fn is_mouse_over_island_inner<R: Runtime>(window: &WebviewWindow<R>, pad: f64) -> bool {
     let Some(layout) = island_layout() else { return false };
     let Ok(scale) = window.scale_factor() else { return false };
     let (mx, my) = mouse_position_raw();
@@ -715,6 +714,27 @@ fn is_mouse_over_island<R: Runtime>(window: WebviewWindow<R>, pad: f64) -> bool 
         && mx <= (layout.x + layout.w) as f64 + pad_px
         && my >= (layout.y as f64) - pad_px
         && my <= (layout.y + layout.h) as f64 + pad_px
+}
+
+#[derive(serde::Serialize)]
+struct IslandInputState {
+    over: bool,
+    clicked: bool,
+}
+
+/// 舞台永远点击穿透，输入由该轮询判定：
+/// clicked 用 GetAsyncKeyState 的"自上次查询以来按下"位，轮询间隔内也不会丢点击。
+#[tauri::command]
+fn poll_island_input<R: Runtime>(window: WebviewWindow<R>, pad: f64) -> IslandInputState {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
+    let over = is_mouse_over_island_inner(&window, pad);
+    let clicked = over && unsafe { GetAsyncKeyState(VK_LBUTTON.0 as i32) & 0x0001 != 0 };
+    IslandInputState { over, clicked }
+}
+
+#[tauri::command]
+fn is_mouse_over_island<R: Runtime>(window: WebviewWindow<R>, pad: f64) -> bool {
+    is_mouse_over_island_inner(&window, pad)
 }
 
 #[tauri::command]
@@ -1066,6 +1086,7 @@ pub fn run() {
             set_click_through,
             set_island_layout,
             is_mouse_over_island,
+            poll_island_input,
             get_window_position,
             emit_island_panel_motion,
             position_panel_under_island,

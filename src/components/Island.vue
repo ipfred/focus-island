@@ -368,9 +368,9 @@ onUnmounted(() => {
 .capsule-shell.strip-mode {
     /* 收回刘海：快速动画（比展开更短） */
     transition:
-        width 0.22s cubic-bezier(0.3, 0, 0.2, 1),
-        height 0.22s cubic-bezier(0.3, 0, 0.2, 1),
-        border-radius 0.22s cubic-bezier(0.3, 0, 0.2, 1);
+        width 0.15s cubic-bezier(0.3, 0, 0.2, 1),
+        height 0.15s cubic-bezier(0.3, 0, 0.2, 1),
+        border-radius 0.15s cubic-bezier(0.3, 0, 0.2, 1);
     /* 刘海体 = 同一块黑玻璃 */
     background: linear-gradient(180deg, #17171c, #101014);
 }
