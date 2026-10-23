@@ -410,27 +410,6 @@ fn get_mouse_position() -> (f64, f64) {
 }
 
 #[tauri::command]
-fn is_mouse_over_window<R: Runtime>(window: WebviewWindow<R>, pad: f64) -> bool {
-    let (mx, my) = mouse_position_raw();
-    let Ok(pos) = window.outer_position() else { return false };
-    let Ok(size) = window.outer_size() else { return false };
-    let scale = window.scale_factor().unwrap_or(1.0);
-
-    // macOS: CGEvent location is in points with top-left origin; convert to physical px.
-    #[cfg(target_os = "macos")]
-    let (mx_px, my_px) = (mx * scale, my * scale);
-    // Windows/Linux: GetCursorPos / XQueryPointer already return physical px.
-    #[cfg(not(target_os = "macos"))]
-    let (mx_px, my_px) = (mx, my);
-
-    let x0 = pos.x as f64 - pad;
-    let y0 = pos.y as f64 - pad;
-    let x1 = pos.x as f64 + size.width as f64 + pad;
-    let y1 = pos.y as f64 + size.height as f64 + pad;
-    mx_px >= x0 && mx_px <= x1 && my_px >= y0 && my_px <= y1
-}
-
-#[tauri::command]
 fn set_click_through<R: Runtime>(window: WebviewWindow<R>, ignore: bool) {
     let _ = window.set_ignore_cursor_events(ignore);
 }
@@ -693,55 +672,49 @@ fn apply_dwm_round_corners<R: Runtime>(window: &WebviewWindow<R>) {
     }
 }
 
+// ==== 舞台窗口：灵动岛在固定大小的透明舞台内做纯 CSS 形变 ====
+
+#[derive(Clone, Copy, serde::Serialize)]
+struct IslandLayout {
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+}
+
+static ISLAND_LAYOUT: std::sync::Mutex<Option<IslandLayout>> = std::sync::Mutex::new(None);
+
+fn island_layout() -> Option<IslandLayout> {
+    ISLAND_LAYOUT.lock().ok().and_then(|slot| *slot)
+}
+
+/// 舞台内的灵动岛把自身屏幕矩形（视口逻辑坐标）上报给 Rust，
+/// 面板定位、悬停检测、点击判定全部依赖这个矩形。
 #[tauri::command]
-fn set_island_height<R: Runtime>(app: AppHandle<R>, height: f64) {
-    if let Some(main) = app.get_webview_window("main") {
-        let _ = main.set_size(tauri::LogicalSize::new(360.0, height));
-        if let Ok(Some(monitor)) = main.current_monitor() {
-            let scale_factor = monitor.scale_factor();
-            let screen_width = monitor.size().width as f64;
-            let win_width = 360.0_f64 * scale_factor;
-            let position = monitor.position();
-            let x = position.x as f64 + (screen_width - win_width) / 2.0;
-            let y = position.y as f64;
-            let _ = main.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
-        }
+fn set_island_layout<R: Runtime>(window: WebviewWindow<R>, x: f64, y: f64, w: f64, h: f64) {
+    let Ok(pos) = window.outer_position() else { return };
+    let Ok(scale) = window.scale_factor() else { return };
+    let layout = IslandLayout {
+        x: pos.x + (x * scale).round() as i32,
+        y: pos.y + (y * scale).round() as i32,
+        w: (w * scale).round() as i32,
+        h: (h * scale).round() as i32,
+    };
+    if let Ok(mut slot) = ISLAND_LAYOUT.lock() {
+        *slot = Some(layout);
     }
 }
 
 #[tauri::command]
-fn set_island_size<R: Runtime>(app: AppHandle<R>, scale: f64) {
-    if let Some(main) = app.get_webview_window("main") {
-        // 窗口与胶囊同尺寸，让圆角裁剪区域正好贴合药丸形胶囊
-        let base_width = 360.0;
-        let base_height = 42.0;
-        let new_width = base_width * scale;
-        let new_height = base_height * scale;
-        let _ = main.set_size(tauri::LogicalSize::new(new_width, new_height));
-        if let Ok(Some(monitor)) = main.current_monitor() {
-            let scale_factor = monitor.scale_factor();
-            let screen_width = monitor.size().width as f64;
-            let position = monitor.position();
-            let x = position.x as f64 + (screen_width - new_width * scale_factor) / 2.0;
-            let y = position.y as f64;
-            let _ = main.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
-        }
-    }
-}
-
-#[tauri::command]
-fn set_island_custom_size<R: Runtime>(app: AppHandle<R>, width: f64, height: f64) {
-    if let Some(main) = app.get_webview_window("main") {
-        let _ = main.set_size(tauri::LogicalSize::new(width, height));
-        if let Ok(Some(monitor)) = main.current_monitor() {
-            let scale_factor = monitor.scale_factor();
-            let screen_width = monitor.size().width as f64;
-            let position = monitor.position();
-            let x = position.x as f64 + (screen_width - width * scale_factor) / 2.0;
-            let y = position.y as f64;
-            let _ = main.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
-        }
-    }
+fn is_mouse_over_island<R: Runtime>(window: WebviewWindow<R>, pad: f64) -> bool {
+    let Some(layout) = island_layout() else { return false };
+    let Ok(scale) = window.scale_factor() else { return false };
+    let (mx, my) = mouse_position_raw();
+    let pad_px = (pad * scale).round() as f64;
+    mx >= (layout.x as f64) - pad_px
+        && mx <= (layout.x + layout.w) as f64 + pad_px
+        && my >= (layout.y as f64) - pad_px
+        && my <= (layout.y + layout.h) as f64 + pad_px
 }
 
 #[tauri::command]
@@ -777,36 +750,6 @@ fn get_last_panel_size(fallback: tauri::PhysicalSize<u32>) -> tauri::PhysicalSiz
         .unwrap_or(fallback)
 }
 
-fn get_main_rect<R: Runtime>(
-    app: &AppHandle<R>,
-) -> Option<(tauri::PhysicalPosition<i32>, tauri::PhysicalSize<u32>)> {
-    let main = app.get_webview_window("main")?;
-    let pos = main.outer_position().ok()?;
-    let size = main.outer_size().ok()?;
-    // In dock/strip mode the actual window height is only the strip height.
-    // Panel positioning and animation should use the effective full-capsule
-    // height. The window width is always 360 * island_scale * scale_factor,
-    // so the full capsule height = width / 360 * 42. Keep the actual height
-    // when it is already larger (e.g. notification banner).
-    let full_capsule_h = if size.width > 0 {
-        size.width * 42 / 360
-    } else {
-        size.height
-    };
-    let effective_h = size.height.max(full_capsule_h);
-    Some((pos, tauri::PhysicalSize::new(size.width, effective_h)))
-}
-
-fn panel_target_position(
-    main_pos: tauri::PhysicalPosition<i32>,
-    main_size: tauri::PhysicalSize<u32>,
-    panel_size: tauri::PhysicalSize<u32>,
-) -> tauri::PhysicalPosition<i32> {
-    let new_x = main_pos.x + ((main_size.width as i32 - panel_size.width as i32) / 2);
-    let new_y = main_pos.y + main_size.height as i32 + PANEL_GAP_Y;
-    tauri::PhysicalPosition::new(new_x, new_y)
-}
-
 fn panel_config_values<R: Runtime>(app: &AppHandle<R>) -> (f64, f64, f64, f64) {
     if let Some(cfg) = app
         .config()
@@ -824,6 +767,30 @@ fn panel_config_values<R: Runtime>(app: &AppHandle<R>) -> (f64, f64, f64, f64) {
     (420.0, 600.0, 400.0, 480.0)
 }
 
+fn panel_target_position(
+    island_pos: tauri::PhysicalPosition<i32>,
+    island_size: tauri::PhysicalSize<u32>,
+    panel_size: tauri::PhysicalSize<u32>,
+) -> tauri::PhysicalPosition<i32> {
+    let new_x = island_pos.x + ((island_size.width as i32 - panel_size.width as i32) / 2);
+    let new_y = island_pos.y + island_size.height as i32 + PANEL_GAP_Y;
+    tauri::PhysicalPosition::new(new_x, new_y)
+}
+
+/// 灵动岛屏幕矩形：优先用舞台上报告的布局，回退到主窗口矩形。
+fn island_rect<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Option<(tauri::PhysicalPosition<i32>, tauri::PhysicalSize<u32>)> {
+    if let Some(l) = island_layout() {
+        return Some((
+            tauri::PhysicalPosition::new(l.x, l.y),
+            tauri::PhysicalSize::new(l.w as u32, l.h as u32),
+        ));
+    }
+    let main = app.get_webview_window("main")?;
+    Some((main.outer_position().ok()?, main.outer_size().ok()?))
+}
+
 fn position_panel_under_island_inner<R: Runtime>(app: &AppHandle<R>) {
     let Some(panel) = app.get_webview_window("panel") else {
         return;
@@ -831,7 +798,7 @@ fn position_panel_under_island_inner<R: Runtime>(app: &AppHandle<R>) {
     let Ok(panel_size) = panel.outer_size() else {
         return;
     };
-    let Some((main_pos, main_size)) = get_main_rect(app) else {
+    let Some((main_pos, main_size)) = island_rect(app) else {
         return;
     };
     let target_pos = panel_target_position(main_pos, main_size, panel_size);
@@ -882,7 +849,7 @@ fn get_panel_transition_metrics<R: Runtime>(app: AppHandle<R>) -> Option<PanelTr
     let Some(panel) = app.get_webview_window("panel") else {
         return None;
     };
-    let Some((main_pos, main_size)) = get_main_rect(&app) else {
+    let Some((main_pos, main_size)) = island_rect(&app) else {
         return None;
     };
 
@@ -951,7 +918,7 @@ fn animate_panel_open<R: Runtime>(app: AppHandle<R>) {
     if panel.is_visible().unwrap_or(false) {
         return;
     }
-    let Some((main_pos, main_size)) = get_main_rect(&app) else {
+    let Some((main_pos, main_size)) = island_rect(&app) else {
         return;
     };
 
@@ -1096,12 +1063,9 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            get_mouse_position,
-            is_mouse_over_window,
             set_click_through,
-            set_island_height,
-            set_island_size,
-            set_island_custom_size,
+            set_island_layout,
+            is_mouse_over_island,
             get_window_position,
             emit_island_panel_motion,
             position_panel_under_island,
@@ -1151,9 +1115,8 @@ pub fn run() {
 
             if let Some(window) = app.get_webview_window("main") {
                 if let Ok(Some(monitor)) = window.current_monitor() {
-                    let scale_factor = monitor.scale_factor();
                     let screen_width = monitor.size().width as f64;
-                    let win_width = 360.0_f64 * scale_factor;
+                    let win_width = window.outer_size().map(|s| s.width).unwrap_or(520) as f64;
                     let position = monitor.position();
                     let x = position.x as f64 + (screen_width - win_width) / 2.0;
                     let y = position.y as f64;

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { emit, listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useIslandState } from "../composables/useIslandState";
@@ -27,23 +27,19 @@ let unlistenNotification: (() => void) | null = null;
 const radioPlaying = ref(false);
 const notificationType = ref<NotificationType>(null);
 
-// Compute and apply the main window size based on notification / dock / capsule state.
-function applyWindowSize() {
-    const scale = settings.value.islandScale ?? 1;
-    if (notificationType.value !== null) {
-        // Expand window to fit capsule + gap + notification banner
-        const width = 360 * scale;
-        const height = (BASE_HEIGHT + 6 + 60) * scale;
-        invoke("set_island_custom_size", { width, height });
-    } else if (showStrip.value) {
-        // 刘海态：窄条贴顶，尽量无感
-        invoke("set_island_custom_size", {
-            width: 200 * scale,
-            height: DOCK_STRIP_WINDOW_H * scale,
-        });
-    } else {
-        // Normal capsule size
-        invoke("set_island_size", { scale });
+const shellRef = ref<HTMLElement | null>(null);
+let layoutObserver: ResizeObserver | null = null;
+
+// 舞台固定大小，形变全部在 DOM 内完成；
+// 岛的屏幕矩形上报给 Rust，供面板定位 / 悬停 / 点击判定使用。
+async function reportLayout() {
+    const el = shellRef.value;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    try {
+        await invoke("set_island_layout", { x: r.left, y: r.top, w: r.width, h: r.height });
+    } catch {
+        // window closing
     }
 }
 
@@ -55,7 +51,6 @@ watch(notificationType, (val) => {
     if (settings.value.islandDisplayMode !== "dock") {
         invoke("set_click_through", { ignore: !visible });
     }
-    applyWindowSize();
 });
 
 // 悬停展开后的胶囊：点击打开专注清单
@@ -64,8 +59,10 @@ function onCapsuleClick() {
     void invoke("toggle_panel");
 }
 
-// Resize when dock strip state or island scale changes
-watch([showStrip, () => settings.value.islandScale], applyWindowSize);
+// 形变 / 缩放 / 通知后上报新矩形
+watch([showStrip, notificationType, () => settings.value.islandScale], () => {
+    nextTick(reportLayout);
+});
 
 function playNotificationSound() {
     if (!settings.value.notificationSound) return;
@@ -167,9 +164,13 @@ function startLocalCountdown(endAt: number) {
 
 onMounted(async () => {
     invoke("set_click_through", { ignore: true });
-    
-    // 初始化时应用窗口尺寸（胶囊 / 停靠细条 / 通知）
-    applyWindowSize();
+
+    await nextTick();
+    reportLayout();
+    if (typeof ResizeObserver !== "undefined" && shellRef.value) {
+        layoutObserver = new ResizeObserver(() => reportLayout());
+        layoutObserver.observe(shellRef.value);
+    }
 
     unlisten = await listen<TimerStatePayload>(
         "timer-state-update",
@@ -209,7 +210,7 @@ onMounted(async () => {
 
     unlistenSettings = await listen<Settings>("settings-changed", ({ payload }) => {
         applyExternalSettings(payload);
-        applyWindowSize();
+        nextTick(reportLayout);
     });
 
     unlistenPanelMotion = await listen<string>("island-panel-motion", ({ payload }) => {
@@ -229,6 +230,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+    layoutObserver?.disconnect();
     unlisten?.();
     unlistenSettings?.();
     unlistenPanelMotion?.();
@@ -253,6 +255,7 @@ onUnmounted(() => {
                 }"
             >
                 <div
+                    ref="shellRef"
                     class="capsule-shell relative flex items-center justify-center"
                     @click="onCapsuleClick"
                     :class="{
@@ -273,13 +276,14 @@ onUnmounted(() => {
                     }"
                 >
                     <div class="capsule-glass-fx" aria-hidden="true" />
-                    <DockStrip
-                        v-if="showStrip"
-                        :progress="stripProgress"
-                        :color="stripColor"
-                        :scale="settings.islandScale ?? 1"
-                    />
-                    <template v-else>
+                    <Transition name="xfade">
+                        <DockStrip
+                            v-if="showStrip"
+                            :progress="stripProgress"
+                            :color="stripColor"
+                            :scale="settings.islandScale ?? 1"
+                        />
+                    <div v-else class="absolute inset-0">
                         <CapsuleIdle v-if="state === 'idle' || state === 'alert'" :radio-playing="radioPlaying" />
                         <CapsuleFocus v-else-if="state === 'focus' || state === 'break'" :radio-playing="radioPlaying" />
                         <svg class="progress-ring" :viewBox="`0 0 ${capsuleWidth} ${capsuleHeight}`" aria-hidden="true">
@@ -302,7 +306,8 @@ onUnmounted(() => {
                                 pathLength="1"
                             />
                         </svg>
-                    </template>
+                    </div>
+                    </Transition>
                 </div>
             </div>
             <NotificationBanner
@@ -317,6 +322,20 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.xfade-enter-active,
+.xfade-leave-active {
+    transition: opacity 0.16s ease;
+}
+
+.xfade-enter-from,
+.xfade-leave-to {
+    opacity: 0;
+}
+
+.capsule-shell :deep(.dock-strip) {
+    position: absolute;
+    inset: 0;
+}
 .island-container {
     /* items-start justify-center to stick to top edge */
 }
@@ -340,18 +359,18 @@ onUnmounted(() => {
     /* 深色 = 整块黑玻璃：单一连续渐变，无分层热点、无白色描边，颗粒即材质 */
     background: linear-gradient(180deg, #17171c, #0d0d11);
     transition:
-        width 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-        height 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-        border-radius 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        width 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+        height 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+        border-radius 0.32s cubic-bezier(0.16, 1, 0.3, 1);
     contain: layout style paint;
 }
 
 .capsule-shell.strip-mode {
     /* 收回刘海：快速动画（比展开更短） */
     transition:
-        width 0.13s cubic-bezier(0.3, 0, 0.2, 1),
-        height 0.13s cubic-bezier(0.3, 0, 0.2, 1),
-        border-radius 0.13s cubic-bezier(0.3, 0, 0.2, 1);
+        width 0.22s cubic-bezier(0.3, 0, 0.2, 1),
+        height 0.22s cubic-bezier(0.3, 0, 0.2, 1),
+        border-radius 0.22s cubic-bezier(0.3, 0, 0.2, 1);
     /* 刘海体 = 同一块黑玻璃 */
     background: linear-gradient(180deg, #17171c, #101014);
 }
