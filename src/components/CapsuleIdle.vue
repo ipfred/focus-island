@@ -77,13 +77,20 @@ const carouselItems = computed<CarouselItem[]>(() => {
 const carouselIndex = ref(0);
 let carouselTimer: ReturnType<typeof setInterval> | null = null;
 
-// 空闲态右上角实时时钟
+// 空闲态右上角实时时钟：对齐到整分钟刷新，避免最多 15s 的显示滞后
 const clock = ref("");
-let clockTimer: ReturnType<typeof setInterval> | null = null;
+let clockTimer: ReturnType<typeof setTimeout> | null = null;
 
 function updateClock() {
     const d = new Date();
     clock.value = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function scheduleClock() {
+    updateClock();
+    const d = new Date();
+    const delay = (60 - d.getSeconds()) * 1000 - d.getMilliseconds() + 30;
+    clockTimer = setTimeout(scheduleClock, delay);
 }
 
 // Reset index when items change length
@@ -107,13 +114,12 @@ onMounted(() => {
             carouselIndex.value = (carouselIndex.value + 1) % len;
         }
     }, 5000);
-    updateClock();
-    clockTimer = setInterval(updateClock, 15000);
+    scheduleClock();
 });
 
 onUnmounted(() => {
     if (carouselTimer) clearInterval(carouselTimer);
-    if (clockTimer) clearInterval(clockTimer);
+    if (clockTimer) clearTimeout(clockTimer);
 });
 </script>
 

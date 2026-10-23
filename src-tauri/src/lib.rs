@@ -418,11 +418,6 @@ fn apply_global_shortcut(app: &AppHandle, key: &str) {
 }
 
 #[tauri::command]
-fn get_mouse_position() -> (f64, f64) {
-    mouse_position_raw()
-}
-
-#[tauri::command]
 fn set_click_through<R: Runtime>(window: WebviewWindow<R>, ignore: bool) {
     let _ = window.set_ignore_cursor_events(ignore);
 }
@@ -765,19 +760,22 @@ struct IslandInputState {
     clicked: bool,
 }
 
-/// 舞台永远点击穿透，输入由该轮询判定：
-/// clicked 用 GetAsyncKeyState 的"自上次查询以来按下"位，轮询间隔内也不会丢点击。
+/// 舞台永远点击穿透，输入由该轮询判定。
+/// Windows 用 GetAsyncKeyState 的"自上次查询以来按下"位，轮询间隔内也不会丢点击；
+/// 其他平台没有等价的跨进程按键位，只做悬停判定（点击交给系统原生命中）。
 #[tauri::command]
 fn poll_island_input<R: Runtime>(window: WebviewWindow<R>, pad: f64) -> IslandInputState {
-    use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
     let over = is_mouse_over_island_inner(&window, pad);
-    let clicked = over && unsafe { GetAsyncKeyState(VK_LBUTTON.0 as i32) & 0x0001 != 0 };
-    IslandInputState { over, clicked }
-}
-
-#[tauri::command]
-fn is_mouse_over_island<R: Runtime>(window: WebviewWindow<R>, pad: f64) -> bool {
-    is_mouse_over_island_inner(&window, pad)
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
+        let clicked = over && unsafe { GetAsyncKeyState(VK_LBUTTON.0 as i32) & 0x0001 != 0 };
+        IslandInputState { over, clicked }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        IslandInputState { over, clicked: false }
+    }
 }
 
 #[tauri::command]
@@ -1210,7 +1208,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             set_click_through,
             set_island_layout,
-            is_mouse_over_island,
             cursor_active,
             poll_island_input,
             get_window_position,

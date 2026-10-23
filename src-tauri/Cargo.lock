@@ -1140,7 +1140,6 @@ dependencies = [
  "tauri-plugin-shell",
  "tauri-plugin-single-instance",
  "tauri-plugin-updater",
- "window-vibrancy",
  "windows",
  "x11",
 ]
