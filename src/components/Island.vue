@@ -389,22 +389,22 @@ onUnmounted(() => {
     background: linear-gradient(180deg, #17171c, #101014);
 }
 
-/* ===== 浅色模式 = 白磨砂（C5）：跟随面板配色 ===== */
+/* ===== 浅色模式 = 系统磨砂上的低透明白玻璃 ===== */
 :root[data-color-mode="light"] .capsule-shell {
     background:
-        radial-gradient(120% 200% at 50% -60%, rgba(255, 255, 255, 0.5), transparent 55%),
-        rgba(247, 249, 252, calc(0.80 + var(--island-opacity, 0.75) * 0.12));
+        linear-gradient(145deg, rgba(255, 255, 255, 0.42), transparent 45%),
+        rgba(250, 252, 255, 0.30);
     box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.9),
-        inset 0 -1px 0 rgba(30, 50, 90, 0.06),
-        inset 0 0 0 0.5px rgba(30, 50, 90, 0.08);
+        inset 0 1px 0 rgba(255, 255, 255, 0.65),
+        inset 0 -1px 0 rgba(120, 140, 170, 0.14),
+        inset 0 0 0 0.5px rgba(120, 140, 170, 0.10);
 }
 
 :root[data-color-mode="light"] .capsule-shell.strip-mode {
-    background: rgba(248, 250, 252, calc(0.80 + var(--island-opacity, 0.75) * 0.12));
+    background: rgba(250, 252, 255, 0.36);
     box-shadow:
-        inset 0 -1px 0 rgba(30, 50, 90, 0.10),
-        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+        inset 0 -1px 0 rgba(120, 140, 170, 0.16),
+        inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 /* 浅色模式下电波条改深色 */

@@ -58,7 +58,8 @@
 
 :root[data-color-mode="light"] {
   --panel-root-filter: invert(1) hue-rotate(180deg) brightness(1.12) contrast(0.93);
-  --panel-shell-bg: linear-gradient(180deg, rgba(250, 252, 255, 0.98), rgba(242, 246, 251, 0.98)), #f5f8fc;
+  /* 浅色 = 系统磨砂上的低透明白玻璃 */
+  --panel-shell-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(243, 247, 252, 0.26));
   --panel-shell-border: rgba(22, 34, 52, 0.14);
   --panel-shell-shadow-1: 0 18px 46px rgba(44, 59, 84, 0.12);
   --panel-shell-shadow-2: 0 6px 18px rgba(44, 59, 84, 0.08);
