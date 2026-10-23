@@ -371,7 +371,7 @@ onUnmounted(() => {
 
 .capsule-shell {
     /* 深色 = 深磨砂玻璃：低透明深色层叠在系统磨砂上（深色主题下是真磨砂） */
-    background: linear-gradient(180deg, rgba(23, 23, 28, 0.62), rgba(13, 13, 17, 0.66));
+    background: linear-gradient(180deg, rgba(23, 23, 28, 0.80), rgba(13, 13, 17, 0.84));
     box-shadow:
         inset 0 1px 0 rgba(255, 255, 255, 0.06),
         inset 0 -1px 0 rgba(0, 0, 0, 0.25);

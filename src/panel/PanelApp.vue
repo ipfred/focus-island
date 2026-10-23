@@ -78,6 +78,9 @@ const PANEL_CLOSE_DURATION = 130
 const CLOSE_FALLBACK_BUFFER = 140
 const IS_MACOS = navigator.userAgent.toLowerCase().includes('mac')
 
+// 定制构建：应用内更新指向官方版会覆盖定制内容，已禁用
+const SHOW_UPDATER = false
+
 const currentView = ref<'tasks' | 'todo' | 'taskDetail' | 'settings' | 'memos' | 'stats' | 'radio' | 'notifications'>('tasks')
 const taskIdForDetail = ref<string>('')
 const todoInitialTab = ref<string | undefined>(undefined)
@@ -156,6 +159,7 @@ const showUpdateBanner = computed(() => {
   return updateAvailable.value && !updateNoticeDismissed.value
 })
 const isClosing = ref(false)
+const panelFocused = ref(true)
 const panelRootRef = ref<HTMLElement | null>(null)
 const panelAnimState = ref<'hidden' | 'steady' | 'opening-ready' | 'opening' | 'closing'>('hidden')
 
@@ -337,6 +341,7 @@ onMounted(async () => {
   })
 
   unlistenFocus = await win.onFocusChanged(({ payload: focused }) => {
+    panelFocused.value = focused
     if (focused && panelAnimState.value === 'steady') {
       isClosing.value = false
     }
@@ -346,7 +351,7 @@ onMounted(async () => {
 watch(
   [settingsReady, () => settings.value.autoCheckUpdates],
   ([ready, autoCheck]) => {
-    if (ready && autoCheck) {
+    if (ready && autoCheck && SHOW_UPDATER) {
       void autoCheckForUpdate()
     }
   },
@@ -378,7 +383,8 @@ async function closeWindow() {
       'motion-hidden': panelAnimState === 'hidden',
       'motion-opening-ready': panelAnimState === 'opening-ready',
       'motion-opening': panelAnimState === 'opening',
-      'motion-closing': panelAnimState === 'closing'
+      'motion-closing': panelAnimState === 'closing',
+      'is-focused': panelFocused
     }"
     @animationend="onPanelAnimationEnd"
   >
@@ -507,8 +513,8 @@ async function closeWindow() {
   flex-direction: column;
   height: 100vh;
   width: 100vw;
-  /* 自动透明：未悬停时更透，悬停恢复完整材质 */
-  opacity: 0.88;
+  /* 自动透明：悬停或聚焦=完整材质；失焦且未悬停=透出桌面 */
+  opacity: 0.78;
   transition: opacity 0.4s var(--panel-ease, cubic-bezier(0.16, 1, 0.3, 1));
   background:
     var(--panel-shell-bg);
@@ -526,7 +532,6 @@ async function closeWindow() {
   contain: layout paint;
   backface-visibility: hidden;
   clip-path: inset(0 round 8px);
-  -webkit-mask-image: -webkit-radial-gradient(white, black);
   isolation: isolate;
 
   --panel-from-x: 0px;
@@ -538,7 +543,8 @@ async function closeWindow() {
   --panel-top-lift: 10px;
 }
 
-.panel-root:hover {
+.panel-root:hover,
+.panel-root.is-focused {
   opacity: 1;
 }
 

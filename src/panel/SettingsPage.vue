@@ -6,6 +6,9 @@ import AboutDialog from './AboutDialog.vue'
 
 const emit = defineEmits<{ back: [] }>()
 
+// 定制构建：应用内更新指向官方版会覆盖定制内容，已禁用
+const SHOW_UPDATER = false
+
 const { settings } = useSettings()
 
 // 标语编辑：每行一条，清空则恢复内置默认
@@ -255,7 +258,7 @@ onUnmounted(() => {
       </div>
     </div>
     <div class="settings-section">
-      <div class="section-title">通用</div>
+      <div class="section-title">声音与启动</div>
       <div class="update-toggle-row">
         <div class="update-copy">
           <span class="update-label">通知提示音</span>
@@ -276,7 +279,7 @@ onUnmounted(() => {
           <span class="switch-track"></span>
         </label>
       </div>
-      <div class="update-toggle-row" style="margin-top: 8px;">
+      <div v-if="SHOW_UPDATER" class="update-toggle-row" style="margin-top: 8px;">
         <div class="update-copy">
           <span class="update-label">自动检查更新</span>
           <span class="update-hint">启动后静默检查，不打断专注</span>
@@ -286,7 +289,7 @@ onUnmounted(() => {
           <span class="switch-track"></span>
         </label>
       </div>
-      <div class="update-action-row">
+      <div v-if="SHOW_UPDATER" class="update-action-row">
         <button
           type="button"
           class="update-btn"
@@ -324,7 +327,7 @@ onUnmounted(() => {
     <div class="settings-section">
       <div class="section-title">外观</div>
       <div class="slider-row">
-        <label class="slider-label">透明度</label>
+        <label class="slider-label">灵动岛透明度</label>
         <input
           type="range"
           class="opacity-slider"
