@@ -29,19 +29,32 @@ static LAST_PANEL_SIZE: OnceLock<Mutex<Option<tauri::PhysicalSize<u32>>>> = Once
 
 #[tauri::command]
 fn get_local_audio_path<R: Runtime>(app: AppHandle<R>) -> Result<String, String> {
-    // Get the resource directory path
-    let resource_dir = app.path()
-        .resource_dir()
-        .map_err(|e| format!("获取资源目录失败: {e}"))?;
-
-    let audio_path = resource_dir.join("assets").join("audio").join("focus-music.mp3");
-
-    // Check if the file exists
-    if audio_path.exists() {
-        Ok(audio_path.to_string_lossy().to_string())
-    } else {
-        Err("本地音频文件不存在，请将音频文件放到 assets/audio/focus-music.mp3".to_string())
+    // 1) 用户可写目录（推荐）：%APPDATA%\<identifier>\focus-island\music\focus-music.<ext>
+    //    应用是用 --no-bundle 构建的，资源目录不会拷贝 assets，所以优先读这里
+    // 2) 兼容旧路径：资源目录 assets/audio/focus-music.mp3
+    let mut dirs: Vec<std::path::PathBuf> = Vec::new();
+    if let Ok(dir) = app.path().app_data_dir() {
+        dirs.push(dir.join("focus-island").join("music"));
     }
+    if let Ok(dir) = app.path().resource_dir() {
+        dirs.push(dir.join("assets").join("audio"));
+    }
+
+    for dir in &dirs {
+        for ext in ["mp3", "m4a", "wav", "flac", "ogg"] {
+            let candidate = dir.join(format!("focus-music.{ext}"));
+            if candidate.exists() {
+                return Ok(candidate.to_string_lossy().into_owned());
+            }
+        }
+    }
+
+    Err(format!(
+        "本地音乐不存在，把 focus-music.mp3 放到 {}",
+        dirs.first()
+            .map(|d| d.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    ))
 }
 
 #[tauri::command]

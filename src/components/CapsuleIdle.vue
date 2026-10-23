@@ -6,7 +6,10 @@ import { useSettings } from "../composables/useSettings";
 const { recentFocusTasks } = useTasks();
 const { settings } = useSettings()
 
-defineProps<{ radioPlaying?: boolean }>();
+const props = defineProps<{ radioPlaying?: boolean }>();
+
+// 右侧预留宽度（时钟 + 播放波形），单位 px（未乘以 island-scale）
+const rightInset = computed(() => (props.radioPlaying ? 76 : 52));
 
 const DEFAULT_MOTTOS = [
     "深呼吸，然后开始",
@@ -116,11 +119,6 @@ onUnmounted(() => {
 
 <template>
     <div class="capsule-idle relative w-full h-full overflow-hidden">
-        <div v-if="radioPlaying" class="wave-bars">
-          <span class="wave-bar" />
-          <span class="wave-bar" />
-          <span class="wave-bar" />
-        </div>
         <TransitionGroup
             tag="div"
             name="carousel"
@@ -130,7 +128,11 @@ onUnmounted(() => {
                 v-if="currentItem"
                 :key="currentItem.key"
                 class="absolute inset-0 flex items-center gap-2"
-                :class="currentItem.type === 'motto' ? 'justify-center px-4' : 'pl-4 pr-12'"
+                :class="currentItem.type === 'motto' ? 'justify-center' : ''"
+                :style="{
+                    paddingLeft: '16px',
+                    paddingRight: `calc(${rightInset}px * var(--island-scale, 1))`,
+                }"
             >
                 <!-- Task item -->
                 <template v-if="currentItem.type === 'task'">
@@ -155,8 +157,15 @@ onUnmounted(() => {
             </div>
         </TransitionGroup>
 
-        <!-- Clock -->
-        <div class="idle-clock">{{ clock }}</div>
+        <!-- 播放波形 + 时钟：同一组 flex 排列，波形不再压到时间上 -->
+        <div class="idle-right">
+            <div v-if="props.radioPlaying" class="wave-bars">
+                <span class="wave-bar" />
+                <span class="wave-bar" />
+                <span class="wave-bar" />
+            </div>
+            <span class="idle-clock">{{ clock }}</span>
+        </div>
 
         <!-- Dots indicator -->
         <div
@@ -178,26 +187,27 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.idle-clock {
+.idle-right {
     position: absolute;
     right: 14px;
     top: 50%;
     transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: calc(6px * var(--island-scale, 1));
+    z-index: 2;
+}
+.idle-clock {
     font-size: calc(11px * var(--island-scale, 1));
     color: var(--capsule-text-dim);
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.04em;
 }
 .wave-bars {
-    position: absolute;
-    right: calc(44px * var(--island-scale, 1));
-    top: 50%;
-    transform: translateY(-50%);
     display: flex;
     align-items: flex-end;
     gap: calc(1.5px * var(--island-scale, 1));
     height: calc(11px * var(--island-scale, 1));
-    z-index: 2;
 }
 
 .wave-bar {

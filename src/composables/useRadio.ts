@@ -169,7 +169,7 @@ export const PRESET_STATIONS: RadioStation[] = [
     id: 'local-music',
     name: '本地音乐',
     streamUrl: '__LOCAL__',
-    description: '离线专注音乐（需在 assets/audio/ 放置 focus-music.mp3）',
+    description: '离线专注音乐（数据目录 music/focus-music.mp3）',
     icon: 'folder',
     keyword: '离线',
     category: 'focus',

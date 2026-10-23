@@ -39,7 +39,10 @@ const phaseColor = computed(() =>
     </div>
 
     <!-- Countdown -->
-    <div class="shrink-0 flex items-center gap-1.5">
+    <div
+      class="shrink-0 flex items-center"
+      :style="{ gap: `calc(8px * var(--island-scale, 1))` }"
+    >
       <span :style="{ color: phaseColor, fontSize: `calc(14px * var(--island-scale, 1))` }" class="font-mono font-bold tabular-nums">
         {{ displayTime }}
       </span>
