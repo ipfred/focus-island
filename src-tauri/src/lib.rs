@@ -594,9 +594,14 @@ fn import_media_entries(app: AppHandle, url: String) -> Result<Vec<MediaEntry>, 
             .filter(|l| l.contains("|||"))
             .map(|l| {
                 let (title, entry_url) = l.split_once("|||").unwrap_or((l, ""));
+                let mut u = entry_url.trim().to_string();
+                // flat-playlist 模式下单视频的 url 字段可能是 NA：回退到原始链接
+                if u.is_empty() || u == "NA" {
+                    u = url.clone();
+                }
                 MediaEntry {
                     title: title.trim().to_string(),
-                    url: entry_url.trim().to_string(),
+                    url: u,
                 }
             })
             .filter(|e| !e.title.is_empty())
@@ -1164,6 +1169,10 @@ pub fn run() {
                     let _ = window.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
                 }
                 let _ = window.set_background_color(Some(Color(0, 0, 0, 0)));
+                // 舞台常开系统 Acrylic：跟随系统主题（浅色主题 = 浅磨砂），
+                // 浅色模式胶囊/面板用它做真磨砂底；深色模式由 CSS 黑玻璃覆盖
+                #[cfg(target_os = "windows")]
+                let _ = window_vibrancy::apply_acrylic(&window, Some((16, 16, 20, 60)));
             }
 
             if let Some(panel) = app.get_webview_window("panel") {

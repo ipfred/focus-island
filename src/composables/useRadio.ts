@@ -329,10 +329,23 @@ async function importFromUrl(rawUrl: string): Promise<number> {
     return addCustomStations([makeCustomStation(decodeURIComponent(url.split('/').pop() || '音频直链'), url)])
   }
 
-  const entries = await invoke<MediaEntry[]>('import_media_entries', { url })
-  return addCustomStations(
-    entries.map(e => makeCustomStation(e.title, e.url || url)),
-  )
+  try {
+    const entries = await invoke<MediaEntry[]>('import_media_entries', { url })
+    return addCustomStations(
+      entries.map(e => makeCustomStation(e.title, e.url || url)),
+    )
+  } catch (e) {
+    const msg = typeof e === 'string' ? e : '解析失败'
+    if (msg === 'YT_NOT_INSTALLED') {
+      // 首次使用：自动下载 yt-dlp 后重试
+      await invoke<string>('ensure_ytdlp')
+      const entries = await invoke<MediaEntry[]>('import_media_entries', { url })
+      return addCustomStations(
+        entries.map(e => makeCustomStation(e.title, e.url || url)),
+      )
+    }
+    throw new Error(msg)
+  }
 }
 
 /** 导入本地歌单文件（.m3u/.m3u8/.pls/.txt） */
