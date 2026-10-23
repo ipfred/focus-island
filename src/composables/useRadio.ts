@@ -18,6 +18,8 @@ export interface RadioStation {
   tags: string[]
   /** 原始链接（视频/歌单条目），播放时经 yt-dlp 解析成纯音频流 */
   sourceUrl?: string
+  /** 备用流地址：主地址失败时依次切换（多为 302 降级 / 节点故障的官方电台） */
+  fallbackUrls?: string[]
 }
 
 export interface RadioSettings {
@@ -105,7 +107,7 @@ export const PRESET_STATIONS: RadioStation[] = [
   {
     id: 'ambientpill',
     name: 'Ambient Pill',
-    streamUrl: 'http://radio.stereoscenic.com/asp-s',
+    streamUrl: 'https://radio.stereoscenic.com/asp-s',
     description: '24h 纯氛围音乐，无节拍无广告',
     icon: 'pill',
     keyword: '纯氛围',
@@ -147,7 +149,9 @@ export const PRESET_STATIONS: RadioStation[] = [
   {
     id: 'swissjazz',
     name: 'Radio Swiss Jazz',
-    streamUrl: 'https://stream.srg-ssr.ch/m/rsj/mp3_128',
+    streamUrl: 'https://livestreaming-node-1.srg-ssr.ch/srgssr/rsj/mp3/128',
+    // 上游 /m/rsj/mp3_128 会 302 到 http，WebView 里容易失败；直连 https 节点
+    fallbackUrls: ['https://stream.srg-ssr.ch/m/rsj/mp3_128'],
     description: '瑞士爵士电台，传统爵士，无广告',
     icon: 'jazz',
     keyword: '传统',
@@ -368,6 +372,92 @@ const volume = computed(() => radioSettings.value.volume)
 
 let audio: HTMLAudioElement | null = null
 
+// 断流自愈：官方直播源经常 302 降级、节点抖动或直接掐断，
+// 这里按「备用地址 → 退避重试」顺序恢复，避免整段专注音乐直接静音。
+const RETRY_DELAYS = [1200, 3200, 7000]
+
+let srcCandidates: string[] = []
+let candidateIndex = 0
+let expectedSrc = ''
+let retryTimer: ReturnType<typeof setTimeout> | null = null
+let retryCount = 0
+let userPaused = false
+
+function clearRetry() {
+  if (retryTimer !== null) {
+    clearTimeout(retryTimer)
+    retryTimer = null
+  }
+}
+
+function mediaErrorMessage(): string {
+  const err = audio?.error
+  if (!err) return '音频播放错误'
+  switch (err.code) {
+    case MediaError.MEDIA_ERR_NETWORK:
+      return '网络错误，无法加载音频流'
+    case MediaError.MEDIA_ERR_DECODE:
+      return '音频解码失败'
+    case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+      return '不支持的音频格式'
+    default:
+      return '音频播放错误'
+  }
+}
+
+async function loadAndPlay(url: string) {
+  const a = getAudio()
+  expectedSrc = url
+  a.src = url
+  a.load()
+  a.volume = radioSettings.value.volume / 100
+  try {
+    await a.play()
+  } catch {
+    // 部分失败不会派发 error 事件，这里兜底推进到下一个候选
+    handleStreamFailure()
+  }
+}
+
+function handleStreamFailure(reason: 'error' | 'ended' = 'error') {
+  const station = currentStation.value
+  const isLive = /^https?:/i.test(expectedSrc)
+  if (!isLive) {
+    // 本地文件 / 本地下载音频：播完就停，失败才提示
+    loading.value = false
+    if (reason === 'error') error.value = mediaErrorMessage()
+    return
+  }
+  if (userPaused || !station) {
+    loading.value = false
+    return
+  }
+  // 1) 先试备用地址
+  if (candidateIndex + 1 < srcCandidates.length) {
+    candidateIndex += 1
+    error.value = null
+    loading.value = true
+    void loadAndPlay(srcCandidates[candidateIndex])
+    return
+  }
+  // 2) 再按退避重试主地址
+  if (retryTimer !== null) return
+  if (retryCount >= RETRY_DELAYS.length) {
+    loading.value = false
+    error.value = '音频流多次中断，点击播放可重连'
+    return
+  }
+  const delay = RETRY_DELAYS[retryCount]
+  retryCount += 1
+  error.value = null
+  loading.value = true
+  retryTimer = setTimeout(() => {
+    retryTimer = null
+    candidateIndex = 0
+    void loadAndPlay(srcCandidates[0] ?? expectedSrc)
+  }, delay)
+}
+
 function getAudio(): HTMLAudioElement {
   if (!audio) {
     audio = new Audio()
@@ -377,6 +467,7 @@ function getAudio(): HTMLAudioElement {
       playing.value = true
       loading.value = false
       error.value = null
+      retryCount = 0
     })
     audio.addEventListener('pause', () => {
       // Only set false if it wasn't paused due to buffering
@@ -388,28 +479,13 @@ function getAudio(): HTMLAudioElement {
     audio.addEventListener('ended', () => {
       playing.value = false
       loading.value = false
+      // 直播流"结束"意味着被掐断，自动重连；本地文件播完则保持停止
+      handleStreamFailure('ended')
     })
     audio.addEventListener('error', () => {
       playing.value = false
       loading.value = false
-      const err = audio!.error
-      if (err) {
-        switch (err.code) {
-          case MediaError.MEDIA_ERR_NETWORK:
-            error.value = '网络错误，无法加载音频流'
-            break
-          case MediaError.MEDIA_ERR_DECODE:
-            error.value = '音频解码失败'
-            break
-          case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-            error.value = '不支持的音频格式'
-            break
-          default:
-            error.value = '音频播放错误'
-        }
-      } else {
-        error.value = '音频播放错误'
-      }
+      handleStreamFailure()
     })
     audio.addEventListener('waiting', () => { loading.value = true })
     audio.addEventListener('canplay', () => { loading.value = false })
@@ -478,8 +554,9 @@ async function play(stationId?: string) {
 
   loading.value = true
   error.value = null
-
-  const a = getAudio()
+  userPaused = false
+  retryCount = 0
+  clearRetry()
 
   try {
     let src: string
@@ -545,10 +622,10 @@ async function play(stationId?: string) {
       src = station.streamUrl
     }
 
-    a.src = src
-    a.load()
-    a.volume = radioSettings.value.volume / 100
-    await a.play()
+    // 候选地址：主地址 + 备用镜像（仅直链有效；本地文件/yt-dlp 结果不参与重连）
+    srcCandidates = [src, ...(station.fallbackUrls ?? [])]
+    candidateIndex = 0
+    await loadAndPlay(src)
   } catch (e) {
     playing.value = false
     error.value = typeof e === 'string' ? e : '播放失败'
@@ -557,6 +634,9 @@ async function play(stationId?: string) {
 }
 
 async function pause() {
+  userPaused = true
+  clearRetry()
+  retryCount = 0
   const a = getAudio()
   a.pause()
   playing.value = false
@@ -568,6 +648,7 @@ async function toggle() {
     pause()
   } else {
     const a = getAudio()
+    userPaused = false
     // If we already have a source loaded, try to resume (only if there was no error)
     if (radioSettings.value.currentStationId && a.src && a.src !== window.location.href && !error.value) {
       try {

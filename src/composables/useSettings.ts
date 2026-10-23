@@ -46,7 +46,7 @@ const DEFAULT_SETTINGS: Settings = {
   islandOpacity: 0.25,
   islandScale: 1.0,
   islandDisplayMode: 'resident',
-  notchClickOpensPanel: false,
+  notchClickOpensPanel: true,
   focusDuration: 25,
   breakDuration: 5,
   colorMode: 'system',
