@@ -122,9 +122,10 @@ export function useDockMode() {
   })
 
   // 舞台永远点击穿透（点击由输入轮询判定）；仅通知横幅需要接收点击
+  // 注意：ignore=true 才是"忽略鼠标=穿透"，无通知时必须为 true，否则整块 500x160 舞台会吃掉点击
   watchEffect(() => {
     if (!dockMode.value) return
-    void invoke('set_click_through', { ignore: notificationVisible.value })
+    void invoke('set_click_through', { ignore: !notificationVisible.value })
   })
 
   // 完全隐藏模式：灵动岛窗口整体隐藏（面板仍可通过快捷键/托盘打开）
