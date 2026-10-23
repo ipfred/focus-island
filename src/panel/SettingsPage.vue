@@ -339,6 +339,18 @@ onUnmounted(() => {
         <span class="opacity-value">{{ opacityPercent(settings.islandOpacity) }}</span>
       </div>
       <div class="slider-row">
+        <label class="slider-label">面板透明度</label>
+        <input
+          type="range"
+          class="opacity-slider"
+          min="0"
+          max="0.9"
+          step="0.01"
+          v-model.number="settings.panelOpacity"
+        />
+        <span class="opacity-value">{{ opacityPercent(settings.panelOpacity) }}</span>
+      </div>
+      <div class="slider-row">
         <label class="slider-label">大小</label>
         <input
           type="range"

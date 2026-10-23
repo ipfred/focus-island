@@ -16,7 +16,7 @@
   --island-opacity: 0.75;
   --panel-root-filter: none;
   /* 深色 = 低透明深磨砂叠系统磨砂（同浅色方向的深色版） */
-  --panel-shell-bg: linear-gradient(180deg, rgba(29, 29, 36, 0.72), rgba(18, 18, 23, 0.76));
+  --panel-shell-bg: linear-gradient(180deg, rgba(29, 29, 36, calc(0.97 - var(--panel-opacity, 0.75) * 0.19)), rgba(18, 18, 23, calc(0.99 - var(--panel-opacity, 0.75) * 0.19)));
   --panel-text: #f8f6f0;
   --panel-hairline: rgba(255, 255, 255, 0.07);
   --panel-card: rgba(255, 255, 255, 0.045);
@@ -57,7 +57,7 @@
 :root[data-color-mode="light"] {
   --panel-root-filter: invert(1) hue-rotate(180deg) brightness(1.12) contrast(0.93);
   /* 浅色 = 统一 CSS 白磨砂（不依赖系统磨砂，失焦不变化） */
-  --panel-shell-bg: linear-gradient(180deg, rgba(252, 253, 255, 0.82), rgba(240, 245, 251, 0.76));
+  --panel-shell-bg: linear-gradient(180deg, rgba(252, 253, 255, calc(0.97 - var(--panel-opacity, 0.75) * 0.19)), rgba(240, 245, 251, calc(0.99 - var(--panel-opacity, 0.75) * 0.19)));
   --panel-shell-border: rgba(22, 34, 52, 0.14);
   --panel-shell-shadow-1: 0 18px 46px rgba(44, 59, 84, 0.12);
   --panel-shell-shadow-2: 0 6px 18px rgba(44, 59, 84, 0.08);
