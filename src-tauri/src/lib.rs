@@ -800,6 +800,71 @@ fn get_last_panel_size(fallback: tauri::PhysicalSize<u32>) -> tauri::PhysicalSiz
         .unwrap_or(fallback)
 }
 
+/// B 站等防盗链源：用 yt-dlp 直接下载音频到临时目录，返回本地路径供前端播放。
+#[tauri::command]
+fn download_temp_audio(app: AppHandle, url: String) -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        let yt = ytdlp_path(&app).ok_or_else(|| "YT_NOT_INSTALLED".to_string())?;
+        let dir = app
+            .path()
+            .app_data_dir()
+            .map_err(|e| e.to_string())?
+            .join("temp-audio");
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        // 清理上一次的临时音频
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            for e in entries.flatten() {
+                let _ = std::fs::remove_file(e.path());
+            }
+        }
+        let template = dir.join("audio.%(ext)s");
+        let out = std::process::Command::new(&yt)
+            .args([
+                "--no-playlist",
+                "-f",
+                "bestaudio",
+                "--no-warnings",
+                "--encoding",
+                "utf-8",
+                "--socket-timeout",
+                "30",
+                "--retries",
+                "3",
+                "-o",
+                template.to_str().ok_or("无效的临时路径")?,
+                &url,
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !out.status.success() {
+            let msg = String::from_utf8_lossy(&out.stderr);
+            let last = msg.lines().last().unwrap_or("未知错误");
+            return Err(format!("下载失败: {last}"));
+        }
+        let mut found = None;
+        for e in std::fs::read_dir(&dir).map_err(|e| e.to_string())?.flatten() {
+            let p = e.path();
+            let ext = p.extension().map(|x| x.to_string_lossy().to_lowercase());
+            if matches!(ext.as_deref(), Some("m4a") | Some("mp3") | Some("webm") | Some("opus") | Some("ogg") | Some("m4s") | Some("aac")) {
+                found = Some(p);
+                break;
+            }
+        }
+        found
+            .map(|p| p.to_string_lossy().into_owned())
+            .ok_or_else(|| "下载完成但未找到音频文件".to_string())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = app;
+        let _ = url;
+        Err("仅支持 Windows".into())
+    }
+}
+
 fn panel_config_values<R: Runtime>(app: &AppHandle<R>) -> (f64, f64, f64, f64) {
     if let Some(cfg) = app
         .config()
@@ -1138,6 +1203,7 @@ pub fn run() {
             ensure_ytdlp,
             resolve_audio_url,
             import_media_entries,
+            download_temp_audio,
             http_get_text,
             get_volume_state,
             set_system_volume,

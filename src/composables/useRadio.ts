@@ -493,8 +493,20 @@ async function play(stationId?: string) {
         return
       }
     } else if (station.streamUrl === '__RESOLVE__' && station.sourceUrl) {
-      // 视频/歌单条目：解析成纯音频流（直链常带时效签名，命中 1h 缓存则复用）
-      const cached = resolvedCache.get(station.sourceUrl)
+      // B 站源有防盗链（CDN 校验 Referer，<audio> 直连会被 403）：
+      // 直接用 yt-dlp 下载音频到临时目录后本地播放
+      if (/bilibili\.com|b23\.tv/i.test(station.sourceUrl)) {
+        try {
+          const filePath = await invoke<string>('download_temp_audio', { url: station.sourceUrl })
+          src = convertFileSrc(filePath)
+        } catch (e2) {
+          const msg = typeof e2 === 'string' ? e2 : '下载失败'
+          error.value = msg === 'YT_NOT_INSTALLED' ? '需要 yt-dlp：将自动下载' : msg
+          loading.value = false
+          return
+        }
+      } else {
+        const cached = resolvedCache.get(station.sourceUrl)
       if (cached && Date.now() - cached.at < RESOLVE_TTL) {
         src = cached.stream
       } else {
@@ -527,6 +539,7 @@ async function play(stationId?: string) {
             return
           }
         }
+      }
       }
     } else {
       src = station.streamUrl

@@ -1,26 +1,41 @@
-# 专注岛 FocusIsland
+# 专注岛 FocusIsland (Custom Fork)
+
+<p align="center">
+  <strong>屏幕顶部的灵动岛番茄钟 · Windows 增强定制版</strong><br>
+  <em>Custom fork of <a href="https://github.com/ipfred/focus-island">ipfred/focus-island</a> with Windows-focused enhancements</em>
+</p>
+
+---
+
+## 🍴 定制版说明 / About This Fork
 
 > [!NOTE]
-> ## 🍴 定制版 Fork 说明（Windows 增强版）
-> 本 Fork 基于 [ipfred/focus-island](https://github.com/ipfred/focus-island) v2.9.0，增强了以下内容：
+> **中文**：本 Fork 基于 [ipfred/focus-island](https://github.com/ipfred/focus-island) v2.9.0，面向 Windows 增强了以下内容。
 >
-> | 增强 | 说明 |
-> |------|------|
-> | 🌙 **刘海模式（默认）** | 灵动岛默认收为屏幕顶部一条无感刘海，悬停展开，点击可打开面板（可在设置中关闭），收起 150ms |
-> | 📻 **电台导入** | B 站/视频链接（自动调用 yt-dlp 转纯音频，首次自动下载）、M3U/PLS 歌单、音频直链；替换了 8 个无法播放的官方源 |
-> | 🔔 **通知中心** | 番茄钟/休息记录持久化保存 |
-> | 🔊 **快捷音量** | 通知中心内控制系统音量与静音（WASAPI） |
-> | ⌨️ **快捷键修复** | 全局快捷键改为 Rust 层注册，修复漏触发 |
-> | 🏷️ **标语编辑器** | 设置页自定义空闲轮播标语 |
-> | 🖥️ **自动透明** | 面板未悬停时自动变透明，悬停恢复完整材质 |
->
-> ### 维护指南
-> - **同步官方更新**：`git fetch upstream && git merge upstream/master`
-> - **构建**：`npm install && npx tauri build --no-bundle`，产物在 `src-tauri/target/release/focus-island.exe`
-> - **yt-dlp**：首次导入视频链接自动下载到 `%APPDATA%/com.focus-island.desktop/bin/`
-> - ⚠️ 勿在应用内安装官方更新（会覆盖定制）；B 站短链 b23.tv 部分网络被阻断，请使用完整链接
->
-> 以下为原版 README：
+> **English**: This fork is based on [ipfred/focus-island](https://github.com/ipfred/focus-island) v2.9.0 with the following Windows-focused enhancements.
+
+| 增强 / Enhancement | 说明 / Description |
+|--------------------|--------------------|
+| 🌙 **刘海模式（默认）/ Notch mode (default)** | 灵动岛默认收为屏幕顶部一条无感刘海，悬停展开，点击打开面板（可在设置中关闭）。/ The island collapses into a subtle top notch; hover to expand, click to open the panel (configurable). |
+| 📻 **电台导入 / Radio import** | B 站等视频链接（自动调用 yt-dlp 转纯音频并绕过防盗链）、M3U/PLS 歌单、音频直链；修复 8 个不可用的官方源。/ Video links (Bilibili etc. via yt-dlp with hot-link workaround), M3U/PLS playlists, direct audio URLs; replaced 8 broken preset stations. |
+| 🔔 **通知中心 / Notification center** | 番茄钟/休息记录持久化保存。/ Persistent pomodoro & break history. |
+| 🔊 **快捷音量 / Quick volume** | 通知中心内控制系统音量与静音（WASAPI）。/ System volume & mute via WASAPI. |
+| ⌨️ **快捷键修复 / Shortcut fix** | 全局快捷键改为 Rust 层注册，修复漏触发。/ Global shortcuts are registered in Rust — no more missed triggers. |
+| 🏷️ **标语编辑器 / Motto editor** | 设置页自定义空闲轮播标语。/ Customize idle rotating mottos in Settings. |
+| 🖥️ **自动透明 / Auto transparency** | 面板未悬停/失焦时自动变透明；灵动岛与面板透明度独立调节。/ Panel auto-dims when unfocused; independent opacity sliders for island and panel. |
+
+### 维护指南 / Maintenance
+
+- **同步官方更新 / Sync upstream**: `git fetch upstream && git merge upstream/master`
+- **构建 / Build**: `npm install && npx tauri build --no-bundle` → `src-tauri/target/release/focus-island.exe`
+- **yt-dlp**: 首次导入视频链接时自动下载到 `%APPDATA%/com.focus-island.desktop/bin/` / auto-downloaded on first use
+- ⚠️ **请勿使用应用内更新** / Do **not** use the in-app updater — it installs the upstream build and overwrites this fork. Sync via git instead.
+
+---
+
+以下为原版 README / Original README below:
+
+# 专注岛 FocusIsland
 
 <p align="center">
   <strong>屏幕顶部的灵动岛番茄钟</strong><br>
@@ -76,7 +91,7 @@
 
 ## 📦 安装
 
-前往 [Releases](../../releases) 页面下载对应平台的安装包：
+前往 [Releases](https://github.com/ipfred/focus-island/releases) 页面下载对应平台的安装包：
 
 | 平台 | 文件 |
 |------|------|
@@ -84,13 +99,12 @@
 | macOS (Intel) | `专注岛_x.x.x_x64.dmg` |
 | Windows | `专注岛_x.x.x_x64-setup.exe` |
 | Linux | `专注岛_x.x.x_amd64.AppImage` |
-| Linux (ARM64) | `专注岛_x.x.x_aarch64.AppImage` |
 
 > Linux 用户下载后需添加执行权限：`chmod +x 专注岛_*.AppImage`
 
 ### macOS 常见问题
 
-#### 打开提示 “xxx.app 已损坏，无法打开”
+#### 打开提示 "xxx.app 已损坏，无法打开"
 
 1. 确认已将应用拖入 `应用程序` 文件夹。
 2. 打开「终端」，执行以下命令（请根据实际应用名替换路径中的 `灵动岛.app`）：
@@ -151,7 +165,7 @@ npm run build
 
 ```bash
 # 升级版本并自动同步 Cargo.toml
-npm version patch   # 末位版本号 +1 
+npm version patch   # 末位版本号 +1
 npm version minor   # 升级中间位 充值末位
 npm version major  # 首位升级 重置后两位
 npm version 1.8.3 --no-git-tag-version  # 指定版本 不提交到git上
@@ -161,9 +175,8 @@ npm version 1.8.3 --no-git-tag-version  # 指定版本 不提交到git上
 
 ## Friendship Link
 
-Thanks for the support and feedback from the friends at [LINUX DO](https://linux.do/). 
+Thanks for the support and feedback from the friends at [LINUX DO](https://linux.do/).
 
 ## 📄 License
 
 Apache License 2.0
-
