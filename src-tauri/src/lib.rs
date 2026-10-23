@@ -819,7 +819,13 @@ fn download_temp_audio(app: AppHandle, url: String) -> Result<String, String> {
                 let _ = std::fs::remove_file(e.path());
             }
         }
-        let template = dir.join("audio.%(ext)s");
+        // 唯一文件名：旧临时音频可能仍被播放器占用（Windows 下删除挂起/写入拒绝），
+        // 用固定名会导致切歌或重播时下载失败
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        let template = dir.join(format!("audio-{stamp}.%(ext)s"));
         let out = std::process::Command::new(&yt)
             .args([
                 "--no-playlist",
