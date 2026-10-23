@@ -6,7 +6,8 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useTimerBridge } from '../composables/useTimerBridge'
 import { useSettings } from '../composables/useSettings'
-import { useShortcut } from '../composables/useShortcut'
+import { useNotifications } from '../composables/useNotifications'
+import NotificationsPage from './NotificationsPage.vue'
 import { useUpdater } from '../composables/useUpdater'
 import { useTasks } from '../composables/useTasks'
 import { useTaskGroups } from '../composables/useTaskGroups'
@@ -36,7 +37,9 @@ interface PanelTransitionMetrics {
 
 const { startBridge } = useTimerBridge()
 const { settings, settingsReady } = useSettings()
-useShortcut()
+// 全局快捷键已改为 Rust 端注册（隐藏窗口里的 JS 注册会被 WebView2 节流而漏触发）；
+// 这里启动通知记录，避免通知页未打开时漏记
+useNotifications()
 
 function prewarmPanelData() {
   useTasks()
@@ -76,13 +79,13 @@ const PANEL_CLOSE_DURATION = 240
 const CLOSE_FALLBACK_BUFFER = 140
 const IS_MACOS = navigator.userAgent.toLowerCase().includes('mac')
 
-const currentView = ref<'tasks' | 'todo' | 'taskDetail' | 'settings' | 'memos' | 'stats' | 'radio'>('tasks')
+const currentView = ref<'tasks' | 'todo' | 'taskDetail' | 'settings' | 'memos' | 'stats' | 'radio' | 'notifications'>('tasks')
 const taskIdForDetail = ref<string>('')
 const todoInitialTab = ref<string | undefined>(undefined)
 const todoSearchQuery = ref('')
 const memoSearchQuery = ref('')
 const todoActiveTabLabel = ref('')
-const cachedPanelViews = ['TaskArea', 'TodoPage', 'SettingsPage', 'MemoPage', 'StatsPage', 'RadioPage']
+const cachedPanelViews = ['TaskArea', 'TodoPage', 'SettingsPage', 'MemoPage', 'StatsPage', 'RadioPage', 'NotificationsPage']
 
 function navigateToTodo(tab?: string) {
   todoInitialTab.value = tab
@@ -128,6 +131,12 @@ const navItems = [
     label: '电台',
     title: '专注电台',
     iconPaths: ['M9 18V5l12-2v13', 'M6 18a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M18 16a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z'],
+  },
+  {
+    key: 'notifications',
+    label: '通知',
+    title: '通知中心',
+    iconPaths: ['M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9', 'M13.73 21a2 2 0 0 1-3.46 0'],
   },
   {
     key: 'settings',
@@ -395,6 +404,7 @@ async function closeWindow() {
           <MemoPage v-else-if="currentView === 'memos'" :search-query="memoSearchQuery" @back="currentView = 'tasks'" />
           <StatsPage v-else-if="currentView === 'stats'" @back="currentView = 'tasks'" />
           <RadioPage v-else-if="currentView === 'radio'" @back="currentView = 'tasks'" />
+          <NotificationsPage v-else-if="currentView === 'notifications'" @back="currentView = 'tasks'" />
         </KeepAlive>
       </div>
       <transition name="update-banner">

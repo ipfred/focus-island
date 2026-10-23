@@ -29,19 +29,32 @@ static LAST_PANEL_SIZE: OnceLock<Mutex<Option<tauri::PhysicalSize<u32>>>> = Once
 
 #[tauri::command]
 fn get_local_audio_path<R: Runtime>(app: AppHandle<R>) -> Result<String, String> {
-    // Get the resource directory path
-    let resource_dir = app.path()
-        .resource_dir()
-        .map_err(|e| format!("获取资源目录失败: {e}"))?;
-
-    let audio_path = resource_dir.join("assets").join("audio").join("focus-music.mp3");
-
-    // Check if the file exists
-    if audio_path.exists() {
-        Ok(audio_path.to_string_lossy().to_string())
-    } else {
-        Err("本地音频文件不存在，请将音频文件放到 assets/audio/focus-music.mp3".to_string())
+    // 1) 用户可写目录（推荐）：%APPDATA%\<identifier>\focus-island\music\focus-music.<ext>
+    //    应用是用 --no-bundle 构建的，资源目录不会拷贝 assets，所以优先读这里
+    // 2) 兼容旧路径：资源目录 assets/audio/focus-music.mp3
+    let mut dirs: Vec<std::path::PathBuf> = Vec::new();
+    if let Ok(dir) = app.path().app_data_dir() {
+        dirs.push(dir.join("focus-island").join("music"));
     }
+    if let Ok(dir) = app.path().resource_dir() {
+        dirs.push(dir.join("assets").join("audio"));
+    }
+
+    for dir in &dirs {
+        for ext in ["mp3", "m4a", "wav", "flac", "ogg"] {
+            let candidate = dir.join(format!("focus-music.{ext}"));
+            if candidate.exists() {
+                return Ok(candidate.to_string_lossy().into_owned());
+            }
+        }
+    }
+
+    Err(format!(
+        "本地音乐不存在，把 focus-music.mp3 放到 {}",
+        dirs.first()
+            .map(|d| d.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    ))
 }
 
 #[tauri::command]
@@ -295,30 +308,113 @@ fn mouse_position_raw() -> (f64, f64) {
     (0.0, 0.0)
 }
 
-#[tauri::command]
-fn get_mouse_position() -> (f64, f64) {
-    mouse_position_raw()
+// ==== 快捷设置：系统音量/静音 ====
+
+#[derive(serde::Serialize)]
+struct VolumeState {
+    volume: f32,
+    muted: bool,
+}
+
+#[cfg(target_os = "windows")]
+fn endpoint_volume() -> windows::core::Result<windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume> {
+    use windows::Win32::Media::Audio::{eConsole, eRender, IMMDeviceEnumerator, MMDeviceEnumerator};
+    use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED};
+
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
+        let device = enumerator.GetDefaultAudioEndpoint(eRender, eConsole)?;
+        device.Activate(CLSCTX_ALL, None)
+    }
 }
 
 #[tauri::command]
-fn is_mouse_over_window<R: Runtime>(window: WebviewWindow<R>, pad: f64) -> bool {
-    let (mx, my) = mouse_position_raw();
-    let Ok(pos) = window.outer_position() else { return false };
-    let Ok(size) = window.outer_size() else { return false };
-    let scale = window.scale_factor().unwrap_or(1.0);
+fn get_volume_state() -> Result<VolumeState, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let ev = endpoint_volume().map_err(|e| e.to_string())?;
+        unsafe {
+            Ok(VolumeState {
+                volume: ev.GetMasterVolumeLevelScalar().map_err(|e| e.to_string())?,
+                muted: ev.GetMute().map_err(|e| e.to_string())?.as_bool(),
+            })
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("仅支持 Windows".into())
+    }
+}
 
-    // macOS: CGEvent location is in points with top-left origin; convert to physical px.
-    #[cfg(target_os = "macos")]
-    let (mx_px, my_px) = (mx * scale, my * scale);
-    // Windows/Linux: GetCursorPos / XQueryPointer already return physical px.
-    #[cfg(not(target_os = "macos"))]
-    let (mx_px, my_px) = (mx, my);
+#[tauri::command]
+fn set_system_volume(volume: f32) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let ev = endpoint_volume().map_err(|e| e.to_string())?;
+        unsafe {
+            ev.SetMasterVolumeLevelScalar(volume.clamp(0.0, 1.0), std::ptr::null())
+                .map_err(|e| e.to_string())
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = volume;
+        Err("仅支持 Windows".into())
+    }
+}
 
-    let x0 = pos.x as f64 - pad;
-    let y0 = pos.y as f64 - pad;
-    let x1 = pos.x as f64 + size.width as f64 + pad;
-    let y1 = pos.y as f64 + size.height as f64 + pad;
-    mx_px >= x0 && mx_px <= x1 && my_px >= y0 && my_px <= y1
+#[tauri::command]
+fn set_system_mute(muted: bool) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let ev = endpoint_volume().map_err(|e| e.to_string())?;
+        unsafe { ev.SetMute(muted, std::ptr::null()).map_err(|e| e.to_string()) }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = muted;
+        Err("仅支持 Windows".into())
+    }
+}
+
+// ==== 全局快捷键：Rust 端注册 ====
+// 隐藏窗口里的 JS 注册会被 WebView2 节流/挂起，导致"唤醒经常失败"，
+// 因此注册和响应都放在 app 层；设置变更通过 settings-changed 事件热更新。
+
+fn read_shortcut_key(app: &AppHandle) -> String {
+    app.path()
+        .app_data_dir()
+        .ok()
+        .and_then(|dir| std::fs::read_to_string(dir.join("focus-island").join("settings.json")).ok())
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+        .and_then(|v| v.get("shortcutKey").and_then(|k| k.as_str()).map(|s| s.trim().to_string()))
+        .filter(|k| !k.is_empty())
+        .unwrap_or_else(|| "Alt+Space".to_string())
+}
+
+fn apply_global_shortcut(app: &AppHandle, key: &str) {
+    use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+    let gs = app.global_shortcut();
+    let _ = gs.unregister_all();
+    if key.trim().is_empty() {
+        println!("[shortcut] cleared");
+        return;
+    }
+    let parsed = key.trim().parse::<Shortcut>();
+    let Ok(sc) = parsed else {
+        println!("[shortcut] invalid key: {key}");
+        return;
+    };
+    let result = gs.on_shortcut(sc, |app, _shortcut, event| {
+        if event.state == ShortcutState::Pressed {
+            toggle_panel(app.clone());
+        }
+    });
+    match result {
+        Ok(_) => println!("[shortcut] registered: {key}"),
+        Err(e) => println!("[shortcut] register failed: {key} ({e})"),
+    }
 }
 
 #[tauri::command]
@@ -326,53 +422,336 @@ fn set_click_through<R: Runtime>(window: WebviewWindow<R>, ignore: bool) {
     let _ = window.set_ignore_cursor_events(ignore);
 }
 
+// ==== 电台导入：视频/歌单链接 → 纯音频 ====
+
+#[derive(serde::Serialize)]
+struct AudioResolution {
+    stream_url: String,
+    title: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+struct MediaEntry {
+    title: String,
+    url: String,
+}
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// yt-dlp 可执行文件查找顺序：AppData\bin → exe 旁边 → PATH。
+#[cfg(target_os = "windows")]
+fn ytdlp_path(app: &AppHandle) -> Option<std::path::PathBuf> {
+    use std::os::windows::process::CommandExt;
+    if let Ok(dir) = app.path().app_data_dir() {
+        let p = dir.join("bin").join("yt-dlp.exe");
+        if p.exists() {
+            return Some(p);
+        }
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            let p = parent.join("yt-dlp.exe");
+            if p.exists() {
+                return Some(p);
+            }
+        }
+    }
+    let out = std::process::Command::new("where")
+        .arg("yt-dlp")
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let first = String::from_utf8_lossy(&out.stdout).lines().next()?.trim().to_string();
+    let p = std::path::PathBuf::from(first);
+    if p.exists() { Some(p) } else { None }
+}
+
+/// 确保本机有 yt-dlp；没有则从 GitHub 下载到 AppData\bin（约 17MB，走系统代理）。
 #[tauri::command]
-fn set_island_height<R: Runtime>(app: AppHandle<R>, height: f64) {
-    if let Some(main) = app.get_webview_window("main") {
-        let _ = main.set_size(tauri::LogicalSize::new(360.0, height));
-        if let Ok(Some(monitor)) = main.current_monitor() {
-            let scale_factor = monitor.scale_factor();
-            let screen_width = monitor.size().width as f64;
-            let win_width = 360.0_f64 * scale_factor;
-            let position = monitor.position();
-            let x = position.x as f64 + (screen_width - win_width) / 2.0;
-            let y = position.y as f64;
-            let _ = main.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
+fn ensure_ytdlp(app: AppHandle) -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        if let Some(p) = ytdlp_path(&app) {
+            return Ok(p.to_string_lossy().into_owned());
+        }
+        let dir = app
+            .path()
+            .app_data_dir()
+            .map_err(|e| e.to_string())?
+            .join("bin");
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let target = dir.join("yt-dlp.exe");
+        let ps = format!(
+            "Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' -OutFile '{}' -TimeoutSec 300",
+            target.to_string_lossy().replace('\'', "''")
+        );
+        let out = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", &ps])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|e| e.to_string())?;
+        if out.status.success() && target.exists() {
+            Ok(target.to_string_lossy().into_owned())
+        } else {
+            Err("下载 yt-dlp 失败，请检查网络/代理后重试".into())
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = app;
+        Err("当前平台请自行安装 yt-dlp".into())
+    }
+}
+
+fn is_direct_audio_url(url: &str) -> bool {
+    let lower = url.to_lowercase();
+    let path = lower.split(['?', '#']).next().unwrap_or("");
+    [".mp3", ".m4a", ".aac", ".ogg", ".opus", ".wav", ".flac"]
+        .iter()
+        .any(|ext| path.ends_with(ext))
+}
+
+/// 把任意链接解析成纯音频直链：直链直接放行，其余交给 yt-dlp 取 bestaudio。
+#[tauri::command]
+fn resolve_audio_url(app: AppHandle, url: String) -> Result<AudioResolution, String> {
+    if is_direct_audio_url(&url) {
+        return Ok(AudioResolution { stream_url: url, title: None });
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        let yt = ytdlp_path(&app).ok_or_else(|| "YT_NOT_INSTALLED".to_string())?;
+        let out = std::process::Command::new(&yt)
+            .args([
+                "--no-playlist",
+                "-f",
+                "bestaudio",
+                "--no-warnings",
+                "--encoding",
+                "utf-8",
+                "--socket-timeout",
+                "30",
+                "--retries",
+                "3",
+                "--print",
+                "%(title)s",
+                "--print",
+                "%(url)s",
+                &url,
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !out.status.success() {
+            let msg = String::from_utf8_lossy(&out.stderr);
+            let last = msg.lines().last().unwrap_or("未知错误");
+            return Err(format!("解析失败: {last}"));
+        }
+        let text = String::from_utf8_lossy(&out.stdout);
+        let mut lines = text.lines().filter(|l| !l.trim().is_empty());
+        let title = lines.next().unwrap_or("").trim().to_string();
+        let stream = lines.next().unwrap_or("").trim().to_string();
+        if stream.is_empty() {
+            return Err("未取到音频流".into());
+        }
+        Ok(AudioResolution {
+            stream_url: stream,
+            title: if title.is_empty() { None } else { Some(title) },
+        })
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = app;
+        Err("当前平台请先安装 yt-dlp".into())
+    }
+}
+
+/// 批量导入：视频/合集/歌单链接 → 条目列表（单视频返回 1 条）。
+#[tauri::command]
+fn import_media_entries(app: AppHandle, url: String) -> Result<Vec<MediaEntry>, String> {
+    if is_direct_audio_url(&url) {
+        let title = url.rsplit('/').next().unwrap_or("音频直链").to_string();
+        return Ok(vec![MediaEntry { title, url }]);
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        let yt = ytdlp_path(&app).ok_or_else(|| "YT_NOT_INSTALLED".to_string())?;
+        let out = std::process::Command::new(&yt)
+            .args([
+                "--flat-playlist",
+                "--no-warnings",
+                "--encoding",
+                "utf-8",
+                "--socket-timeout",
+                "30",
+                "--retries",
+                "3",
+                "--print",
+                "%(title)s|||%(url)s",
+                &url,
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !out.status.success() {
+            let msg = String::from_utf8_lossy(&out.stderr);
+            let last = msg.lines().last().unwrap_or("未知错误");
+            return Err(format!("解析失败: {last}"));
+        }
+        let text = String::from_utf8_lossy(&out.stdout);
+        let entries: Vec<MediaEntry> = text
+            .lines()
+            .filter(|l| l.contains("|||"))
+            .map(|l| {
+                let (title, entry_url) = l.split_once("|||").unwrap_or((l, ""));
+                let mut u = entry_url.trim().to_string();
+                // flat-playlist 模式下单视频的 url 字段可能是 NA：回退到原始链接
+                if u.is_empty() || u == "NA" {
+                    u = url.clone();
+                }
+                MediaEntry {
+                    title: title.trim().to_string(),
+                    url: u,
+                }
+            })
+            .filter(|e| !e.title.is_empty())
+            .collect();
+        if entries.is_empty() {
+            return Err("未解析到任何条目".into());
+        }
+        Ok(entries)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = app;
+        Err("当前平台请先安装 yt-dlp".into())
+    }
+}
+
+/// 拉取远程 M3U/文本歌单（WebView 内受 CORS 限制，走系统 PowerShell）。
+#[tauri::command]
+fn http_get_text(url: String) -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        let ps = format!(
+            "(Invoke-WebRequest -UseBasicParsing -Uri '{}' -TimeoutSec 20).Content",
+            url.replace('\'', "''")
+        );
+        let out = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", &ps])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|e| e.to_string())?;
+        if out.status.success() {
+            Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+        } else {
+            Err(String::from_utf8_lossy(&out.stderr).into_owned())
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let out = std::process::Command::new("curl")
+            .args(["-sL", "--max-time", "20", &url])
+            .output()
+            .map_err(|e| e.to_string())?;
+        if out.status.success() {
+            Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+        } else {
+            Err("fetch failed".into())
         }
     }
 }
 
+
+// ==== 舞台窗口：灵动岛在固定大小的透明舞台内做纯 CSS 形变 ====
+
+#[derive(Clone, Copy, serde::Serialize)]
+struct IslandLayout {
+    x: i32,
+    y: i32,
+    w: i32,
+    h: i32,
+}
+
+static ISLAND_LAYOUT: std::sync::Mutex<Option<IslandLayout>> = std::sync::Mutex::new(None);
+
+fn island_layout() -> Option<IslandLayout> {
+    ISLAND_LAYOUT.lock().ok().and_then(|slot| *slot)
+}
+
+static LAST_CURSOR: std::sync::Mutex<Option<(i32, i32)>> = std::sync::Mutex::new(None);
+
+/// 系统级用户活动检测：光标自上次查询以来是否移动过。
+/// 灵动岛窗口是点击穿透的，收不到真实输入事件，空闲检测必须由 Rust 代劳。
 #[tauri::command]
-fn set_island_size<R: Runtime>(app: AppHandle<R>, scale: f64) {
-    if let Some(main) = app.get_webview_window("main") {
-        let base_width = 360.0;
-        let base_height = 42.0;
-        let new_width = base_width * scale;
-        let new_height = base_height * scale;
-        let _ = main.set_size(tauri::LogicalSize::new(new_width, new_height));
-        if let Ok(Some(monitor)) = main.current_monitor() {
-            let scale_factor = monitor.scale_factor();
-            let screen_width = monitor.size().width as f64;
-            let position = monitor.position();
-            let x = position.x as f64 + (screen_width - new_width * scale_factor) / 2.0;
-            let y = position.y as f64;
-            let _ = main.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
-        }
+fn cursor_active() -> bool {
+    let (mx, my) = mouse_position_raw();
+    let (mx, my) = (mx as i32, my as i32);
+    let mut slot = LAST_CURSOR.lock().unwrap_or_else(|e| e.into_inner());
+    let moved = match *slot {
+        Some((lx, ly)) => (lx - mx).abs() + (ly - my).abs() > 2,
+        None => true,
+    };
+    *slot = Some((mx, my));
+    moved
+}
+
+/// 舞台内的灵动岛把自身屏幕矩形（视口逻辑坐标）上报给 Rust，
+/// 面板定位、悬停检测、点击判定全部依赖这个矩形。
+#[tauri::command]
+fn set_island_layout<R: Runtime>(window: WebviewWindow<R>, x: f64, y: f64, w: f64, h: f64) {
+    let Ok(pos) = window.outer_position() else { return };
+    let Ok(scale) = window.scale_factor() else { return };
+    let layout = IslandLayout {
+        x: pos.x + (x * scale).round() as i32,
+        y: pos.y + (y * scale).round() as i32,
+        w: (w * scale).round() as i32,
+        h: (h * scale).round() as i32,
+    };
+    if let Ok(mut slot) = ISLAND_LAYOUT.lock() {
+        *slot = Some(layout);
     }
 }
 
+fn is_mouse_over_island_inner<R: Runtime>(window: &WebviewWindow<R>, pad: f64) -> bool {
+    let Some(layout) = island_layout() else { return false };
+    let Ok(scale) = window.scale_factor() else { return false };
+    let (mx, my) = mouse_position_raw();
+    let pad_px = (pad * scale).round() as f64;
+    mx >= (layout.x as f64) - pad_px
+        && mx <= (layout.x + layout.w) as f64 + pad_px
+        && my >= (layout.y as f64) - pad_px
+        && my <= (layout.y + layout.h) as f64 + pad_px
+}
+
+#[derive(serde::Serialize)]
+struct IslandInputState {
+    over: bool,
+    clicked: bool,
+}
+
+/// 舞台永远点击穿透，输入由该轮询判定。
+/// Windows 用 GetAsyncKeyState 的"自上次查询以来按下"位，轮询间隔内也不会丢点击；
+/// 其他平台没有等价的跨进程按键位，只做悬停判定（点击交给系统原生命中）。
 #[tauri::command]
-fn set_island_custom_size<R: Runtime>(app: AppHandle<R>, width: f64, height: f64) {
-    if let Some(main) = app.get_webview_window("main") {
-        let _ = main.set_size(tauri::LogicalSize::new(width, height));
-        if let Ok(Some(monitor)) = main.current_monitor() {
-            let scale_factor = monitor.scale_factor();
-            let screen_width = monitor.size().width as f64;
-            let position = monitor.position();
-            let x = position.x as f64 + (screen_width - width * scale_factor) / 2.0;
-            let y = position.y as f64;
-            let _ = main.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
-        }
+fn poll_island_input<R: Runtime>(window: WebviewWindow<R>, pad: f64) -> IslandInputState {
+    let over = is_mouse_over_island_inner(&window, pad);
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
+        let clicked = over && unsafe { GetAsyncKeyState(VK_LBUTTON.0 as i32) & 0x0001 != 0 };
+        IslandInputState { over, clicked }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        IslandInputState { over, clicked: false }
     }
 }
 
@@ -409,34 +788,75 @@ fn get_last_panel_size(fallback: tauri::PhysicalSize<u32>) -> tauri::PhysicalSiz
         .unwrap_or(fallback)
 }
 
-fn get_main_rect<R: Runtime>(
-    app: &AppHandle<R>,
-) -> Option<(tauri::PhysicalPosition<i32>, tauri::PhysicalSize<u32>)> {
-    let main = app.get_webview_window("main")?;
-    let pos = main.outer_position().ok()?;
-    let size = main.outer_size().ok()?;
-    // In dock/strip mode the actual window height is only the strip height.
-    // Panel positioning and animation should use the effective full-capsule
-    // height. The window width is always 360 * island_scale * scale_factor,
-    // so the full capsule height = width / 360 * 42. Keep the actual height
-    // when it is already larger (e.g. notification banner).
-    let full_capsule_h = if size.width > 0 {
-        size.width * 42 / 360
-    } else {
-        size.height
-    };
-    let effective_h = size.height.max(full_capsule_h);
-    Some((pos, tauri::PhysicalSize::new(size.width, effective_h)))
-}
-
-fn panel_target_position(
-    main_pos: tauri::PhysicalPosition<i32>,
-    main_size: tauri::PhysicalSize<u32>,
-    panel_size: tauri::PhysicalSize<u32>,
-) -> tauri::PhysicalPosition<i32> {
-    let new_x = main_pos.x + ((main_size.width as i32 - panel_size.width as i32) / 2);
-    let new_y = main_pos.y + main_size.height as i32 + PANEL_GAP_Y;
-    tauri::PhysicalPosition::new(new_x, new_y)
+/// B 站等防盗链源：用 yt-dlp 直接下载音频到临时目录，返回本地路径供前端播放。
+#[tauri::command]
+fn download_temp_audio(app: AppHandle, url: String) -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        let yt = ytdlp_path(&app).ok_or_else(|| "YT_NOT_INSTALLED".to_string())?;
+        let dir = app
+            .path()
+            .app_data_dir()
+            .map_err(|e| e.to_string())?
+            .join("temp-audio");
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        // 清理上一次的临时音频
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            for e in entries.flatten() {
+                let _ = std::fs::remove_file(e.path());
+            }
+        }
+        // 唯一文件名：旧临时音频可能仍被播放器占用（Windows 下删除挂起/写入拒绝），
+        // 用固定名会导致切歌或重播时下载失败
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0);
+        let template = dir.join(format!("audio-{stamp}.%(ext)s"));
+        let out = std::process::Command::new(&yt)
+            .args([
+                "--no-playlist",
+                "-f",
+                "bestaudio",
+                "--no-warnings",
+                "--encoding",
+                "utf-8",
+                "--socket-timeout",
+                "30",
+                "--retries",
+                "3",
+                "-o",
+                template.to_str().ok_or("无效的临时路径")?,
+                &url,
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !out.status.success() {
+            let msg = String::from_utf8_lossy(&out.stderr);
+            let last = msg.lines().last().unwrap_or("未知错误");
+            return Err(format!("下载失败: {last}"));
+        }
+        let mut found = None;
+        for e in std::fs::read_dir(&dir).map_err(|e| e.to_string())?.flatten() {
+            let p = e.path();
+            let ext = p.extension().map(|x| x.to_string_lossy().to_lowercase());
+            if matches!(ext.as_deref(), Some("m4a") | Some("mp3") | Some("webm") | Some("opus") | Some("ogg") | Some("m4s") | Some("aac")) {
+                found = Some(p);
+                break;
+            }
+        }
+        found
+            .map(|p| p.to_string_lossy().into_owned())
+            .ok_or_else(|| "下载完成但未找到音频文件".to_string())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = app;
+        let _ = url;
+        Err("仅支持 Windows".into())
+    }
 }
 
 fn panel_config_values<R: Runtime>(app: &AppHandle<R>) -> (f64, f64, f64, f64) {
@@ -456,6 +876,30 @@ fn panel_config_values<R: Runtime>(app: &AppHandle<R>) -> (f64, f64, f64, f64) {
     (420.0, 600.0, 400.0, 480.0)
 }
 
+fn panel_target_position(
+    island_pos: tauri::PhysicalPosition<i32>,
+    island_size: tauri::PhysicalSize<u32>,
+    panel_size: tauri::PhysicalSize<u32>,
+) -> tauri::PhysicalPosition<i32> {
+    let new_x = island_pos.x + ((island_size.width as i32 - panel_size.width as i32) / 2);
+    let new_y = island_pos.y + island_size.height as i32 + PANEL_GAP_Y;
+    tauri::PhysicalPosition::new(new_x, new_y)
+}
+
+/// 灵动岛屏幕矩形：优先用舞台上报告的布局，回退到主窗口矩形。
+fn island_rect<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Option<(tauri::PhysicalPosition<i32>, tauri::PhysicalSize<u32>)> {
+    if let Some(l) = island_layout() {
+        return Some((
+            tauri::PhysicalPosition::new(l.x, l.y),
+            tauri::PhysicalSize::new(l.w as u32, l.h as u32),
+        ));
+    }
+    let main = app.get_webview_window("main")?;
+    Some((main.outer_position().ok()?, main.outer_size().ok()?))
+}
+
 fn position_panel_under_island_inner<R: Runtime>(app: &AppHandle<R>) {
     let Some(panel) = app.get_webview_window("panel") else {
         return;
@@ -463,7 +907,7 @@ fn position_panel_under_island_inner<R: Runtime>(app: &AppHandle<R>) {
     let Ok(panel_size) = panel.outer_size() else {
         return;
     };
-    let Some((main_pos, main_size)) = get_main_rect(app) else {
+    let Some((main_pos, main_size)) = island_rect(app) else {
         return;
     };
     let target_pos = panel_target_position(main_pos, main_size, panel_size);
@@ -471,9 +915,9 @@ fn position_panel_under_island_inner<R: Runtime>(app: &AppHandle<R>) {
 }
 
 fn focus_panel<R: Runtime>(app: &AppHandle<R>) {
-    // Ensure the main (island) window is visible first
+    // Ensure the main (island) window is visible first (unless user fully hid it)
     if let Some(main) = app.get_webview_window("main") {
-        if !main.is_visible().unwrap_or(false) {
+        if !main.is_visible().unwrap_or(false) && !island_user_hidden() {
             let _ = main.show();
         }
     }
@@ -514,7 +958,7 @@ fn get_panel_transition_metrics<R: Runtime>(app: AppHandle<R>) -> Option<PanelTr
     let Some(panel) = app.get_webview_window("panel") else {
         return None;
     };
-    let Some((main_pos, main_size)) = get_main_rect(&app) else {
+    let Some((main_pos, main_size)) = island_rect(&app) else {
         return None;
     };
 
@@ -562,6 +1006,8 @@ fn hide_panel<R: Runtime>(app: AppHandle<R>) {
         }
         let _ = panel.hide();
     }
+    // 兜底：无论面板从哪条路径关闭，都让灵动岛恢复刘海态
+    let _ = app.emit("island-panel-motion", "close");
 }
 
 #[tauri::command]
@@ -583,7 +1029,7 @@ fn animate_panel_open<R: Runtime>(app: AppHandle<R>) {
     if panel.is_visible().unwrap_or(false) {
         return;
     }
-    let Some((main_pos, main_size)) = get_main_rect(&app) else {
+    let Some((main_pos, main_size)) = island_rect(&app) else {
         return;
     };
 
@@ -608,7 +1054,7 @@ fn animate_panel_open<R: Runtime>(app: AppHandle<R>) {
     let _ = panel.set_min_size(Some(tauri::LogicalSize::new(cfg_min_w, cfg_min_h)));
 
     if let Some(main) = app.get_webview_window("main") {
-        if !main.is_visible().unwrap_or(true) {
+        if !main.is_visible().unwrap_or(true) && !island_user_hidden() {
             let _ = main.show();
         }
     }
@@ -641,8 +1087,17 @@ fn is_panel_visible<R: Runtime>(app: AppHandle<R>) -> bool {
     false
 }
 
+static ISLAND_USER_HIDDEN: std::sync::Mutex<bool> = std::sync::Mutex::new(false);
+
+fn island_user_hidden() -> bool {
+    ISLAND_USER_HIDDEN.lock().map(|f| *f).unwrap_or(false)
+}
+
 #[tauri::command]
 fn set_island_visible<R: Runtime>(app: AppHandle<R>, visible: bool) {
+    if let Ok(mut f) = ISLAND_USER_HIDDEN.lock() {
+        *f = !visible;
+    }
     if let Some(main) = app.get_webview_window("main") {
         if visible {
             let _ = main.show();
@@ -728,12 +1183,10 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            get_mouse_position,
-            is_mouse_over_window,
             set_click_through,
-            set_island_height,
-            set_island_size,
-            set_island_custom_size,
+            set_island_layout,
+            cursor_active,
+            poll_island_input,
             get_window_position,
             emit_island_panel_motion,
             position_panel_under_island,
@@ -749,6 +1202,14 @@ pub fn run() {
             get_macos_update_health,
             get_local_audio_path,
             get_update_proxy,
+            ensure_ytdlp,
+            resolve_audio_url,
+            import_media_entries,
+            download_temp_audio,
+            http_get_text,
+            get_volume_state,
+            set_system_volume,
+            set_system_mute,
         ])
         .setup(|app| {
             #[cfg(desktop)]
@@ -758,11 +1219,26 @@ pub fn run() {
                 )?;
             }
 
+            // 全局快捷键注册 + 设置变更热更新
+            #[cfg(desktop)]
+            {
+                use tauri::Listener;
+                let shortcut_app = app.handle().clone();
+                let key = read_shortcut_key(&shortcut_app);
+                apply_global_shortcut(&shortcut_app, &key);
+                app.listen_any("settings-changed", move |event| {
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(event.payload()) {
+                        if let Some(k) = v.get("shortcutKey").and_then(|k| k.as_str()) {
+                            apply_global_shortcut(&shortcut_app, k);
+                        }
+                    }
+                });
+            }
+
             if let Some(window) = app.get_webview_window("main") {
                 if let Ok(Some(monitor)) = window.current_monitor() {
-                    let scale_factor = monitor.scale_factor();
                     let screen_width = monitor.size().width as f64;
-                    let win_width = 360.0_f64 * scale_factor;
+                    let win_width = window.outer_size().map(|s| s.width).unwrap_or(520) as f64;
                     let position = monitor.position();
                     let x = position.x as f64 + (screen_width - win_width) / 2.0;
                     let y = position.y as f64;

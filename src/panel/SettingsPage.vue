@@ -7,6 +7,14 @@ import AboutDialog from './AboutDialog.vue'
 const emit = defineEmits<{ back: [] }>()
 
 const { settings } = useSettings()
+
+// 标语编辑：每行一条，清空则恢复内置默认
+const mottoText = computed({
+    get: () => (settings.value.idleMottos && settings.value.idleMottos.length ? settings.value.idleMottos.join('\n') : ''),
+    set: (v: string) => {
+        settings.value.idleMottos = v.split('\n').map(line => line.trim()).filter(Boolean)
+    },
+})
 const {
   checking,
   checked,
@@ -38,6 +46,7 @@ const colorModeOptions: Array<{ id: ColorMode; label: string }> = [
 const displayModeOptions: Array<{ id: IslandDisplayMode; label: string; hint: string }> = [
   { id: 'resident', label: '常驻', hint: '胶囊始终显示在屏幕顶部' },
   { id: 'dock', label: '边缘停靠', hint: '贴边收起为专注条，鼠标悬停时展开' },
+  { id: 'hidden', label: '完全隐藏', hint: '隐藏灵动岛与刘海，仅通过快捷键或托盘打开面板' },
 ]
 
 const updateStatusText = computed(() => {
@@ -234,7 +243,20 @@ onUnmounted(() => {
 
     <!-- 更新 -->
     <div class="settings-section">
-      <div class="section-title">通用</div>
+      <div class="section-title">交互</div>
+      <div class="update-toggle-row">
+        <div class="update-copy">
+          <span class="update-label">点击刘海打开面板</span>
+          <span class="update-hint">关闭后仅通过快捷键或托盘图标打开面板</span>
+        </div>
+        <label class="switch" aria-label="点击刘海打开面板">
+          <input v-model="settings.notchClickOpensPanel" type="checkbox" />
+          <span class="switch-track"></span>
+        </label>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="section-title">声音与启动</div>
       <div class="update-toggle-row">
         <div class="update-copy">
           <span class="update-label">通知提示音</span>
@@ -303,7 +325,7 @@ onUnmounted(() => {
     <div class="settings-section">
       <div class="section-title">外观</div>
       <div class="slider-row">
-        <label class="slider-label">透明度</label>
+        <label class="slider-label">灵动岛透明度</label>
         <input
           type="range"
           class="opacity-slider"
@@ -328,7 +350,17 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- 番茄钟 -->
+    <!-- 标语 -->
+    <div class="settings-section">
+      <div class="section-title">标语</div>
+      <textarea
+        class="motto-editor"
+        rows="4"
+        placeholder="每行一条自定义标语，留空使用默认"
+        v-model="mottoText"
+      ></textarea>
+      <div class="motto-hint">空闲时在灵动岛轮播显示；每行一条，清空恢复默认</div>
+    </div>
     <div class="settings-section">
       <div class="section-title">番茄钟</div>
       <div class="duration-grid">
@@ -933,5 +965,30 @@ onUnmounted(() => {
   filter: blur(8px);
   opacity: 0.7;
   transition: filter 0.2s ease-out, opacity 0.2s ease-out;
+}
+.motto-editor {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 76px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 8px 9px;
+  outline: none;
+}
+
+.motto-editor:focus {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.motto-hint {
+  font-size: 10px;
+  opacity: 0.55;
+  margin-top: 4px;
 }
 </style>

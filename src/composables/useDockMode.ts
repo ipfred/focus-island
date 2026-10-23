@@ -1,4 +1,4 @@
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, watchEffect } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useSettings } from './useSettings'
@@ -21,6 +21,7 @@ export function useDockMode() {
   const timer = useTimer()
 
   const dockMode = computed(() => settings.value.islandDisplayMode === 'dock')
+  const hiddenMode = computed(() => settings.value.islandDisplayMode === 'hidden')
 
   // During notifications / idle-alert / panel-open, always show the full capsule.
   const forceExpanded = computed(
@@ -52,7 +53,13 @@ export function useDockMode() {
         return
       }
       try {
-        const over = await invoke<boolean>('is_mouse_over_window', { pad: 2 })
+        const input = await invoke<{ over: boolean; clicked: boolean }>('poll_island_input', { pad: 2 })
+        // 点击刘海/胶囊打开面板（可在设置中关闭，仅快捷键/托盘）
+        if (input.clicked && !panelVisible.value && settings.value.notchClickOpensPanel) {
+          void invoke('toggle_panel')
+          return
+        }
+        const over = input.over
         if (over) {
           if (collapseTimer !== null) {
             clearTimeout(collapseTimer)
@@ -98,7 +105,8 @@ export function useDockMode() {
     )
   }
 
-  // Track panel visibility: dock mode only applies when panel is closed.
+  // Track panel visibility: poll the source of truth each tick (events can be missed),
+  // keep the event listener for instant updates.
   if (!panelListenerInstalled) {
     panelListenerInstalled = true
     invoke<boolean>('is_panel_visible').then((v) => { panelVisible.value = v }).catch(() => {})
@@ -108,8 +116,26 @@ export function useDockMode() {
     }).catch(() => {})
   }
 
+  watchEffect(() => {
+    if (!dockMode.value) return
+    invoke<boolean>('is_panel_visible').then((v) => { panelVisible.value = v }).catch(() => {})
+  })
+
+  // 舞台永远点击穿透（点击由输入轮询判定）；仅通知横幅需要接收点击
+  // 注意：ignore=true 才是"忽略鼠标=穿透"，无通知时必须为 true，否则整块 500x160 舞台会吃掉点击
+  watchEffect(() => {
+    if (!dockMode.value) return
+    void invoke('set_click_through', { ignore: !notificationVisible.value })
+  })
+
+  // 完全隐藏模式：灵动岛窗口整体隐藏（面板仍可通过快捷键/托盘打开）
+  watchEffect(() => {
+    void invoke('set_island_visible', { visible: !hiddenMode.value })
+  })
+
   return {
     dockMode,
+    hiddenMode,
     dockExpanded,
     dockCollapsed,
     forceExpanded,

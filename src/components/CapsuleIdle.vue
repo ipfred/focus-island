@@ -6,7 +6,10 @@ import { useSettings } from "../composables/useSettings";
 const { recentFocusTasks } = useTasks();
 const { settings } = useSettings()
 
-defineProps<{ radioPlaying?: boolean }>();
+const props = defineProps<{ radioPlaying?: boolean }>();
+
+// 右侧预留宽度（时钟 + 播放波形），单位 px（未乘以 island-scale）
+const rightInset = computed(() => (props.radioPlaying ? 76 : 52));
 
 const DEFAULT_MOTTOS = [
     "深呼吸，然后开始",
@@ -74,6 +77,22 @@ const carouselItems = computed<CarouselItem[]>(() => {
 const carouselIndex = ref(0);
 let carouselTimer: ReturnType<typeof setInterval> | null = null;
 
+// 空闲态右上角实时时钟：对齐到整分钟刷新
+const clock = ref("");
+let clockTimer: ReturnType<typeof setTimeout> | null = null;
+
+function updateClock() {
+    const d = new Date();
+    clock.value = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function scheduleClock() {
+    updateClock();
+    const d = new Date();
+    const delay = (60 - d.getSeconds()) * 1000 - d.getMilliseconds() + 30;
+    clockTimer = setTimeout(scheduleClock, delay);
+}
+
 // Reset index when items change length
 watch(
     () => carouselItems.value.length,
@@ -95,20 +114,17 @@ onMounted(() => {
             carouselIndex.value = (carouselIndex.value + 1) % len;
         }
     }, 5000);
+    scheduleClock();
 });
 
 onUnmounted(() => {
     if (carouselTimer) clearInterval(carouselTimer);
+    if (clockTimer) clearTimeout(clockTimer);
 });
 </script>
 
 <template>
     <div class="capsule-idle relative w-full h-full overflow-hidden">
-        <div v-if="radioPlaying" class="wave-bars">
-          <span class="wave-bar" />
-          <span class="wave-bar" />
-          <span class="wave-bar" />
-        </div>
         <TransitionGroup
             tag="div"
             name="carousel"
@@ -117,8 +133,12 @@ onUnmounted(() => {
             <div
                 v-if="currentItem"
                 :key="currentItem.key"
-                class="absolute inset-0 flex items-center px-4 gap-2"
+                class="absolute inset-0 flex items-center gap-2"
                 :class="currentItem.type === 'motto' ? 'justify-center' : ''"
+                :style="{
+                    paddingLeft: '16px',
+                    paddingRight: `calc(${rightInset}px * var(--island-scale, 1))`,
+                }"
             >
                 <!-- Task item -->
                 <template v-if="currentItem.type === 'task'">
@@ -143,6 +163,16 @@ onUnmounted(() => {
             </div>
         </TransitionGroup>
 
+        <!-- 播放波形 + 时钟：同一组 flex 排列，波形不再压到时间上 -->
+        <div class="idle-right">
+            <div v-if="props.radioPlaying" class="wave-bars">
+                <span class="wave-bar" />
+                <span class="wave-bar" />
+                <span class="wave-bar" />
+            </div>
+            <span class="idle-clock">{{ clock }}</span>
+        </div>
+
         <!-- Dots indicator -->
         <div
             v-if="carouselItems.length > 1"
@@ -163,16 +193,29 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.wave-bars {
+.idle-right {
     position: absolute;
-    right: calc(12px * var(--island-scale, 1));
+    right: 14px;
     top: 50%;
     transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: calc(6px * var(--island-scale, 1));
+    z-index: 2;
+}
+
+.idle-clock {
+    font-size: calc(11px * var(--island-scale, 1));
+    color: rgba(255, 255, 255, 0.35);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+}
+
+.wave-bars {
     display: flex;
     align-items: flex-end;
     gap: calc(1.5px * var(--island-scale, 1));
     height: calc(11px * var(--island-scale, 1));
-    z-index: 2;
 }
 
 .wave-bar {
