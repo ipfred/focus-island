@@ -507,6 +507,9 @@ async function closeWindow() {
   flex-direction: column;
   height: 100vh;
   width: 100vw;
+  /* 自动透明：未悬停时更透，悬停恢复完整材质 */
+  opacity: 0.88;
+  transition: opacity 0.4s var(--panel-ease, cubic-bezier(0.16, 1, 0.3, 1));
   background:
     var(--panel-shell-bg);
   border-radius: 8px;
@@ -533,6 +536,10 @@ async function closeWindow() {
   --panel-from-radius: 24px;
   --panel-close-arc: -20px;
   --panel-top-lift: 10px;
+}
+
+.panel-root:hover {
+  opacity: 1;
 }
 
 .panel-sheen,

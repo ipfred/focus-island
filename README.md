@@ -1,5 +1,27 @@
 # 专注岛 FocusIsland
 
+> [!NOTE]
+> ## 🍴 定制版 Fork 说明（Windows 增强版）
+> 本 Fork 基于 [ipfred/focus-island](https://github.com/ipfred/focus-island) v2.9.0，增强了以下内容：
+>
+> | 增强 | 说明 |
+> |------|------|
+> | 🌙 **刘海模式（默认）** | 灵动岛默认收为屏幕顶部一条无感刘海，悬停展开，点击可打开面板（可在设置中关闭），收起 150ms |
+> | 📻 **电台导入** | B 站/视频链接（自动调用 yt-dlp 转纯音频，首次自动下载）、M3U/PLS 歌单、音频直链；替换了 8 个无法播放的官方源 |
+> | 🔔 **通知中心** | 番茄钟/休息记录持久化保存 |
+> | 🔊 **快捷音量** | 通知中心内控制系统音量与静音（WASAPI） |
+> | ⌨️ **快捷键修复** | 全局快捷键改为 Rust 层注册，修复漏触发 |
+> | 🏷️ **标语编辑器** | 设置页自定义空闲轮播标语 |
+> | 🖥️ **自动透明** | 面板未悬停时自动变透明，悬停恢复完整材质 |
+>
+> ### 维护指南
+> - **同步官方更新**：`git fetch upstream && git merge upstream/master`
+> - **构建**：`npm install && npx tauri build --no-bundle`，产物在 `src-tauri/target/release/focus-island.exe`
+> - **yt-dlp**：首次导入视频链接自动下载到 `%APPDATA%/com.focus-island.desktop/bin/`
+> - ⚠️ 勿在应用内安装官方更新（会覆盖定制）；B 站短链 b23.tv 部分网络被阻断，请使用完整链接
+>
+> 以下为原版 README：
+
 <p align="center">
   <strong>屏幕顶部的灵动岛番茄钟</strong><br>
   <em>专注时在，注意力拉回，从不打扰</em>

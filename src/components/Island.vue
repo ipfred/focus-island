@@ -388,8 +388,8 @@ onUnmounted(() => {
         width 0.15s cubic-bezier(0.3, 0, 0.2, 1),
         height 0.15s cubic-bezier(0.3, 0, 0.2, 1),
         border-radius 0.15s cubic-bezier(0.3, 0, 0.2, 1);
-    /* 刘海体 = 同一块深磨砂玻璃 */
-    background: linear-gradient(180deg, rgba(23, 23, 28, 0.62), rgba(16, 16, 20, 0.66));
+    /* 刘海体 = 同一块深磨砂玻璃（更实） */
+    background: linear-gradient(180deg, rgba(23, 23, 28, 0.88), rgba(16, 16, 20, 0.92));
 }
 
 /* ===== 浅色模式 = 系统磨砂上的低透明白玻璃 ===== */
@@ -404,7 +404,7 @@ onUnmounted(() => {
 }
 
 :root[data-color-mode="light"] .capsule-shell.strip-mode {
-    background: rgba(250, 252, 255, 0.36);
+    background: rgba(249, 251, 254, 0.62);
     box-shadow:
         inset 0 -1px 0 rgba(120, 140, 170, 0.16),
         inset 0 1px 0 rgba(255, 255, 255, 0.7);

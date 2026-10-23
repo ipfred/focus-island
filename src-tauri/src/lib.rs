@@ -22,7 +22,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 #[cfg(target_os = "linux")]
 use x11::xlib;
 
-const PANEL_GAP_Y: i32 = 16;
+const PANEL_GAP_Y: i32 = 28;
 const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/icon.png");
 
 static LAST_PANEL_SIZE: OnceLock<Mutex<Option<tauri::PhysicalSize<u32>>>> = OnceLock::new();
