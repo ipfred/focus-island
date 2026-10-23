@@ -921,9 +921,9 @@ fn position_panel_under_island_inner<R: Runtime>(app: &AppHandle<R>) {
 }
 
 fn focus_panel<R: Runtime>(app: &AppHandle<R>) {
-    // Ensure the main (island) window is visible first
+    // Ensure the main (island) window is visible first (unless user fully hid it)
     if let Some(main) = app.get_webview_window("main") {
-        if !main.is_visible().unwrap_or(false) {
+        if !main.is_visible().unwrap_or(false) && !island_user_hidden() {
             let _ = main.show();
         }
     }
@@ -1060,7 +1060,7 @@ fn animate_panel_open<R: Runtime>(app: AppHandle<R>) {
     let _ = panel.set_min_size(Some(tauri::LogicalSize::new(cfg_min_w, cfg_min_h)));
 
     if let Some(main) = app.get_webview_window("main") {
-        if !main.is_visible().unwrap_or(true) {
+        if !main.is_visible().unwrap_or(true) && !island_user_hidden() {
             let _ = main.show();
         }
     }
@@ -1093,8 +1093,17 @@ fn is_panel_visible<R: Runtime>(app: AppHandle<R>) -> bool {
     false
 }
 
+static ISLAND_USER_HIDDEN: std::sync::Mutex<bool> = std::sync::Mutex::new(false);
+
+fn island_user_hidden() -> bool {
+    ISLAND_USER_HIDDEN.lock().map(|f| *f).unwrap_or(false)
+}
+
 #[tauri::command]
 fn set_island_visible<R: Runtime>(app: AppHandle<R>, visible: bool) {
+    if let Ok(mut f) = ISLAND_USER_HIDDEN.lock() {
+        *f = !visible;
+    }
     if let Some(main) = app.get_webview_window("main") {
         if visible {
             let _ = main.show();

@@ -21,6 +21,7 @@ export function useDockMode() {
   const timer = useTimer()
 
   const dockMode = computed(() => settings.value.islandDisplayMode === 'dock')
+  const hiddenMode = computed(() => settings.value.islandDisplayMode === 'hidden')
 
   // During notifications / idle-alert / panel-open, always show the full capsule.
   const forceExpanded = computed(
@@ -126,8 +127,14 @@ export function useDockMode() {
     void invoke('set_click_through', { ignore: notificationVisible.value })
   })
 
+  // 完全隐藏模式：灵动岛窗口整体隐藏（面板仍可通过快捷键/托盘打开）
+  watchEffect(() => {
+    void invoke('set_island_visible', { visible: !hiddenMode.value })
+  })
+
   return {
     dockMode,
+    hiddenMode,
     dockExpanded,
     dockCollapsed,
     forceExpanded,

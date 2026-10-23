@@ -49,6 +49,7 @@ const colorModeOptions: Array<{ id: ColorMode; label: string }> = [
 const displayModeOptions: Array<{ id: IslandDisplayMode; label: string; hint: string }> = [
   { id: 'resident', label: '常驻', hint: '胶囊始终显示在屏幕顶部' },
   { id: 'dock', label: '边缘停靠', hint: '贴边收起为专注条，鼠标悬停时展开' },
+  { id: 'hidden', label: '完全隐藏', hint: '隐藏灵动岛与刘海，仅通过快捷键或托盘打开面板' },
 ]
 
 const updateStatusText = computed(() => {
