@@ -242,6 +242,14 @@ onUnmounted(() => {
 
     <!-- 更新 -->
     <div class="settings-section">
+      <div class="section-title">交互</div>
+      <label class="form-check">
+        <input class="form-check-input" type="checkbox" v-model="settings.notchClickOpensPanel" />
+        <span class="form-check-label">点击刘海/胶囊打开面板</span>
+      </label>
+      <div class="motto-hint">关闭后仅通过快捷键或托盘图标打开面板</div>
+    </div>
+    <div class="settings-section">
       <div class="section-title">通用</div>
       <div class="update-toggle-row">
         <div class="update-copy">

@@ -518,6 +518,23 @@ async function play(stationId?: string) {
     a.volume = radioSettings.value.volume / 100
     await a.play()
   } catch (e) {
+    // SomaFM 等多镜像流：失败自动换镜像重试一次
+    if (station.streamUrl.includes('somafm.com')) {
+      const mirrors = ['https://ice4.somafm.com/', 'https://ice1.somafm.com/']
+      for (const mirror of mirrors) {
+        const alt = station.streamUrl.replace(/^https:\/\/ice\d\.somafm\.com\//, mirror)
+        if (alt === station.streamUrl) continue
+        try {
+          a.src = alt
+          a.load()
+          a.volume = radioSettings.value.volume / 100
+          await a.play()
+          return
+        } catch {
+          // try next mirror
+        }
+      }
+    }
     playing.value = false
     error.value = typeof e === 'string' ? e : '播放失败'
     loading.value = false

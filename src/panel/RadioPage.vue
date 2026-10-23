@@ -288,8 +288,7 @@ async function scrollToPlaying() {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: rgba(18, 18, 22, 0.72);
-  backdrop-filter: blur(20px) saturate(1.4);
+  background: transparent;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   padding: 8px 10px 8px;
 }

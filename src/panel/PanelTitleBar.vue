@@ -74,8 +74,7 @@ const displayIconPaths = computed(() => props.iconPaths?.length ? props.iconPath
   gap: 10px;
   height: 40px;
   padding: 0 12px 0 16px;
-  background: rgba(14, 14, 18, 0.72);
-  backdrop-filter: blur(24px) saturate(1.4);
+  background: transparent;
   border-bottom: 1px solid rgba(255,255,255,0.07);
   cursor: default;
   user-select: none;

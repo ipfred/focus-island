@@ -917,6 +917,8 @@ fn hide_panel<R: Runtime>(app: AppHandle<R>) {
         }
         let _ = panel.hide();
     }
+    // 兜底：无论面板从哪条路径关闭，都让灵动岛恢复刘海态
+    let _ = app.emit("island-panel-motion", "close");
 }
 
 #[tauri::command]

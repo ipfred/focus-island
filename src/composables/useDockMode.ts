@@ -53,8 +53,8 @@ export function useDockMode() {
       }
       try {
         const input = await invoke<{ over: boolean; clicked: boolean }>('poll_island_input', { pad: 2 })
-        // 点击展开的胶囊 → 打开/关闭面板（舞台本身永远穿透，不挡下层点击）
-        if (input.clicked && !panelVisible.value) {
+        // 点击刘海/胶囊打开面板（可在设置中关闭，仅快捷键/托盘）
+        if (input.clicked && !panelVisible.value && settings.value.notchClickOpensPanel) {
           void invoke('toggle_panel')
           return
         }
@@ -104,7 +104,8 @@ export function useDockMode() {
     )
   }
 
-  // Track panel visibility: dock mode only applies when panel is closed.
+  // Track panel visibility: poll the source of truth each tick (events can be missed),
+  // keep the event listener for instant updates.
   if (!panelListenerInstalled) {
     panelListenerInstalled = true
     invoke<boolean>('is_panel_visible').then((v) => { panelVisible.value = v }).catch(() => {})
@@ -113,6 +114,11 @@ export function useDockMode() {
       else if (payload === 'close') panelVisible.value = false
     }).catch(() => {})
   }
+
+  watchEffect(() => {
+    if (!dockMode.value) return
+    invoke<boolean>('is_panel_visible').then((v) => { panelVisible.value = v }).catch(() => {})
+  })
 
   // 舞台永远点击穿透（点击由输入轮询判定）；仅通知横幅需要接收点击
   watchEffect(() => {

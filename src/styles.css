@@ -15,10 +15,8 @@
   --alert-color: #e8a23a;
   --island-opacity: 0.75;
   --panel-root-filter: none;
-  /* 系统磨砂之上叠 78-82% 深色层：真实背景模糊 + 稳定的深色观感 */
-  --panel-shell-bg:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0) 26%),
-    linear-gradient(180deg, rgba(24, 24, 30, 0.78), rgba(13, 13, 17, 0.82));
+  /* 深色 = 整块连续材质：单一渐变到近实心，杜绝内层叠加造成的断层 */
+  --panel-shell-bg: linear-gradient(180deg, rgba(31, 31, 38, 0.97), rgba(20, 20, 25, 0.97));
   --panel-shell-border: rgba(255, 255, 255, 0.14);
   --panel-shell-shadow-1: 0 24px 64px rgba(0, 0, 0, 0.42);
   --panel-shell-shadow-2: 0 8px 22px rgba(0, 0, 0, 0.26);
