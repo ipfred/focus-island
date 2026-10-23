@@ -516,7 +516,7 @@ async function closeWindow() {
     var(--panel-shell-shadow-2),
     var(--panel-shell-edge, none);
   overflow: hidden;
-  color: #e8e8ea;
+  color: #f8f6f0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   transform-origin: 50% 0;
   will-change: transform, opacity, border-radius;
@@ -544,7 +544,10 @@ async function closeWindow() {
 }
 
 .panel-sheen {
-  background: var(--panel-sheen-bg);
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E")
+    light-dark(rgba(255, 255, 255, 0.028), rgba(255, 255, 255, 0.035)),
+    var(--panel-sheen-bg);
   opacity: 0.9;
 }
 
@@ -772,7 +775,7 @@ async function closeWindow() {
 }
 
 .panel-body > * {
-  animation: view-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: view-in 300ms var(--panel-ease, cubic-bezier(0.16, 1, 0.3, 1)) both;
 }
 
 @keyframes view-in {

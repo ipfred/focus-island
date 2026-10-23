@@ -688,6 +688,23 @@ fn island_layout() -> Option<IslandLayout> {
     ISLAND_LAYOUT.lock().ok().and_then(|slot| *slot)
 }
 
+static LAST_CURSOR: std::sync::Mutex<Option<(i32, i32)>> = std::sync::Mutex::new(None);
+
+/// 系统级用户活动检测：光标自上次查询以来是否移动过。
+/// 灵动岛窗口是点击穿透的，收不到真实输入事件，空闲检测必须由 Rust 代劳。
+#[tauri::command]
+fn cursor_active() -> bool {
+    let (mx, my) = mouse_position_raw();
+    let (mx, my) = (mx as i32, my as i32);
+    let mut slot = LAST_CURSOR.lock().unwrap_or_else(|e| e.into_inner());
+    let moved = match *slot {
+        Some((lx, ly)) => (lx - mx).abs() + (ly - my).abs() > 2,
+        None => true,
+    };
+    *slot = Some((mx, my));
+    moved
+}
+
 /// 舞台内的灵动岛把自身屏幕矩形（视口逻辑坐标）上报给 Rust，
 /// 面板定位、悬停检测、点击判定全部依赖这个矩形。
 #[tauri::command]
@@ -1088,6 +1105,7 @@ pub fn run() {
             set_click_through,
             set_island_layout,
             is_mouse_over_island,
+            cursor_active,
             poll_island_input,
             get_window_position,
             emit_island_panel_motion,

@@ -109,7 +109,7 @@ const displayIconPaths = computed(() => props.iconPaths?.length ? props.iconPath
 .titlebar-title {
   font-size: 13px;
   font-weight: 600;
-  color: rgba(255,255,255,0.75);
+  color: #f8f6f0;
   letter-spacing: 0.02em;
   white-space: nowrap;
 }

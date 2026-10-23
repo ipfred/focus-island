@@ -52,55 +52,55 @@ export const PRESET_STATIONS: RadioStation[] = [
     tags: ['编程', '专注', '无人声'],
   },
   {
-    id: 'defcon',
-    name: 'DEF CON Radio',
-    streamUrl: 'https://ice2.somafm.com/defcon-128-mp3',
-    description: '黑客大会电台，节奏感强，适合敲代码提速',
+    id: 'instrumental',
+    name: 'Instrumental FM',
+    streamUrl: 'https://stream.laut.fm/instrumental',
+    description: '纯器乐流行，无人声干扰，适合敲代码',
     icon: 'hacker',
-    keyword: '黑客',
+    keyword: '器乐',
     category: 'focus',
-    tags: ['极客', '节奏', '编程'],
+    tags: ['器乐', '无人声', '编程'],
   },
   {
-    id: 'groovesalad',
-    name: 'Groove Salad',
-    streamUrl: 'https://ice2.somafm.com/groovesalad-128-mp3',
-    description: '缓拍电子氛围，轻微节奏，适合日常办公',
+    id: 'radioparadise',
+    name: 'Radio Paradise',
+    streamUrl: 'https://stream.radioparadise.com/mp3-192',
+    description: '多元化精选电台，工作学习万能伴流',
     icon: 'wave',
-    keyword: '缓拍',
+    keyword: '精选',
     category: 'focus',
-    tags: ['电子', '节奏', '办公'],
+    tags: ['精选', '多元', '办公'],
   },
   // 氛围 / 冥想
   {
-    id: 'dronezone',
-    name: 'Drone Zone',
-    streamUrl: 'https://ice2.somafm.com/dronezone-128-mp3',
-    description: '深邃氛围音景，极简无节拍，深度专注',
+    id: 'scenichd',
+    name: 'Scenic HD',
+    streamUrl: 'https://radio.stereoscenic.com/asp-h',
+    description: '高保真立体声景，极简无节拍，深度专注',
     icon: 'drone',
-    keyword: '极简',
+    keyword: '声景',
     category: 'ambient',
     tags: ['氛围', '冥想', '无节拍'],
   },
   {
-    id: 'deepspaceone',
-    name: 'Deep Space One',
-    streamUrl: 'https://ice2.somafm.com/deepspaceone-128-mp3',
-    description: '深邃太空电子，沉浸式专注体验',
+    id: 'paradisemellow',
+    name: 'Paradise Mellow',
+    streamUrl: 'https://stream.radioparadise.com/mellow-128',
+    description: '温柔旋律混合，安静陪伴不抢戏',
     icon: 'planet',
-    keyword: '太空',
+    keyword: '温柔',
     category: 'ambient',
-    tags: ['太空', '电子', '沉浸'],
+    tags: ['轻柔', '陪伴', '专注'],
   },
   {
-    id: 'spacestation',
-    name: 'Space Station',
-    streamUrl: 'https://ice2.somafm.com/spacestation-128-mp3',
-    description: '中速太空音乐，轻松聚焦',
+    id: 'cityfm',
+    name: 'City Vibes',
+    streamUrl: 'https://stream.laut.fm/city',
+    description: '都会律动电台，中速节奏轻松聚焦',
     icon: 'star',
-    keyword: '星际',
+    keyword: '都会',
     category: 'ambient',
-    tags: ['太空', '轻松', '专注'],
+    tags: ['律动', '轻松', '专注'],
   },
   {
     id: 'ambientpill',
@@ -135,10 +135,10 @@ export const PRESET_STATIONS: RadioStation[] = [
   },
   // 爵士 / 古典
   {
-    id: 'smoothjazz',
-    name: 'Smooth Jazz',
-    streamUrl: 'https://strm112.1.fm/smoothjazz_mobile_mp3',
-    description: '平滑柔和的纯乐器爵士，适合阅读写作',
+    id: 'lautjazz',
+    name: 'Laut Jazz',
+    streamUrl: 'https://jazz.stream.laut.fm/jazz',
+    description: '全天候爵士流，柔和乐器，适合阅读写作',
     icon: 'jazz',
     keyword: '爵士',
     category: 'jazz',
@@ -155,14 +155,14 @@ export const PRESET_STATIONS: RadioStation[] = [
     tags: ['爵士', '传统', '无广告'],
   },
   {
-    id: 'secretagent',
-    name: 'Secret Agent',
-    streamUrl: 'https://ice2.somafm.com/secretagent-128-mp3',
-    description: '60 年代复古电影配乐，神秘爵士感',
+    id: 'deluxefm',
+    name: 'Deluxe FM',
+    streamUrl: 'https://stream.laut.fm/deluxe',
+    description: '精致休闲精选，下午茶与轻松事务',
     icon: 'spy',
-    keyword: '特工',
-    category: 'jazz',
-    tags: ['复古', '电影', '神秘'],
+    keyword: '精致',
+    category: 'lofi',
+    tags: ['休闲', '精选', '轻松'],
   },
   // 本地音乐
   {
@@ -518,23 +518,6 @@ async function play(stationId?: string) {
     a.volume = radioSettings.value.volume / 100
     await a.play()
   } catch (e) {
-    // SomaFM 等多镜像流：失败自动换镜像重试一次
-    if (station.streamUrl.includes('somafm.com')) {
-      const mirrors = ['https://ice4.somafm.com/', 'https://ice1.somafm.com/']
-      for (const mirror of mirrors) {
-        const alt = station.streamUrl.replace(/^https:\/\/ice\d\.somafm\.com\//, mirror)
-        if (alt === station.streamUrl) continue
-        try {
-          a.src = alt
-          a.load()
-          a.volume = radioSettings.value.volume / 100
-          await a.play()
-          return
-        } catch {
-          // try next mirror
-        }
-      }
-    }
     playing.value = false
     error.value = typeof e === 'string' ? e : '播放失败'
     loading.value = false

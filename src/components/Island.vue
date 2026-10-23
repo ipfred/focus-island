@@ -23,6 +23,7 @@ let unlistenSettings: (() => void) | null = null;
 let unlistenPanelMotion: (() => void) | null = null;
 let unlistenRadio: (() => void) | null = null;
 let unlistenNotification: (() => void) | null = null;
+let activityTimer: ReturnType<typeof setInterval> | null = null;
 
 const radioPlaying = ref(false);
 const notificationType = ref<NotificationType>(null);
@@ -165,6 +166,18 @@ function startLocalCountdown(endAt: number) {
 onMounted(async () => {
     invoke("set_click_through", { ignore: true });
 
+    // 空闲检测喂食：岛窗口是点击穿透的收不到输入，
+    // 用 Rust 光标轮询探测系统级活动，派发合成事件重置 useIdle
+    activityTimer = setInterval(async () => {
+        try {
+            if (await invoke<boolean>("cursor_active")) {
+                window.dispatchEvent(new MouseEvent("mousemove"));
+            }
+        } catch {
+            // ignore
+        }
+    }, 1000);
+
     await nextTick();
     reportLayout();
     if (typeof ResizeObserver !== "undefined" && shellRef.value) {
@@ -230,6 +243,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+    if (activityTimer !== null) clearInterval(activityTimer);
     layoutObserver?.disconnect();
     unlisten?.();
     unlistenSettings?.();
