@@ -600,7 +600,8 @@ function handleCloseCategoryDialog() {
 }
 
 .delete-dialog {
-  background: rgba(28, 28, 32, 0.98);
+  background: rgba(26, 26, 32, 0.88);
+  backdrop-filter: blur(28px) saturate(1.3);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
   padding: 20px 24px;

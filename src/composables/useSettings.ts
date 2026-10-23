@@ -44,7 +44,7 @@ const SETTINGS_FILE = 'focus-island/settings.json'
 const DEFAULT_SETTINGS: Settings = {
   islandOpacity: 0.25,
   islandScale: 1.0,
-  islandDisplayMode: 'resident',
+  islandDisplayMode: 'dock',
   focusDuration: 25,
   breakDuration: 5,
   colorMode: 'system',

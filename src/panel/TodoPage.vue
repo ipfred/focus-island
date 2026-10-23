@@ -1131,7 +1131,8 @@ onBeforeUnmount(() => {
   min-width: 140px;
   padding: 4px;
   border-radius: 10px;
-  background: rgba(28, 28, 32, 0.98);
+  background: rgba(26, 26, 32, 0.88);
+  backdrop-filter: blur(28px) saturate(1.3);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(12px);
@@ -1477,7 +1478,8 @@ onBeforeUnmount(() => {
   gap: 6px;
   padding: 4px 8px;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--focus-color) 10%, rgba(28, 28, 32, 0.8));
+  background: color-mix(in srgb, var(--focus-color) 10%, rgba(26, 26, 32, 0.78));
+  backdrop-filter: blur(24px) saturate(1.3);
   border: 1px solid color-mix(in srgb, var(--focus-color) 25%, transparent);
   flex-shrink: 0;
 }
@@ -1755,7 +1757,8 @@ onBeforeUnmount(() => {
   min-width: 130px;
   padding: 4px;
   border-radius: 10px;
-  background: rgba(28, 28, 32, 0.98);
+  background: rgba(26, 26, 32, 0.88);
+  backdrop-filter: blur(28px) saturate(1.3);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(12px);
@@ -1813,7 +1816,8 @@ onBeforeUnmount(() => {
   min-width: 130px;
   padding: 4px;
   border-radius: 10px;
-  background: rgba(28, 28, 32, 0.98);
+  background: rgba(26, 26, 32, 0.88);
+  backdrop-filter: blur(28px) saturate(1.3);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(12px);
@@ -1900,7 +1904,8 @@ onBeforeUnmount(() => {
   top: calc(100% + 8px);
   right: 0;
   width: 140px;
-  background: rgba(30, 30, 35, 0.85);
+  background: rgba(28, 28, 34, 0.80);
+  backdrop-filter: blur(28px) saturate(1.3);
   backdrop-filter: blur(16px) saturate(140%);
   -webkit-backdrop-filter: blur(16px) saturate(140%);
   border: 1px solid rgba(255, 255, 255, 0.08);

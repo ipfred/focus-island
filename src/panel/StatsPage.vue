@@ -526,7 +526,8 @@ const maxPomodoros = computed(() => Math.max(...weekTrend.value.map(d => d.pomod
   bottom: calc(100% + 4px);
   left: 50%;
   transform: translateX(-50%);
-  background: rgba(30, 30, 35, 0.95);
+  background: rgba(28, 28, 34, 0.88);
+  backdrop-filter: blur(28px) saturate(1.3);
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 4px;
   padding: 3px 6px;

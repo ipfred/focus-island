@@ -1,4 +1,4 @@
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, watchEffect } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useSettings } from './useSettings'
@@ -107,6 +107,12 @@ export function useDockMode() {
       else if (payload === 'close') panelVisible.value = false
     }).catch(() => {})
   }
+
+  // 悬停展开/通知时窗口可点击（打开面板），收起时恢复点击穿透
+  watchEffect(() => {
+    if (!dockMode.value) return
+    void invoke('set_click_through', { ignore: dockExpanded.value || forceExpanded.value })
+  })
 
   return {
     dockMode,

@@ -3,9 +3,9 @@ import { readTextFile, writeTextFile, mkdir, BaseDirectory } from '@tauri-apps/p
 import { emit } from '@tauri-apps/api/event'
 import { invoke, convertFileSrc } from '@tauri-apps/api/core'
 
-export type StationIcon = 'code' | 'wave' | 'drone' | 'planet' | 'star' | 'pill' | 'folder' | 'coffee' | 'jazz' | 'spy' | 'hacker'
+export type StationIcon = 'code' | 'wave' | 'drone' | 'planet' | 'star' | 'pill' | 'folder' | 'coffee' | 'jazz' | 'spy' | 'hacker' | 'link'
 
-export type StationCategory = 'focus' | 'ambient' | 'lofi' | 'jazz'
+export type StationCategory = 'focus' | 'ambient' | 'lofi' | 'jazz' | 'custom'
 
 export interface RadioStation {
   id: string
@@ -16,11 +16,19 @@ export interface RadioStation {
   keyword: string
   category: StationCategory
   tags: string[]
+  /** 原始链接（视频/歌单条目），播放时经 yt-dlp 解析成纯音频流 */
+  sourceUrl?: string
 }
 
 export interface RadioSettings {
   currentStationId: string | null
   volume: number
+  customStations?: RadioStation[]
+}
+
+export interface MediaEntry {
+  title: string
+  url: string
 }
 
 export const CATEGORY_LABELS: Record<StationCategory, string> = {
@@ -28,6 +36,7 @@ export const CATEGORY_LABELS: Record<StationCategory, string> = {
   ambient: '氛围 / 冥想',
   lofi: 'Lo-Fi / 轻松',
   jazz: '爵士 / 古典',
+  custom: '我的导入',
 }
 
 export const PRESET_STATIONS: RadioStation[] = [
@@ -173,17 +182,166 @@ const RADIO_FILE = 'focus-island/radio.json'
 const DEFAULT_RADIO_SETTINGS: RadioSettings = {
   currentStationId: null,
   volume: 50,
+  customStations: [],
 }
 
 const radioSettings = ref<RadioSettings>({ ...DEFAULT_RADIO_SETTINGS })
+const customStations = ref<RadioStation[]>([])
 const playing = ref(false)
 const loading = ref(false)
 const error = ref<string | null>(null)
 const loaded = ref(false)
 
+const allStations = computed(() => [...PRESET_STATIONS, ...customStations.value])
+
 const currentStation = computed(() =>
-  PRESET_STATIONS.find(s => s.id === radioSettings.value.currentStationId) ?? null
+  allStations.value.find(s => s.id === radioSettings.value.currentStationId) ?? null
 )
+
+/** 解析结果缓存：sourceUrl → { stream, at }，1 小时内复用（直链常带时效签名） */
+const resolvedCache = new Map<string, { stream: string; at: number }>()
+const RESOLVE_TTL = 60 * 60 * 1000
+
+const AUDIO_URL_RE = /\.(mp3|m4a|aac|ogg|opus|wav|flac)(\?|#|$)/i
+const M3U_URL_RE = /\.m3u8?(\?|#|$)/i
+
+function stationId(prefix: string): string {
+  return `custom-${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return url
+  }
+}
+
+function makeCustomStation(title: string, url: string): RadioStation {
+  return {
+    id: stationId('s'),
+    name: title,
+    streamUrl: '__RESOLVE__',
+    sourceUrl: url,
+    description: hostOf(url),
+    icon: 'link',
+    keyword: '导入',
+    category: 'custom',
+    tags: ['导入'],
+  }
+}
+
+/** 解析 M3U/M3U8 文本 → 音频直链电台 */
+function parseM3U(text: string): RadioStation[] {
+  const out: RadioStation[] = []
+  let pendingTitle = ''
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line) continue
+    if (line.toUpperCase().startsWith('#EXTINF')) {
+      pendingTitle = line.split(',').slice(1).join(',').trim()
+    } else if (line.startsWith('#')) {
+      continue
+    } else if (/^https?:\/\//i.test(line)) {
+      const name = pendingTitle || hostOf(line)
+      if (AUDIO_URL_RE.test(line) || /\.m3u8?(\?|#|$)/i.test(line)) {
+        out.push({
+          id: stationId('m'),
+          name,
+          streamUrl: line,
+          description: hostOf(line),
+          icon: 'link',
+          keyword: '导入',
+          category: 'custom',
+          tags: ['M3U'],
+        })
+      }
+      pendingTitle = ''
+    }
+  }
+  return out
+}
+
+/** 解析 PLS 文本 → 音频直链电台 */
+function parsePLS(text: string): RadioStation[] {
+  const files = new Map<number, string>()
+  const titles = new Map<number, string>()
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim()
+    const fileMatch = /^File(\d+)\s*=\s*(.+)$/i.exec(line)
+    if (fileMatch) files.set(Number(fileMatch[1]), fileMatch[2].trim())
+    const titleMatch = /^Title(\d+)\s*=\s*(.+)$/i.exec(line)
+    if (titleMatch) titles.set(Number(titleMatch[1]), titleMatch[2].trim())
+  }
+  const out: RadioStation[] = []
+  for (const [idx, url] of files) {
+    if (!/^https?:\/\//i.test(url)) continue
+    out.push({
+      id: stationId('p'),
+      name: titles.get(idx) || hostOf(url),
+      streamUrl: url,
+      description: hostOf(url),
+      icon: 'link',
+      keyword: '导入',
+      category: 'custom',
+      tags: ['PLS'],
+    })
+  }
+  return out
+}
+
+async function addCustomStations(stations: RadioStation[]): Promise<number> {
+  const known = new Set(customStations.value.map(s => s.sourceUrl || s.streamUrl))
+  const fresh = stations.filter(s => !known.has(s.sourceUrl || s.streamUrl))
+  if (fresh.length) {
+    customStations.value = [...customStations.value, ...fresh]
+    if (customStations.value.length > 500) {
+      customStations.value = customStations.value.slice(-500)
+    }
+  }
+  return fresh.length
+}
+
+function removeCustomStation(id: string) {
+  customStations.value = customStations.value.filter(s => s.id !== id)
+  if (radioSettings.value.currentStationId === id) {
+    pause()
+    radioSettings.value.currentStationId = null
+  }
+}
+
+/**
+ * 导入链接：自动识别 音频直链 / M3U 歌单 / 视频·合集链接（yt-dlp）。
+ * 返回新增条数。
+ */
+async function importFromUrl(rawUrl: string): Promise<number> {
+  const url = rawUrl.trim()
+  if (!url) throw new Error('链接为空')
+
+  if (M3U_URL_RE.test(url)) {
+    const text = await invoke<string>('http_get_text', { url })
+    const added = await addCustomStations(parseM3U(text))
+    if (!added) throw new Error('歌单里没有可播放的音频条目')
+    return added
+  }
+
+  if (AUDIO_URL_RE.test(url)) {
+    return addCustomStations([makeCustomStation(decodeURIComponent(url.split('/').pop() || '音频直链'), url)])
+  }
+
+  const entries = await invoke<MediaEntry[]>('import_media_entries', { url })
+  return addCustomStations(
+    entries.map(e => makeCustomStation(e.title, e.url || url)),
+  )
+}
+
+/** 导入本地歌单文件（.m3u/.m3u8/.pls/.txt） */
+async function importFromFile(file: File): Promise<number> {
+  const text = await file.text()
+  const stations = /\.pls(\?|#|$)/i.test(file.name) ? parsePLS(text) : parseM3U(text)
+  if (!stations.length) throw new Error('歌单里没有可播放的音频条目')
+  return addCustomStations(stations)
+}
 
 const volume = computed(() => radioSettings.value.volume)
 
@@ -252,8 +410,10 @@ async function loadSettings() {
       ...parsed,
       volume: Math.max(0, Math.min(100, parsed.volume ?? DEFAULT_RADIO_SETTINGS.volume)),
     }
+    customStations.value = Array.isArray(parsed.customStations) ? parsed.customStations : []
   } catch {
     radioSettings.value = { ...DEFAULT_RADIO_SETTINGS }
+    customStations.value = []
   }
   loaded.value = true
 }
@@ -262,13 +422,14 @@ async function save() {
   if (!loaded.value) return
   try {
     await mkdir('focus-island', { baseDir: BaseDirectory.AppData, recursive: true })
-    await writeTextFile(RADIO_FILE, JSON.stringify(radioSettings.value), { baseDir: BaseDirectory.AppData })
+    const payload: RadioSettings = { ...radioSettings.value, customStations: customStations.value }
+    await writeTextFile(RADIO_FILE, JSON.stringify(payload), { baseDir: BaseDirectory.AppData })
   } catch (e) {
     console.error('Failed to save radio settings', e)
   }
 }
 
-watch(radioSettings, () => {
+watch([radioSettings, customStations], () => {
   save()
   emit('radio-state-update', {
     playing: playing.value,
@@ -293,7 +454,7 @@ async function play(stationId?: string) {
   } else if (id !== radioSettings.value.currentStationId) {
     radioSettings.value.currentStationId = id
   }
-  const station = PRESET_STATIONS.find(s => s.id === radioSettings.value.currentStationId)
+  const station = allStations.value.find(s => s.id === radioSettings.value.currentStationId)
   if (!station) return
 
   loading.value = true
@@ -311,6 +472,42 @@ async function play(stationId?: string) {
         error.value = typeof e === 'string' ? e : '本地音频文件不存在'
         loading.value = false
         return
+      }
+    } else if (station.streamUrl === '__RESOLVE__' && station.sourceUrl) {
+      // 视频/歌单条目：解析成纯音频流（直链常带时效签名，命中 1h 缓存则复用）
+      const cached = resolvedCache.get(station.sourceUrl)
+      if (cached && Date.now() - cached.at < RESOLVE_TTL) {
+        src = cached.stream
+      } else {
+        try {
+          const res = await invoke<{ stream_url: string; title: string | null }>('resolve_audio_url', {
+            url: station.sourceUrl,
+          })
+          src = res.stream_url
+          resolvedCache.set(station.sourceUrl, { stream: src, at: Date.now() })
+        } catch (e) {
+          const msg = typeof e === 'string' ? e : '解析失败'
+          if (msg === 'YT_NOT_INSTALLED') {
+            // 首次使用：自动下载 yt-dlp（约 17MB），完成后重试一次
+            loading.value = true
+            try {
+              await invoke<string>('ensure_ytdlp')
+              const res = await invoke<{ stream_url: string; title: string | null }>('resolve_audio_url', {
+                url: station.sourceUrl,
+              })
+              src = res.stream_url
+              resolvedCache.set(station.sourceUrl, { stream: src, at: Date.now() })
+            } catch (e2) {
+              error.value = typeof e2 === 'string' ? e2 : 'yt-dlp 获取失败'
+              loading.value = false
+              return
+            }
+          } else {
+            error.value = msg
+            loading.value = false
+            return
+          }
+        }
       }
     } else {
       src = station.streamUrl
@@ -368,7 +565,8 @@ export function useRadio() {
   if (!loaded.value) loadSettings()
 
   return {
-    stations: PRESET_STATIONS,
+    stations: allStations,
+    customStations,
     currentStation,
     playing,
     loading,
@@ -379,5 +577,8 @@ export function useRadio() {
     toggle,
     switchStation,
     setVolume,
+    importFromUrl,
+    importFromFile,
+    removeCustomStation,
   }
 }

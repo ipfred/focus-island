@@ -6,7 +6,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { useTimerBridge } from '../composables/useTimerBridge'
 import { useSettings } from '../composables/useSettings'
-import { useShortcut } from '../composables/useShortcut'
+import { useNotifications } from '../composables/useNotifications'
 import { useUpdater } from '../composables/useUpdater'
 import { useTasks } from '../composables/useTasks'
 import { useTaskGroups } from '../composables/useTaskGroups'
@@ -21,6 +21,7 @@ import SettingsPage from './SettingsPage.vue'
 import MemoPage from './MemoPage.vue'
 import StatsPage from './StatsPage.vue'
 import RadioPage from './RadioPage.vue'
+import NotificationsPage from './NotificationsPage.vue'
 import PanelTitleBar from './PanelTitleBar.vue'
 
 interface PanelTransitionMetrics {
@@ -36,7 +37,8 @@ interface PanelTransitionMetrics {
 
 const { startBridge } = useTimerBridge()
 const { settings, settingsReady } = useSettings()
-useShortcut()
+// 面板启动即开始记录番茄通知，避免通知页未打开时漏记
+useNotifications()
 
 function prewarmPanelData() {
   useTasks()
@@ -72,17 +74,17 @@ const {
 } = useUpdater()
 
 const REPOSITION_BURST_DELAYS = [0, 90, 220]
-const PANEL_CLOSE_DURATION = 240
+const PANEL_CLOSE_DURATION = 130
 const CLOSE_FALLBACK_BUFFER = 140
 const IS_MACOS = navigator.userAgent.toLowerCase().includes('mac')
 
-const currentView = ref<'tasks' | 'todo' | 'taskDetail' | 'settings' | 'memos' | 'stats' | 'radio'>('tasks')
+const currentView = ref<'tasks' | 'todo' | 'taskDetail' | 'settings' | 'memos' | 'stats' | 'radio' | 'notifications'>('tasks')
 const taskIdForDetail = ref<string>('')
 const todoInitialTab = ref<string | undefined>(undefined)
 const todoSearchQuery = ref('')
 const memoSearchQuery = ref('')
 const todoActiveTabLabel = ref('')
-const cachedPanelViews = ['TaskArea', 'TodoPage', 'SettingsPage', 'MemoPage', 'StatsPage', 'RadioPage']
+const cachedPanelViews = ['TaskArea', 'TodoPage', 'SettingsPage', 'MemoPage', 'StatsPage', 'RadioPage', 'NotificationsPage']
 
 function navigateToTodo(tab?: string) {
   todoInitialTab.value = tab
@@ -128,6 +130,12 @@ const navItems = [
     label: '电台',
     title: '专注电台',
     iconPaths: ['M9 18V5l12-2v13', 'M6 18a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z', 'M18 16a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z'],
+  },
+  {
+    key: 'notifications',
+    label: '通知',
+    title: '通知中心',
+    iconPaths: ['M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9', 'M13.73 21a2 2 0 0 1-3.46 0'],
   },
   {
     key: 'settings',
@@ -395,6 +403,7 @@ async function closeWindow() {
           <MemoPage v-else-if="currentView === 'memos'" :search-query="memoSearchQuery" @back="currentView = 'tasks'" />
           <StatsPage v-else-if="currentView === 'stats'" @back="currentView = 'tasks'" />
           <RadioPage v-else-if="currentView === 'radio'" @back="currentView = 'tasks'" />
+          <NotificationsPage v-else-if="currentView === 'notifications'" @back="currentView = 'tasks'" />
         </KeepAlive>
       </div>
       <transition name="update-banner">
@@ -500,11 +509,12 @@ async function closeWindow() {
   width: 100vw;
   background:
     var(--panel-shell-bg);
-  border-radius: 12px;
+  border-radius: 8px;
   border: 1px solid var(--panel-shell-border);
   box-shadow:
     var(--panel-shell-shadow-1),
-    var(--panel-shell-shadow-2);
+    var(--panel-shell-shadow-2),
+    var(--panel-shell-edge, none);
   overflow: hidden;
   color: #e8e8ea;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -512,7 +522,7 @@ async function closeWindow() {
   will-change: transform, opacity, border-radius;
   contain: layout paint;
   backface-visibility: hidden;
-  clip-path: inset(0 round 12px);
+  clip-path: inset(0 round 8px);
   -webkit-mask-image: -webkit-radial-gradient(white, black);
   isolation: isolate;
 
@@ -694,7 +704,7 @@ async function closeWindow() {
 }
 
 .motion-closing {
-  animation: panel-close 240ms cubic-bezier(0.55, 0.055, 0.675, 0.19) both;
+  animation: panel-close 90ms ease-out both;
   pointer-events: none;
 }
 
@@ -709,6 +719,7 @@ async function closeWindow() {
 
 .motion-closing .panel-inner {
   opacity: 0;
+  transition: opacity 60ms ease;
 }
 
 @keyframes panel-open {
@@ -738,28 +749,13 @@ async function closeWindow() {
 }
 
 @keyframes panel-close {
+  /* 底板跟随内容同步消失：只做透明度，不残留壳体 */
   0% {
     opacity: 1;
-    border-radius: 12px;
-    transform: translate3d(0, 0, 0) scale(1, 1);
-  }
-
-  44% {
-    opacity: 1;
-    border-radius: 18px;
-    transform: translate3d(
-        calc(var(--panel-from-x) * 0.18),
-        calc(var(--panel-from-y) * 0.18 + var(--panel-close-arc) * 0.3),
-        0
-      )
-      scale(0.972, 0.91);
   }
 
   100% {
-    opacity: 0.18;
-    border-radius: var(--panel-from-radius);
-    transform: translate3d(var(--panel-from-x), calc(var(--panel-from-y) - var(--panel-top-lift)), 0)
-      scale(var(--panel-from-sx), var(--panel-from-sy));
+    opacity: 0;
   }
 }
 
@@ -772,6 +768,22 @@ async function closeWindow() {
   100% {
     opacity: 1;
     transform: translate3d(0, 0, 0);
+  }
+}
+
+.panel-body > * {
+  animation: view-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes view-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 
@@ -803,8 +815,8 @@ async function closeWindow() {
   min-width: 0;
   justify-content: center;
   align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
+  gap: 4px;
+  padding: 6px 4px;
   background: transparent;
   border: none;
   outline: none;
@@ -849,6 +861,9 @@ async function closeWindow() {
 
 .nav-label {
   line-height: 1;
+  white-space: nowrap;
+  font-size: 11px;
+  letter-spacing: 0.01em;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -8,7 +8,7 @@ const props = defineProps<{
 }>()
 
 const fillWidth = computed(() => `${Math.max(0, Math.min(1, props.progress)) * 100}%`)
-const barHeight = computed(() => `${Math.max(2, 4 * props.scale)}px`)
+const barHeight = computed(() => `${Math.max(2, 3 * props.scale)}px`)
 </script>
 
 <template>
@@ -29,9 +29,9 @@ const barHeight = computed(() => `${Math.max(2, 4 * props.scale)}px`)
 }
 
 .track {
-  width: 80%;
+  width: 60%;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--strip-color) 38%, transparent);
+  background: color-mix(in srgb, var(--strip-color) 30%, transparent);
   overflow: hidden;
   display: flex;
   align-items: stretch;

@@ -1028,7 +1028,8 @@ function formatUpdateTime(timestamp: number): string {
   display: flex;
   gap: 4px;
   padding: 6px;
-  background: rgba(28, 28, 32, 0.98);
+  background: rgba(26, 26, 32, 0.88);
+  backdrop-filter: blur(28px) saturate(1.3);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
@@ -1267,7 +1268,8 @@ function formatUpdateTime(timestamp: number): string {
 }
 
 .delete-dialog {
-  background: rgba(28, 28, 32, 0.98);
+  background: rgba(26, 26, 32, 0.88);
+  backdrop-filter: blur(28px) saturate(1.3);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 12px;
   padding: 20px 24px;
@@ -1335,7 +1337,8 @@ function formatUpdateTime(timestamp: number): string {
   z-index: 2000;
   min-width: 180px;
   max-width: 240px;
-  background: rgba(28, 28, 32, 0.98);
+  background: rgba(26, 26, 32, 0.88);
+  backdrop-filter: blur(28px) saturate(1.3);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
   padding: 6px 0;

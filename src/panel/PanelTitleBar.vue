@@ -74,7 +74,8 @@ const displayIconPaths = computed(() => props.iconPaths?.length ? props.iconPath
   gap: 10px;
   height: 40px;
   padding: 0 12px 0 16px;
-  background: rgba(12, 12, 16, 0.98);
+  background: rgba(14, 14, 18, 0.72);
+  backdrop-filter: blur(24px) saturate(1.4);
   border-bottom: 1px solid rgba(255,255,255,0.07);
   cursor: default;
   user-select: none;
@@ -205,8 +206,19 @@ const displayIconPaths = computed(() => props.iconPaths?.length ? props.iconPath
   transition: background 0.15s, color 0.15s;
 }
 
-.btn-close:hover {
-  background: rgba(220, 60, 60, 0.75);
-  color: #fff;
+.titlebar-actions .btn-close {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ff5f57;
+  border: 1px solid rgba(0, 0, 0, 0.10);
+  color: transparent;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.titlebar-actions .btn-close:hover {
+  background: #ff6f62;
+  color: rgba(70, 0, 0, 0.65);
 }
 </style>

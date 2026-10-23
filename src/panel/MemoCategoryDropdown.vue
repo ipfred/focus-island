@@ -378,7 +378,8 @@ onBeforeUnmount(() => {
   top: calc(100% + 4px);
   min-width: 160px;
   max-width: 200px;
-  background: linear-gradient(180deg, rgba(32, 32, 38, 0.98), rgba(26, 26, 30, 0.97));
+  background: linear-gradient(180deg, rgba(32, 32, 38, 0.90), rgba(25, 25, 30, 0.88));
+  backdrop-filter: blur(28px) saturate(1.3);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   box-shadow:

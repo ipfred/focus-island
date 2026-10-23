@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { computed, ref, nextTick } from 'vue'
-import { useRadio, CATEGORY_LABELS, type StationCategory } from '../composables/useRadio'
+import { useRadio, CATEGORY_LABELS, type StationCategory, type RadioStation } from '../composables/useRadio'
 
-const { stations, currentStation, playing, loading, error, volume, toggle, switchStation, setVolume } = useRadio()
+const {
+  stations, currentStation, playing, loading, error, volume,
+  toggle, switchStation, setVolume,
+  importFromUrl, importFromFile, removeCustomStation,
+} = useRadio()
 
 const stationsByCategory = computed(() => {
-  const grouped = new Map<StationCategory, typeof stations>()
-  stations.forEach(station => {
+  const grouped = new Map<StationCategory, RadioStation[]>()
+  stations.value.forEach(station => {
     if (!grouped.has(station.category)) {
       grouped.set(station.category, [])
     }
@@ -14,6 +18,51 @@ const stationsByCategory = computed(() => {
   })
   return grouped
 })
+
+// ---- 导入外部歌单 / 视频链接（只播音频） ----
+
+const importUrl = ref('')
+const importing = ref(false)
+const importMsg = ref<string | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
+
+async function doImportUrl() {
+  const url = importUrl.value.trim()
+  if (!url || importing.value) return
+  importing.value = true
+  importMsg.value = null
+  try {
+    const n = await importFromUrl(url)
+    importMsg.value = `已导入 ${n} 个条目`
+    importUrl.value = ''
+  } catch (e) {
+    importMsg.value = typeof e === 'string' ? e : (e as Error).message || '导入失败'
+  } finally {
+    importing.value = false
+  }
+}
+
+async function doImportFile(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file || importing.value) return
+  importing.value = true
+  importMsg.value = null
+  try {
+    const n = await importFromFile(file)
+    importMsg.value = `已导入 ${n} 个条目`
+  } catch (e) {
+    importMsg.value = typeof e === 'string' ? e : (e as Error).message || '导入失败'
+  } finally {
+    importing.value = false
+  }
+}
+
+function removeStation(id: string, event: Event) {
+  event.stopPropagation()
+  removeCustomStation(id)
+}
 
 const scrollContainer = ref<HTMLElement | null>(null)
 const showScrollToPlaying = ref(false)
@@ -87,6 +136,23 @@ async function scrollToPlaying() {
 
     <!-- Scrollable Content -->
     <div class="station-list-wrapper" ref="scrollContainer" @scroll="handleScroll">
+      <!-- 导入外部歌单 / 视频链接 -->
+      <div class="import-bar glass-panel">
+        <input
+          v-model="importUrl"
+          class="import-input"
+          type="text"
+          placeholder="粘贴音频直链 / M3U 歌单 / 视频·合集链接（只播音频）"
+          @keydown.enter="doImportUrl"
+        />
+        <button class="import-btn" :disabled="importing || !importUrl.trim()" @click="doImportUrl">
+          {{ importing ? '导入中…' : '导入' }}
+        </button>
+        <button class="import-btn ghost" :disabled="importing" @click="fileInput?.click()">文件</button>
+        <input ref="fileInput" type="file" accept=".m3u,.m3u8,.pls,.txt" hidden @change="doImportFile" />
+        <div v-if="importMsg" class="import-msg">{{ importMsg }}</div>
+      </div>
+
       <!-- Station List by Category -->
       <div v-for="[category, categoryStations] in stationsByCategory" :key="category" class="category-section">
         <div class="category-title">{{ CATEGORY_LABELS[category] }}</div>
@@ -149,6 +215,11 @@ async function scrollToPlaying() {
                 <rect x="2" y="3" width="20" height="14" rx="2" />
                 <path d="M8 21h8M12 17v4M7 8l3 3-3 3M13 14h4" />
               </svg>
+              <!-- 导入条目: link -->
+              <svg v-else-if="station.icon === 'link'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+              </svg>
               <!-- 本地音乐: folder -->
               <svg v-else-if="station.icon === 'folder'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M2 6a2 2 0 0 1 2-2h5l2 2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2z" />
@@ -166,6 +237,16 @@ async function scrollToPlaying() {
               </div>
               <div class="item-desc">{{ station.description }}</div>
             </div>
+            <button
+              v-if="station.category === 'custom'"
+              class="item-remove"
+              title="删除"
+              @click="removeStation(station.id, $event)"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
           </button>
         </div>
       </div>
@@ -207,10 +288,88 @@ async function scrollToPlaying() {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: rgba(20, 20, 22, 0.95);
-  backdrop-filter: blur(12px);
+  background: rgba(18, 18, 22, 0.72);
+  backdrop-filter: blur(20px) saturate(1.4);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   padding: 8px 10px 8px;
+}
+
+.import-bar {
+  margin: 10px 12px 2px;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 6px;
+  align-items: center;
+  border-radius: 12px;
+  position: relative;
+}
+
+.import-input {
+  grid-column: 1 / -1;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  color: #e8e8ea;
+  font-size: 11px;
+  line-height: 1.4;
+  padding: 7px 9px;
+  outline: none;
+}
+
+.import-input:focus {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.import-btn {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: #e8e8ea;
+  border-radius: 8px;
+  font-size: 11px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.import-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.import-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.import-msg {
+  grid-column: 1 / -1;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.item-remove {
+  align-self: center;
+  display: none;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.45);
+  width: 22px;
+  height: 22px;
+  padding: 3px;
+  border-radius: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.station-item:hover .item-remove {
+  display: block;
+}
+
+.item-remove:hover {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.12);
 }
 
 .radio-frame {

@@ -36,9 +36,9 @@ function applyWindowSize() {
         const height = (BASE_HEIGHT + 6 + 60) * scale;
         invoke("set_island_custom_size", { width, height });
     } else if (showStrip.value) {
-        // Docked thin strip at the top edge
+        // 刘海态：窄条贴顶，尽量无感
         invoke("set_island_custom_size", {
-            width: 360 * scale,
+            width: 200 * scale,
             height: DOCK_STRIP_WINDOW_H * scale,
         });
     } else {
@@ -51,9 +51,18 @@ function applyWindowSize() {
 watch(notificationType, (val) => {
     const visible = val !== null;
     setNotificationVisible(visible);
-    invoke("set_click_through", { ignore: !visible });
+    // dock（刘海）模式下点击穿透由 useDockMode 统一管理
+    if (settings.value.islandDisplayMode !== "dock") {
+        invoke("set_click_through", { ignore: !visible });
+    }
     applyWindowSize();
 });
+
+// 悬停展开后的胶囊：点击打开专注清单
+function onCapsuleClick() {
+    if (showStrip.value) return;
+    void invoke("toggle_panel");
+}
 
 // Resize when dock strip state or island scale changes
 watch([showStrip, () => settings.value.islandScale], applyWindowSize);
@@ -105,6 +114,9 @@ const panelMotionState = ref<"idle" | "opening" | "closing">("idle");
 const capsuleWidth = computed(() => BASE_WIDTH * (settings.value.islandScale ?? 1));
 const capsuleHeight = computed(() => BASE_HEIGHT * (settings.value.islandScale ?? 1));
 const capsuleRadius = computed(() => capsuleHeight.value / 2);
+// 刘海宽度：窗口与玻璃层必须严格贴合，杜绝外侧光晕
+const NOTCH_WIDTH = 200;
+const notchWidth = computed(() => NOTCH_WIDTH * (settings.value.islandScale ?? 1));
 
 const progressScale = computed(() => {
     if (state.value === "idle" || state.value === "alert") return 0;
@@ -130,7 +142,7 @@ function runPanelMotion(phase: "open" | "close") {
     panelMotionTimer = window.setTimeout(() => {
         panelMotionState.value = "idle";
         panelMotionTimer = null;
-    }, phase === "open" ? 280 : 240);
+    }, phase === "open" ? 280 : 160);
 }
 
 function stopLocalCountdown() {
@@ -242,6 +254,7 @@ onUnmounted(() => {
             >
                 <div
                     class="capsule-shell relative flex items-center justify-center"
+                    @click="onCapsuleClick"
                     :class="{
                         'ring-focus':
                             timer.phase.value === 'focus' && timer.running.value,
@@ -254,11 +267,12 @@ onUnmounted(() => {
                         '--ring-color': ringColor,
                         '--ring-opacity': timer.running.value ? 1 : 0.35,
                         '--island-scale': settings.islandScale ?? 1,
-                        width: capsuleWidth + 'px',
+                        width: (showStrip ? notchWidth : capsuleWidth) + 'px',
                         height: (showStrip ? DOCK_STRIP_WINDOW_H * (settings.islandScale ?? 1) : capsuleHeight) + 'px',
-                        borderRadius: (showStrip ? 4 : capsuleRadius) + 'px',
+                        borderRadius: (showStrip ? '0 0 10px 10px' : capsuleRadius + 'px'),
                     }"
                 >
+                    <div class="capsule-glass-fx" aria-hidden="true" />
                     <DockStrip
                         v-if="showStrip"
                         :progress="stripProgress"
@@ -323,14 +337,96 @@ onUnmounted(() => {
 }
 
 .capsule-shell {
-    /* 纯黑背景，参考 iPhone 灵动岛：rgba(0,0,0,0.95+) */
-    background: rgba(0, 0, 0, var(--island-opacity, 0.95));
-    transition: width 0.3s ease, height 0.3s ease;
+    /* 深色 = 纯黑磨砂（C2）：iPhone 原生感，无外框；透明度滑块轻微联动 */
+    background:
+        radial-gradient(120% 200% at 50% -60%, rgba(255, 255, 255, 0.07), transparent 55%),
+        rgba(10, 10, 12, calc(0.80 + var(--island-opacity, 0.75) * 0.16));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.10),
+        inset 0 0 0 0.5px rgba(255, 255, 255, 0.05);
+    transition:
+        width 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+        height 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     contain: layout style paint;
 }
 
 .capsule-shell.strip-mode {
-    background: transparent;
+    /* 收回刘海：快速动画（比展开更短） */
+    transition:
+        width 0.13s cubic-bezier(0.3, 0, 0.2, 1),
+        height 0.13s cubic-bezier(0.3, 0, 0.2, 1);
+    /* 刘海体 = 纯黑哑光（N2）：贴合成型无外晕 */
+    background: rgba(16, 16, 20, calc(0.82 + var(--island-opacity, 0.75) * 0.18));
+    box-shadow:
+        inset 0 -1px 0 rgba(255, 255, 255, 0.08),
+        inset 0 1px 0 rgba(0, 0, 0, 0.30);
+}
+
+/* ===== 浅色模式 = 白磨砂（C5）：跟随面板配色 ===== */
+:root[data-color-mode="light"] .capsule-shell {
+    background:
+        radial-gradient(120% 200% at 50% -60%, rgba(255, 255, 255, 0.5), transparent 55%),
+        rgba(247, 249, 252, calc(0.80 + var(--island-opacity, 0.75) * 0.12));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.9),
+        inset 0 -1px 0 rgba(30, 50, 90, 0.06),
+        inset 0 0 0 0.5px rgba(30, 50, 90, 0.08);
+}
+
+:root[data-color-mode="light"] .capsule-shell.strip-mode {
+    background: rgba(248, 250, 252, calc(0.80 + var(--island-opacity, 0.75) * 0.12));
+    box-shadow:
+        inset 0 -1px 0 rgba(30, 50, 90, 0.10),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+/* 浅色模式下电波条改深色 */
+:root[data-color-mode="light"] .capsule-shell :deep(.wave-bar) {
+    background: rgba(35, 42, 54, 0.5);
+}
+
+:root[data-color-mode="light"] .capsule-shell :deep(.ring-track) {
+    stroke: rgba(28, 35, 48, 0.14);
+}
+
+:root[data-color-mode="light"] .capsule-shell :deep(.track) {
+    background: rgba(28, 35, 48, 0.15);
+}
+
+/* 玻璃光效层：顶部光条 + 斜向色散高光（纯装饰，不拦截事件） */
+.capsule-glass-fx {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.capsule-shell.strip-mode .capsule-glass-fx {
+    display: none;
+}
+
+.capsule-glass-fx::before {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 50%;
+    width: 42%;
+    height: 2px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.82), transparent);
+    filter: blur(0.4px);
+    transform: translateX(-50%);
+}
+
+.capsule-glass-fx::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+    opacity: 0.10;
 }
 
 .capsule-shell::before,
@@ -376,15 +472,15 @@ onUnmounted(() => {
 
 .panel-receiving {
     will-change: transform;
-    animation: island-receive 240ms cubic-bezier(0.34, 0, 0.72, 0.2) both;
+    animation: island-receive 160ms cubic-bezier(0.34, 0, 0.72, 0.2) both;
 }
 
 .panel-receiving .capsule-shell::before {
-    animation: island-core-close 240ms cubic-bezier(0.34, 0, 0.72, 0.2) both;
+    animation: island-core-close 160ms cubic-bezier(0.34, 0, 0.72, 0.2) both;
 }
 
 .panel-receiving .capsule-shell::after {
-    animation: island-tail-close 240ms cubic-bezier(0.34, 0, 0.72, 0.2) both;
+    animation: island-tail-close 160ms cubic-bezier(0.34, 0, 0.72, 0.2) both;
 }
 
 @keyframes island-release {

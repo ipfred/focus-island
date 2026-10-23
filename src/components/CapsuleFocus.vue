@@ -33,7 +33,7 @@ const phaseColor = computed(() =>
     <!-- Task name -->
     <div class="flex-1 min-w-0">
       <span
-        class="text-white/90 font-medium truncate block"
+        class="font-medium truncate block text-[var(--capsule-text)]"
         :style="{ fontSize: `calc(12px * var(--island-scale, 1))` }"
       >{{ resolvedTitle ?? (phase === 'break' ? '休息一下' : '专注中') }}</span>
     </div>
@@ -43,7 +43,7 @@ const phaseColor = computed(() =>
       <span :style="{ color: phaseColor, fontSize: `calc(14px * var(--island-scale, 1))` }" class="font-mono font-bold tabular-nums">
         {{ displayTime }}
       </span>
-      <span class="text-white/20" :style="{ fontSize: `calc(10px * var(--island-scale, 1))` }">
+      <span class="text-[var(--capsule-muted)]" :style="{ fontSize: `calc(10px * var(--island-scale, 1))` }">
         {{ running ? '' : '⏸' }}
       </span>
       <div v-if="radioPlaying" class="wave-bars">

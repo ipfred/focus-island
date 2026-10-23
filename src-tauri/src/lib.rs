@@ -22,7 +22,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 #[cfg(target_os = "linux")]
 use x11::xlib;
 
-const PANEL_GAP_Y: i32 = 6;
+const PANEL_GAP_Y: i32 = 16;
 const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/icon.png");
 
 static LAST_PANEL_SIZE: OnceLock<Mutex<Option<tauri::PhysicalSize<u32>>>> = OnceLock::new();
@@ -295,6 +295,115 @@ fn mouse_position_raw() -> (f64, f64) {
     (0.0, 0.0)
 }
 
+// ==== 快捷设置：系统音量/静音 ====
+
+#[derive(serde::Serialize)]
+struct VolumeState {
+    volume: f32,
+    muted: bool,
+}
+
+#[cfg(target_os = "windows")]
+fn endpoint_volume() -> windows::core::Result<windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume> {
+    use windows::Win32::Media::Audio::{eConsole, eRender, IMMDeviceEnumerator, MMDeviceEnumerator};
+    use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED};
+
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        let enumerator: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
+        let device = enumerator.GetDefaultAudioEndpoint(eRender, eConsole)?;
+        device.Activate(CLSCTX_ALL, None)
+    }
+}
+
+#[tauri::command]
+fn get_volume_state() -> Result<VolumeState, String> {
+    #[cfg(target_os = "windows")]
+    {
+        let ev = endpoint_volume().map_err(|e| e.to_string())?;
+        unsafe {
+            Ok(VolumeState {
+                volume: ev.GetMasterVolumeLevelScalar().map_err(|e| e.to_string())?,
+                muted: ev.GetMute().map_err(|e| e.to_string())?.as_bool(),
+            })
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("仅支持 Windows".into())
+    }
+}
+
+#[tauri::command]
+fn set_system_volume(volume: f32) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let ev = endpoint_volume().map_err(|e| e.to_string())?;
+        unsafe {
+            ev.SetMasterVolumeLevelScalar(volume.clamp(0.0, 1.0), std::ptr::null())
+                .map_err(|e| e.to_string())
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = volume;
+        Err("仅支持 Windows".into())
+    }
+}
+
+#[tauri::command]
+fn set_system_mute(muted: bool) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        let ev = endpoint_volume().map_err(|e| e.to_string())?;
+        unsafe { ev.SetMute(muted, std::ptr::null()).map_err(|e| e.to_string()) }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = muted;
+        Err("仅支持 Windows".into())
+    }
+}
+
+// ==== 全局快捷键：Rust 端注册 ====
+// 隐藏窗口里的 JS 注册会被 WebView2 节流/挂起，导致"唤醒经常失败"，
+// 因此注册和响应都放在 app 层；设置变更通过 settings-changed 事件热更新。
+
+fn read_shortcut_key(app: &AppHandle) -> String {
+    app.path()
+        .app_data_dir()
+        .ok()
+        .and_then(|dir| std::fs::read_to_string(dir.join("focus-island").join("settings.json")).ok())
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+        .and_then(|v| v.get("shortcutKey").and_then(|k| k.as_str()).map(|s| s.trim().to_string()))
+        .filter(|k| !k.is_empty())
+        .unwrap_or_else(|| "Alt+Space".to_string())
+}
+
+fn apply_global_shortcut(app: &AppHandle, key: &str) {
+    use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+    let gs = app.global_shortcut();
+    let _ = gs.unregister_all();
+    if key.trim().is_empty() {
+        println!("[shortcut] cleared");
+        return;
+    }
+    let parsed = key.trim().parse::<Shortcut>();
+    let Ok(sc) = parsed else {
+        println!("[shortcut] invalid key: {key}");
+        return;
+    };
+    let result = gs.on_shortcut(sc, |app, _shortcut, event| {
+        if event.state == ShortcutState::Pressed {
+            toggle_panel(app.clone());
+        }
+    });
+    match result {
+        Ok(_) => println!("[shortcut] registered: {key}"),
+        Err(e) => println!("[shortcut] register failed: {key} ({e})"),
+    }
+}
+
 #[tauri::command]
 fn get_mouse_position() -> (f64, f64) {
     mouse_position_raw()
@@ -326,6 +435,264 @@ fn set_click_through<R: Runtime>(window: WebviewWindow<R>, ignore: bool) {
     let _ = window.set_ignore_cursor_events(ignore);
 }
 
+// ==== 电台导入：视频/歌单链接 → 纯音频 ====
+
+#[derive(serde::Serialize)]
+struct AudioResolution {
+    stream_url: String,
+    title: Option<String>,
+}
+
+#[derive(serde::Serialize)]
+struct MediaEntry {
+    title: String,
+    url: String,
+}
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// yt-dlp 可执行文件查找顺序：AppData\bin → exe 旁边 → PATH。
+#[cfg(target_os = "windows")]
+fn ytdlp_path(app: &AppHandle) -> Option<std::path::PathBuf> {
+    use std::os::windows::process::CommandExt;
+    if let Ok(dir) = app.path().app_data_dir() {
+        let p = dir.join("bin").join("yt-dlp.exe");
+        if p.exists() {
+            return Some(p);
+        }
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(parent) = exe.parent() {
+            let p = parent.join("yt-dlp.exe");
+            if p.exists() {
+                return Some(p);
+            }
+        }
+    }
+    let out = std::process::Command::new("where")
+        .arg("yt-dlp")
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let first = String::from_utf8_lossy(&out.stdout).lines().next()?.trim().to_string();
+    let p = std::path::PathBuf::from(first);
+    if p.exists() { Some(p) } else { None }
+}
+
+/// 确保本机有 yt-dlp；没有则从 GitHub 下载到 AppData\bin（约 17MB，走系统代理）。
+#[tauri::command]
+fn ensure_ytdlp(app: AppHandle) -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        if let Some(p) = ytdlp_path(&app) {
+            return Ok(p.to_string_lossy().into_owned());
+        }
+        let dir = app
+            .path()
+            .app_data_dir()
+            .map_err(|e| e.to_string())?
+            .join("bin");
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let target = dir.join("yt-dlp.exe");
+        let ps = format!(
+            "Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe' -OutFile '{}' -TimeoutSec 300",
+            target.to_string_lossy().replace('\'', "''")
+        );
+        let out = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", &ps])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|e| e.to_string())?;
+        if out.status.success() && target.exists() {
+            Ok(target.to_string_lossy().into_owned())
+        } else {
+            Err("下载 yt-dlp 失败，请检查网络/代理后重试".into())
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = app;
+        Err("当前平台请自行安装 yt-dlp".into())
+    }
+}
+
+fn is_direct_audio_url(url: &str) -> bool {
+    let lower = url.to_lowercase();
+    let path = lower.split(['?', '#']).next().unwrap_or("");
+    [".mp3", ".m4a", ".aac", ".ogg", ".opus", ".wav", ".flac"]
+        .iter()
+        .any(|ext| path.ends_with(ext))
+}
+
+/// 把任意链接解析成纯音频直链：直链直接放行，其余交给 yt-dlp 取 bestaudio。
+#[tauri::command]
+fn resolve_audio_url(app: AppHandle, url: String) -> Result<AudioResolution, String> {
+    if is_direct_audio_url(&url) {
+        return Ok(AudioResolution { stream_url: url, title: None });
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        let yt = ytdlp_path(&app).ok_or_else(|| "YT_NOT_INSTALLED".to_string())?;
+        let out = std::process::Command::new(&yt)
+            .args([
+                "--no-playlist",
+                "-f",
+                "bestaudio",
+                "--no-warnings",
+                "--socket-timeout",
+                "15",
+                "--print",
+                "%(title)s",
+                "--print",
+                "%(url)s",
+                &url,
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !out.status.success() {
+            let msg = String::from_utf8_lossy(&out.stderr);
+            let last = msg.lines().last().unwrap_or("未知错误");
+            return Err(format!("解析失败: {last}"));
+        }
+        let text = String::from_utf8_lossy(&out.stdout);
+        let mut lines = text.lines().filter(|l| !l.trim().is_empty());
+        let title = lines.next().unwrap_or("").trim().to_string();
+        let stream = lines.next().unwrap_or("").trim().to_string();
+        if stream.is_empty() {
+            return Err("未取到音频流".into());
+        }
+        Ok(AudioResolution {
+            stream_url: stream,
+            title: if title.is_empty() { None } else { Some(title) },
+        })
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = app;
+        Err("当前平台请先安装 yt-dlp".into())
+    }
+}
+
+/// 批量导入：视频/合集/歌单链接 → 条目列表（单视频返回 1 条）。
+#[tauri::command]
+fn import_media_entries(app: AppHandle, url: String) -> Result<Vec<MediaEntry>, String> {
+    if is_direct_audio_url(&url) {
+        let title = url.rsplit('/').next().unwrap_or("音频直链").to_string();
+        return Ok(vec![MediaEntry { title, url }]);
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        let yt = ytdlp_path(&app).ok_or_else(|| "YT_NOT_INSTALLED".to_string())?;
+        let out = std::process::Command::new(&yt)
+            .args([
+                "--flat-playlist",
+                "--no-warnings",
+                "--socket-timeout",
+                "15",
+                "--print",
+                "%(title)s|||%(url)s",
+                &url,
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !out.status.success() {
+            let msg = String::from_utf8_lossy(&out.stderr);
+            let last = msg.lines().last().unwrap_or("未知错误");
+            return Err(format!("解析失败: {last}"));
+        }
+        let text = String::from_utf8_lossy(&out.stdout);
+        let entries: Vec<MediaEntry> = text
+            .lines()
+            .filter(|l| l.contains("|||"))
+            .map(|l| {
+                let (title, entry_url) = l.split_once("|||").unwrap_or((l, ""));
+                MediaEntry {
+                    title: title.trim().to_string(),
+                    url: entry_url.trim().to_string(),
+                }
+            })
+            .filter(|e| !e.title.is_empty())
+            .collect();
+        if entries.is_empty() {
+            return Err("未解析到任何条目".into());
+        }
+        Ok(entries)
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = app;
+        Err("当前平台请先安装 yt-dlp".into())
+    }
+}
+
+/// 拉取远程 M3U/文本歌单（WebView 内受 CORS 限制，走系统 PowerShell）。
+#[tauri::command]
+fn http_get_text(url: String) -> Result<String, String> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        let ps = format!(
+            "(Invoke-WebRequest -UseBasicParsing -Uri '{}' -TimeoutSec 20).Content",
+            url.replace('\'', "''")
+        );
+        let out = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", &ps])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .map_err(|e| e.to_string())?;
+        if out.status.success() {
+            Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+        } else {
+            Err(String::from_utf8_lossy(&out.stderr).into_owned())
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let out = std::process::Command::new("curl")
+            .args(["-sL", "--max-time", "20", &url])
+            .output()
+            .map_err(|e| e.to_string())?;
+        if out.status.success() {
+            Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+        } else {
+            Err("fetch failed".into())
+        }
+    }
+}
+
+
+// ==== Windows 玻璃 v2：DWM SystemBackdrop 磨砂 + 应用层深色覆盖 ====
+// 教训：浅色主题下系统磨砂是白底，应用必须自己叠足够高的深色 alpha 才是深色玻璃；
+// 不要用 SetWindowRgn（会破坏 WebView2 合成），圆角用 DWMWA_WINDOW_CORNER_PREFERENCE。
+
+#[cfg(target_os = "windows")]
+fn apply_dwm_round_corners<R: Runtime>(window: &WebviewWindow<R>) {
+    use windows::Win32::Graphics::Dwm::{
+        DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
+        DWM_WINDOW_CORNER_PREFERENCE,
+    };
+
+    let Ok(hwnd) = window.hwnd() else { return };
+    let pref = DWM_WINDOW_CORNER_PREFERENCE(DWMWCP_ROUND.0);
+    unsafe {
+        let _ = DwmSetWindowAttribute(
+            hwnd,
+            DWMWA_WINDOW_CORNER_PREFERENCE,
+            &pref as *const DWM_WINDOW_CORNER_PREFERENCE as *const core::ffi::c_void,
+            std::mem::size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as u32,
+        );
+    }
+}
+
 #[tauri::command]
 fn set_island_height<R: Runtime>(app: AppHandle<R>, height: f64) {
     if let Some(main) = app.get_webview_window("main") {
@@ -345,6 +712,7 @@ fn set_island_height<R: Runtime>(app: AppHandle<R>, height: f64) {
 #[tauri::command]
 fn set_island_size<R: Runtime>(app: AppHandle<R>, scale: f64) {
     if let Some(main) = app.get_webview_window("main") {
+        // 窗口与胶囊同尺寸，让圆角裁剪区域正好贴合药丸形胶囊
         let base_width = 360.0;
         let base_height = 42.0;
         let new_width = base_width * scale;
@@ -749,6 +1117,13 @@ pub fn run() {
             get_macos_update_health,
             get_local_audio_path,
             get_update_proxy,
+            ensure_ytdlp,
+            resolve_audio_url,
+            import_media_entries,
+            http_get_text,
+            get_volume_state,
+            set_system_volume,
+            set_system_mute,
         ])
         .setup(|app| {
             #[cfg(desktop)]
@@ -756,6 +1131,22 @@ pub fn run() {
                 app.handle().plugin(
                     tauri_plugin_global_shortcut::Builder::new().build(),
                 )?;
+            }
+
+            // 全局快捷键注册 + 设置变更热更新
+            #[cfg(desktop)]
+            {
+                use tauri::Listener;
+                let shortcut_app = app.handle().clone();
+                let key = read_shortcut_key(&shortcut_app);
+                apply_global_shortcut(&shortcut_app, &key);
+                app.listen_any("settings-changed", move |event| {
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(event.payload()) {
+                        if let Some(k) = v.get("shortcutKey").and_then(|k| k.as_str()) {
+                            apply_global_shortcut(&shortcut_app, k);
+                        }
+                    }
+                });
             }
 
             if let Some(window) = app.get_webview_window("main") {
@@ -774,6 +1165,11 @@ pub fn run() {
             if let Some(panel) = app.get_webview_window("panel") {
                 let _ = panel.set_background_color(Some(Color(0, 0, 0, 0)));
                 let _ = panel.set_shadow(false);
+                #[cfg(target_os = "windows")]
+                {
+                    let _ = window_vibrancy::apply_acrylic(&panel, Some((16, 16, 20, 90)));
+                    apply_dwm_round_corners(&panel);
+                }
                 let app_handle = app.handle().clone();
                 panel.on_window_event(move |event| {
                     if let WindowEvent::Resized(size) = event {

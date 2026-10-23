@@ -130,13 +130,13 @@ onUnmounted(() => {
                         {{ "●".repeat(Math.min(currentItem.pomodoroCount, 3))
                         }}{{ currentItem.pomodoroCount > 3 ? "+" : "" }}
                     </span>
-                    <span class="text-white/90 truncate flex-1" :style="{ fontSize: `calc(12px * var(--island-scale, 1))` }">{{
+                    <span class="truncate flex-1 text-[var(--capsule-text)]" :style="{ fontSize: `calc(12px * var(--island-scale, 1))` }">{{
                         currentItem.text
                     }}</span>
                 </template>
                 <!-- Motto item -->
                 <template v-else>
-                    <span class="text-white/35 truncate" :style="{ fontSize: `calc(12px * var(--island-scale, 1))` }">{{
+                    <span class="truncate text-[var(--capsule-text-dim)]" :style="{ fontSize: `calc(12px * var(--island-scale, 1))` }">{{
                         currentItem.text
                     }}</span>
                 </template>
@@ -154,8 +154,8 @@ onUnmounted(() => {
                 class="w-1 h-1 rounded-full transition-colors duration-300"
                 :class="
                     i === carouselIndex % carouselItems.length
-                        ? 'bg-white/40'
-                        : 'bg-white/10'
+                        ? 'bg-[var(--capsule-dot)]'
+                        : 'bg-[var(--capsule-dot-idle)]'
                 "
             />
         </div>
