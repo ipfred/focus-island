@@ -337,16 +337,12 @@ onUnmounted(() => {
 }
 
 .capsule-shell {
-    /* 深色 = 纯黑磨砂（C2）：iPhone 原生感，无外框；透明度滑块轻微联动 */
-    background:
-        radial-gradient(120% 200% at 50% -60%, rgba(255, 255, 255, 0.07), transparent 55%),
-        rgba(10, 10, 12, calc(0.80 + var(--island-opacity, 0.75) * 0.16));
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.10),
-        inset 0 0 0 0.5px rgba(255, 255, 255, 0.05);
+    /* 深色 = 整块黑玻璃：单一连续渐变，无分层热点、无白色描边，颗粒即材质 */
+    background: linear-gradient(180deg, #17171c, #0d0d11);
     transition:
         width 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-        height 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        height 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+        border-radius 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     contain: layout style paint;
 }
 
@@ -354,12 +350,10 @@ onUnmounted(() => {
     /* 收回刘海：快速动画（比展开更短） */
     transition:
         width 0.13s cubic-bezier(0.3, 0, 0.2, 1),
-        height 0.13s cubic-bezier(0.3, 0, 0.2, 1);
-    /* 刘海体 = 纯黑哑光（N2）：贴合成型无外晕 */
-    background: rgba(16, 16, 20, calc(0.82 + var(--island-opacity, 0.75) * 0.18));
-    box-shadow:
-        inset 0 -1px 0 rgba(255, 255, 255, 0.08),
-        inset 0 1px 0 rgba(0, 0, 0, 0.30);
+        height 0.13s cubic-bezier(0.3, 0, 0.2, 1),
+        border-radius 0.13s cubic-bezier(0.3, 0, 0.2, 1);
+    /* 刘海体 = 同一块黑玻璃 */
+    background: linear-gradient(180deg, #17171c, #101014);
 }
 
 /* ===== 浅色模式 = 白磨砂（C5）：跟随面板配色 ===== */

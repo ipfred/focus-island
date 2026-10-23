@@ -74,6 +74,15 @@ const carouselItems = computed<CarouselItem[]>(() => {
 const carouselIndex = ref(0);
 let carouselTimer: ReturnType<typeof setInterval> | null = null;
 
+// 空闲态右上角实时时钟
+const clock = ref("");
+let clockTimer: ReturnType<typeof setInterval> | null = null;
+
+function updateClock() {
+    const d = new Date();
+    clock.value = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
 // Reset index when items change length
 watch(
     () => carouselItems.value.length,
@@ -95,10 +104,13 @@ onMounted(() => {
             carouselIndex.value = (carouselIndex.value + 1) % len;
         }
     }, 5000);
+    updateClock();
+    clockTimer = setInterval(updateClock, 15000);
 });
 
 onUnmounted(() => {
     if (carouselTimer) clearInterval(carouselTimer);
+    if (clockTimer) clearInterval(clockTimer);
 });
 </script>
 
@@ -117,7 +129,7 @@ onUnmounted(() => {
             <div
                 v-if="currentItem"
                 :key="currentItem.key"
-                class="absolute inset-0 flex items-center px-4 gap-2"
+                class="absolute inset-0 flex items-center pl-4 pr-12 gap-2"
                 :class="currentItem.type === 'motto' ? 'justify-center' : ''"
             >
                 <!-- Task item -->
@@ -143,6 +155,9 @@ onUnmounted(() => {
             </div>
         </TransitionGroup>
 
+        <!-- Clock -->
+        <div class="idle-clock">{{ clock }}</div>
+
         <!-- Dots indicator -->
         <div
             v-if="carouselItems.length > 1"
@@ -163,6 +178,16 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.idle-clock {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: calc(11px * var(--island-scale, 1));
+    color: var(--capsule-text-dim);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+}
 .wave-bars {
     position: absolute;
     right: calc(12px * var(--island-scale, 1));
