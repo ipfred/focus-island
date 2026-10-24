@@ -22,6 +22,8 @@ export function useDockMode() {
 
   const dockMode = computed(() => settings.value.islandDisplayMode === 'dock')
   const hiddenMode = computed(() => settings.value.islandDisplayMode === 'hidden')
+  // 常驻模式同样需要输入轮询：舞台永远点击穿透，点击只能靠 Rust 判定
+  const interactiveMode = computed(() => !hiddenMode.value)
 
   // During notifications / idle-alert / panel-open, always show the full capsule.
   const forceExpanded = computed(
@@ -48,7 +50,7 @@ export function useDockMode() {
   function ensurePolling() {
     if (pollTimer !== null) return
     pollTimer = setInterval(async () => {
-      if (!dockMode.value || forceExpanded.value) {
+      if (!interactiveMode.value || forceExpanded.value) {
         if (dockExpanded.value && !forceExpanded.value) dockExpanded.value = false
         return
       }
@@ -59,6 +61,8 @@ export function useDockMode() {
           void invoke('toggle_panel')
           return
         }
+        // 悬停展开只属于边缘停靠模式；常驻胶囊始终完整显示
+        if (!dockMode.value) return
         const over = input.over
         if (over) {
           if (collapseTimer !== null) {
@@ -89,11 +93,11 @@ export function useDockMode() {
     }
   }
 
-  // Start/stop polling once for the app lifetime based on dock mode.
+  // Start/stop polling based on whether the island is interactive (resident or dock)
   if (!watchInstalled) {
     watchInstalled = true
     watch(
-      dockMode,
+      interactiveMode,
       (on) => {
         if (on) ensurePolling()
         else {
