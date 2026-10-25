@@ -164,7 +164,7 @@ listen<string>('tasks-updated', (event) => {
 
 export function useTasks() {
   ensureLoaded()
-  const { recordTaskCompleted } = useDailyStats()
+  const { recordTaskCompleted, unrecordTaskCompleted } = useDailyStats()
 
   function addTask(title: string, dueDate?: string | null, groupId?: string | null, priority?: TaskPriority) {
     const now = Date.now()
@@ -226,6 +226,7 @@ export function useTasks() {
       task.priority = 0
     } else {
       task.priority = 1 as TaskPriority
+      unrecordTaskCompleted()
     }
     if (!wasCompleted && task.completed) {
       recordTaskCompleted()

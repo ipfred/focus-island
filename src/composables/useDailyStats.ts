@@ -75,6 +75,17 @@ export function useDailyStats() {
     stat.tasksCompleted++
   }
 
+  // 取消勾选时回退当天的完成数；当天没有任何数据时移除空记录。
+  function unrecordTaskCompleted() {
+    const today = getDateString()
+    const stat = getStatByDate(today)
+    if (!stat) return
+    if (stat.tasksCompleted > 0) stat.tasksCompleted--
+    if (stat.tasksCompleted === 0 && stat.pomodoros === 0 && stat.focusMinutes === 0) {
+      dailyStats.value = dailyStats.value.filter(s => s !== stat)
+    }
+  }
+
   function getStatsInRange(startDate: Date, endDate: Date): DailyStat[] {
     const start = getDateString(startDate)
     const end = getDateString(endDate)
@@ -134,6 +145,7 @@ export function useDailyStats() {
     allTimeStats,
     recordPomodoro,
     recordTaskCompleted,
+    unrecordTaskCompleted,
     getStatsInRange,
     getMonthStats,
     summarizeStats,

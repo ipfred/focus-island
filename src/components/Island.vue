@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { emit, listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useIslandState } from "../composables/useIslandState";
@@ -27,36 +27,38 @@ let unlistenNotification: (() => void) | null = null;
 const radioPlaying = ref(false);
 const notificationType = ref<NotificationType>(null);
 
-// Compute and apply the main window size based on notification / dock / capsule state.
-function applyWindowSize() {
-    const scale = settings.value.islandScale ?? 1;
-    if (notificationType.value !== null) {
-        // Expand window to fit capsule + gap + notification banner
-        const width = 360 * scale;
-        const height = (BASE_HEIGHT + 6 + 60) * scale;
-        invoke("set_island_custom_size", { width, height });
-    } else if (showStrip.value) {
-        // Docked thin strip at the top edge
-        invoke("set_island_custom_size", {
-            width: 360 * scale,
-            height: DOCK_STRIP_WINDOW_H * scale,
-        });
-    } else {
-        // Normal capsule size
-        invoke("set_island_size", { scale });
+let activityTimer: ReturnType<typeof setInterval> | null = null;
+
+const shellRef = ref<HTMLElement | null>(null);
+let layoutObserver: ResizeObserver | null = null;
+
+// 舞台固定大小，形变全部在 DOM 内完成；
+// 岛的屏幕矩形上报给 Rust，供面板定位 / 悬停 / 点击判定使用。
+async function reportLayout() {
+    const el = shellRef.value;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    try {
+        await invoke("set_island_layout", { x: r.left, y: r.top, w: r.width, h: r.height });
+    } catch {
+        // window closing
     }
 }
 
-// Watch notification visibility and toggle click-through + resize window
+// Watch notification visibility and toggle click-through
 watch(notificationType, (val) => {
     const visible = val !== null;
     setNotificationVisible(visible);
-    invoke("set_click_through", { ignore: !visible });
-    applyWindowSize();
+    // dock（刘海）模式下点击穿透由 useDockMode 统一管理
+    if (settings.value.islandDisplayMode !== "dock") {
+        invoke("set_click_through", { ignore: !visible });
+    }
 });
 
-// Resize when dock strip state or island scale changes
-watch([showStrip, () => settings.value.islandScale], applyWindowSize);
+// Resize/fade changes in the stage: report the new island rect
+watch([showStrip, notificationType, () => settings.value.islandScale], () => {
+    nextTick(reportLayout);
+});
 
 function playNotificationSound() {
     if (!settings.value.notificationSound) return;
@@ -155,9 +157,25 @@ function startLocalCountdown(endAt: number) {
 
 onMounted(async () => {
     invoke("set_click_through", { ignore: true });
-    
-    // 初始化时应用窗口尺寸（胶囊 / 停靠细条 / 通知）
-    applyWindowSize();
+
+    // 空闲检测喂食：岛窗口是点击穿透的收不到输入，
+    // 用 Rust 光标轮询探测系统级活动，派发合成事件重置 useIdle
+    activityTimer = setInterval(async () => {
+        try {
+            if (await invoke<boolean>("cursor_active")) {
+                window.dispatchEvent(new MouseEvent("mousemove"));
+            }
+        } catch {
+            // ignore
+        }
+    }, 1000);
+
+    await nextTick();
+    reportLayout();
+    if (typeof ResizeObserver !== "undefined" && shellRef.value) {
+        layoutObserver = new ResizeObserver(() => reportLayout());
+        layoutObserver.observe(shellRef.value);
+    }
 
     unlisten = await listen<TimerStatePayload>(
         "timer-state-update",
@@ -197,7 +215,7 @@ onMounted(async () => {
 
     unlistenSettings = await listen<Settings>("settings-changed", ({ payload }) => {
         applyExternalSettings(payload);
-        applyWindowSize();
+        nextTick(reportLayout);
     });
 
     unlistenPanelMotion = await listen<string>("island-panel-motion", ({ payload }) => {
@@ -217,6 +235,8 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+    if (activityTimer !== null) clearInterval(activityTimer);
+    layoutObserver?.disconnect();
     unlisten?.();
     unlistenSettings?.();
     unlistenPanelMotion?.();
@@ -241,6 +261,7 @@ onUnmounted(() => {
                 }"
             >
                 <div
+                    ref="shellRef"
                     class="capsule-shell relative flex items-center justify-center"
                     :class="{
                         'ring-focus':
