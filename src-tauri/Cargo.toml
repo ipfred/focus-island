@@ -5,7 +5,8 @@ edition = "2021"
 
 [lib]
 name = "focus_island_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+# 纯桌面应用只需 rlib；staticlib/cdylib 仅供 iOS/Android，桌面构建会白白生成 400M+ 产物
+crate-type = ["rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -31,6 +32,10 @@ windows = { version = "0.61.3", features = ["Win32_Foundation", "Win32_UI_Window
 
 [target.'cfg(target_os = "linux")'.dependencies]
 x11 = { version = "2.21", features = ["xlib"] }
+
+# dev 产物瘦身：只保留行号表(断点/backtrace 仍可用)，去掉完整 DWARF 符号，体积减半以上
+[profile.dev]
+debug = "line-tables-only"
 
 [profile.release]
 panic = "abort"
