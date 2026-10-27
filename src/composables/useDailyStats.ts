@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { createPersistedStore } from './persistence'
+import { toLocalDateStr } from '../utils/date'
 
 export interface DailyStat {
   date: string        // "2026-04-18"
@@ -19,9 +20,7 @@ const store = createPersistedStore({
   },
 })
 
-function getDateString(date: Date = new Date()): string {
-  return date.toISOString().split('T')[0]
-}
+const getDateString = toLocalDateStr
 
 function getStatByDate(date: string): DailyStat | undefined {
   return dailyStats.value.find(s => s.date === date)

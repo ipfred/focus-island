@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { createPersistedStore } from './persistence'
+import { addDays, toLocalDateStr } from '../utils/date'
 
 export interface Achievement {
   id: string
@@ -58,9 +59,7 @@ const store = createPersistedStore({
   },
 })
 
-function getDateString(date: Date = new Date()): string {
-  return date.toISOString().split('T')[0]
-}
+const getDateString = toLocalDateStr
 
 function unlockAchievement(id: string) {
   const achievement = achievements.value.find(a => a.id === id)
@@ -91,7 +90,7 @@ export function useAchievements() {
 
     const today = getDateString()
     if (state.value.lastFocusDate !== today) {
-      const yesterday = getDateString(new Date(Date.now() - 86400000))
+      const yesterday = getDateString(addDays(new Date(), -1))
       if (state.value.lastFocusDate === yesterday) {
         state.value.streakDays++
       } else {

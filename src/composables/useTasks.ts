@@ -1,21 +1,10 @@
 import { ref, computed } from 'vue'
 import { createPersistedStore } from './persistence'
+import { parseLocalDateStr, toLocalDateStr } from '../utils/date'
 import { useSettings } from './useSettings'
 import { useDailyStats } from './useDailyStats'
 
 // --- Date helpers ---
-
-function toDateStr(d: Date): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-function parseDateStr(s: string): Date {
-  const [y, m, d] = s.split('-').map(Number)
-  return new Date(y, m - 1, d)
-}
 
 function startOfToday(): Date {
   const d = new Date()
@@ -66,7 +55,7 @@ interface TaskBuckets {
 export function getTaskTimeCategory(task: Task): TimeCategory {
   if (!task.dueDate) return 'nodate'
   const today = startOfToday()
-  const due = parseDateStr(task.dueDate)
+  const due = parseLocalDateStr(task.dueDate)
   const diff = Math.floor((due.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
   if (diff < 0) return 'overdue'
   if (diff === 0) return 'today'
@@ -94,13 +83,13 @@ function restoreTasks(data: unknown) {
         now.setDate(now.getDate() + 2)
       }
       // 'today' or anything else → today's date
-      t.dueDate = toDateStr(now)
+      t.dueDate = toLocalDateStr(now)
     }
 
     return {
       note: t.note ?? '',
       groupId: t.groupId ?? null,
-      dueDate: t.dueDate ?? toDateStr(new Date()),
+      dueDate: t.dueDate ?? toLocalDateStr(new Date()),
       priority: t.completed ? 0 : ((t.priority ?? 0) as TaskPriority),
       subtasks: t.subtasks ?? [],
       ...t,
@@ -129,7 +118,7 @@ export function useTasks() {
       title: title.trim(),
       note: '',
       groupId: groupId ?? null,
-      dueDate: dueDate ?? toDateStr(new Date()),
+      dueDate: dueDate ?? toLocalDateStr(new Date()),
       completed: false,
       pomodoroCount: 0,
       priority: priority ?? 0,
