@@ -24,6 +24,7 @@
     "@tauri-apps/plugin-updater": "^2.10.1",
     "@vueuse/core": "^14.2.1",
     "@vueuse/motion": "^3.0.3",
+    "dompurify": "^3.4.17",
     "vue": "^3.5.13"
   },
   "devDependencies": {

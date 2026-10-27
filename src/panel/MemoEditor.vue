@@ -3,6 +3,7 @@ import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { readText } from '@tauri-apps/plugin-clipboard-manager'
 import type { Memo, MemoCategory } from '../composables/useMemos'
 import MemoCategoryDropdown from './MemoCategoryDropdown.vue'
+import { sanitizeHtml } from '../utils/sanitizeHtml'
 
 const props = defineProps<{
   memo: Memo
@@ -407,9 +408,9 @@ async function onPaste(e: ClipboardEvent) {
   const text = clipboardData.getData('text/plain') || ''
   const html = clipboardData.getData('text/html') || ''
 
-  // If HTML is available and not too complex, use it
-  if (html && !html.includes('<script')) {
-    document.execCommand('insertHTML', false, html)
+  const safeHtml = html ? sanitizeHtml(html) : ''
+  if (safeHtml) {
+    document.execCommand('insertHTML', false, safeHtml)
   } else {
     document.execCommand('insertText', false, text)
   }
@@ -635,7 +636,7 @@ function onSelectionChange() {
 // Initialize editor content
 onMounted(() => {
   if (editorRef.value) {
-    editorRef.value.innerHTML = localContent.value || '<div><br></div>'
+    editorRef.value.innerHTML = sanitizeHtml(localContent.value) || '<div><br></div>'
   }
   titleInputRef.value?.focus()
   document.addEventListener('click', onDocumentClick)
