@@ -37,9 +37,9 @@ x11 = { version = "2.21", features = ["xlib"] }
 [profile.dev]
 debug = "line-tables-only"
 
+# thin LTO + 默认 codegen-units：CI 编译明显更快，体积只略增
 [profile.release]
 panic = "abort"
-codegen-units = 1
-lto = true
+lto = "thin"
 opt-level = "s"
 strip = true
