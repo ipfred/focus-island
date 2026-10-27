@@ -1,7 +1,5 @@
-import { ref, watch, computed } from 'vue'
-import { readTextFile, writeTextFile, mkdir, BaseDirectory } from '@tauri-apps/plugin-fs'
-import { emitTo, listen } from '@tauri-apps/api/event'
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { ref, computed } from 'vue'
+import { createPersistedStore } from './persistence'
 import { useSettings } from './useSettings'
 import { useDailyStats } from './useDailyStats'
 
@@ -79,91 +77,49 @@ export function getTaskTimeCategory(task: Task): TimeCategory {
 
 // --- State ---
 
-const TASKS_FILE = 'focus-island/tasks.json'
-
 const tasks = ref<Task[]>([])
-const loaded = ref(false)
-let loadPromise: Promise<void> | null = null
 
 // --- Persistence ---
 
-async function load() {
-  try {
-    const raw = await readTextFile(TASKS_FILE, { baseDir: BaseDirectory.AppData })
-    const parsed = JSON.parse(raw)
-    tasks.value = parsed.map((t: Record<string, unknown> & Partial<Task>) => {
-      // Migration: convert old category field to dueDate
-      if ('category' in t && !('dueDate' in t)) {
-        const cat = (t as Record<string, unknown>).category as string | undefined
-        const now = new Date()
-        if (cat === 'tomorrow') {
-          now.setDate(now.getDate() + 1)
-        } else if (cat === 'week') {
-          now.setDate(now.getDate() + 2)
-        }
-        // 'today' or anything else → today's date
-        t.dueDate = toDateStr(now)
+function restoreTasks(data: unknown) {
+  if (!Array.isArray(data)) throw new Error('tasks.json is not an array')
+  tasks.value = data.map((t: Record<string, unknown> & Partial<Task>) => {
+    // Migration: convert old category field to dueDate
+    if ('category' in t && !('dueDate' in t)) {
+      const cat = (t as Record<string, unknown>).category as string | undefined
+      const now = new Date()
+      if (cat === 'tomorrow') {
+        now.setDate(now.getDate() + 1)
+      } else if (cat === 'week') {
+        now.setDate(now.getDate() + 2)
       }
+      // 'today' or anything else → today's date
+      t.dueDate = toDateStr(now)
+    }
 
-      return {
-        note: t.note ?? '',
-        groupId: t.groupId ?? null,
-        dueDate: t.dueDate ?? toDateStr(new Date()),
-        priority: t.completed ? 0 : ((t.priority ?? 0) as TaskPriority),
-        subtasks: t.subtasks ?? [],
-        ...t,
-        lastActiveAt: t.lastActiveAt ?? 0,
-      } as Task
-    })
-  } catch {
-    tasks.value = []
-  }
-  loaded.value = true
-}
-
-function ensureLoaded() {
-  if (loaded.value || loadPromise) return
-  loadPromise = load().finally(() => {
-    loadPromise = null
+    return {
+      note: t.note ?? '',
+      groupId: t.groupId ?? null,
+      dueDate: t.dueDate ?? toDateStr(new Date()),
+      priority: t.completed ? 0 : ((t.priority ?? 0) as TaskPriority),
+      subtasks: t.subtasks ?? [],
+      ...t,
+      lastActiveAt: t.lastActiveAt ?? 0,
+    } as Task
   })
 }
 
-let isSyncing = false
-
-async function save() {
-  if (!loaded.value || isSyncing) return
-  try {
-    await mkdir('focus-island', { baseDir: BaseDirectory.AppData, recursive: true })
-    const json = JSON.stringify(tasks.value)
-    await writeTextFile(TASKS_FILE, json, { baseDir: BaseDirectory.AppData })
-    // Broadcast to other windows
-    const self = getCurrentWebviewWindow().label
-    const targets = self === 'main' ? ['panel'] : ['main']
-    for (const target of targets) {
-      emitTo(target, 'tasks-updated', json).catch(() => {})
-    }
-  } catch (e) {
-    console.error('Failed to save tasks', e)
-  }
-}
-
-watch(tasks, save, { deep: true })
-
-// Listen for cross-window task updates
-listen<string>('tasks-updated', (event) => {
-  try {
-    isSyncing = true
-    const parsed = JSON.parse(event.payload) as Task[]
-    tasks.value = parsed
-    // nextTick to let watch fire and skip save due to isSyncing
-    setTimeout(() => { isSyncing = false }, 50)
-  } catch { /* ignore */ }
+const store = createPersistedStore({
+  file: 'tasks.json',
+  snapshot: () => tasks.value,
+  restore: restoreTasks,
+  syncEvent: 'tasks-updated',
 })
 
 // --- Composable ---
 
 export function useTasks() {
-  ensureLoaded()
+  void store.ensureLoaded()
   const { recordTaskCompleted } = useDailyStats()
 
   function addTask(title: string, dueDate?: string | null, groupId?: string | null, priority?: TaskPriority) {

@@ -1,5 +1,5 @@
-import { ref, watch, computed } from 'vue'
-import { readTextFile, writeTextFile, mkdir, BaseDirectory } from '@tauri-apps/plugin-fs'
+import { ref, computed } from 'vue'
+import { createPersistedStore } from './persistence'
 
 export interface Achievement {
   id: string
@@ -18,8 +18,6 @@ interface AchievementState {
   earlyBirdCount: number
   nightOwlCount: number
 }
-
-const ACHIEVEMENTS_FILE = 'focus-island/achievements.json'
 
 const defaultAchievements: Achievement[] = [
   { id: 'star-1', name: '启明星', icon: '★', description: '累计10个番茄', target: 10, progress: 0, unlockedAt: null },
@@ -40,46 +38,25 @@ const state = ref<AchievementState>({
   earlyBirdCount: 0,
   nightOwlCount: 0,
 })
-const loaded = ref(false)
-let loadPromise: Promise<void> | null = null
 
-async function load() {
-  try {
-    const raw = await readTextFile(ACHIEVEMENTS_FILE, { baseDir: BaseDirectory.AppData })
-    const parsed = JSON.parse(raw)
-    if (parsed.achievements) {
+const store = createPersistedStore({
+  file: 'achievements.json',
+  snapshot: () => ({ achievements: achievements.value, state: state.value }),
+  restore: (data) => {
+    if (!data || typeof data !== 'object') throw new Error('achievements.json is not an object')
+    const parsed = data as { achievements?: Achievement[]; state?: Partial<AchievementState> }
+    if (Array.isArray(parsed.achievements)) {
+      const saved = parsed.achievements
       achievements.value = defaultAchievements.map(def => {
-        const saved = parsed.achievements.find((a: Achievement) => a.id === def.id)
-        return saved ? { ...def, ...saved } : def
+        const match = saved.find(a => a.id === def.id)
+        return match ? { ...def, ...match } : { ...def }
       })
     }
     if (parsed.state) {
       state.value = { ...state.value, ...parsed.state }
     }
-  } catch {
-    achievements.value = JSON.parse(JSON.stringify(defaultAchievements))
-  }
-  loaded.value = true
-}
-
-function ensureLoaded() {
-  if (loaded.value || loadPromise) return
-  loadPromise = load().finally(() => {
-    loadPromise = null
-  })
-}
-
-async function save() {
-  if (!loaded.value) return
-  try {
-    await mkdir('focus-island', { baseDir: BaseDirectory.AppData, recursive: true })
-    await writeTextFile(ACHIEVEMENTS_FILE, JSON.stringify({ achievements: achievements.value, state: state.value }), { baseDir: BaseDirectory.AppData })
-  } catch (e) {
-    console.error('Failed to save achievements', e)
-  }
-}
-
-watch([achievements, state], save, { deep: true })
+  },
+})
 
 function getDateString(date: Date = new Date()): string {
   return date.toISOString().split('T')[0]
@@ -104,7 +81,7 @@ function updateProgress(id: string, progress: number) {
 }
 
 export function useAchievements() {
-  ensureLoaded()
+  void store.ensureLoaded()
 
   function recordPomodoro() {
     state.value.totalPomodoros++

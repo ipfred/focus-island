@@ -1,5 +1,5 @@
 import { ref, computed, watch } from 'vue'
-import { readTextFile, writeTextFile, mkdir, BaseDirectory } from '@tauri-apps/plugin-fs'
+import { createPersistedStore } from './persistence'
 import { emit } from '@tauri-apps/api/event'
 import { invoke, convertFileSrc } from '@tauri-apps/api/core'
 
@@ -168,8 +168,6 @@ export const PRESET_STATIONS: RadioStation[] = [
   },
 ]
 
-const RADIO_FILE = 'focus-island/radio.json'
-
 const DEFAULT_RADIO_SETTINGS: RadioSettings = {
   currentStationId: null,
   volume: 50,
@@ -179,7 +177,6 @@ const radioSettings = ref<RadioSettings>({ ...DEFAULT_RADIO_SETTINGS })
 const playing = ref(false)
 const loading = ref(false)
 const error = ref<string | null>(null)
-const loaded = ref(false)
 
 const currentStation = computed(() =>
   PRESET_STATIONS.find(s => s.id === radioSettings.value.currentStationId) ?? null
@@ -243,33 +240,21 @@ function getAudio(): HTMLAudioElement {
 
 // ---- Persistence ----
 
-async function loadSettings() {
-  try {
-    const raw = await readTextFile(RADIO_FILE, { baseDir: BaseDirectory.AppData })
-    const parsed = JSON.parse(raw) as Partial<RadioSettings>
+const store = createPersistedStore({
+  file: 'radio.json',
+  snapshot: () => radioSettings.value,
+  restore: (data) => {
+    if (!data || typeof data !== 'object') throw new Error('radio.json is not an object')
+    const parsed = data as Partial<RadioSettings>
     radioSettings.value = {
       ...DEFAULT_RADIO_SETTINGS,
       ...parsed,
       volume: Math.max(0, Math.min(100, parsed.volume ?? DEFAULT_RADIO_SETTINGS.volume)),
     }
-  } catch {
-    radioSettings.value = { ...DEFAULT_RADIO_SETTINGS }
-  }
-  loaded.value = true
-}
-
-async function save() {
-  if (!loaded.value) return
-  try {
-    await mkdir('focus-island', { baseDir: BaseDirectory.AppData, recursive: true })
-    await writeTextFile(RADIO_FILE, JSON.stringify(radioSettings.value), { baseDir: BaseDirectory.AppData })
-  } catch (e) {
-    console.error('Failed to save radio settings', e)
-  }
-}
+  },
+})
 
 watch(radioSettings, () => {
-  save()
   emit('radio-state-update', {
     playing: playing.value,
     stationId: radioSettings.value.currentStationId,
@@ -365,7 +350,7 @@ async function setVolume(v: number) {
 }
 
 export function useRadio() {
-  if (!loaded.value) loadSettings()
+  void store.ensureLoaded()
 
   return {
     stations: PRESET_STATIONS,

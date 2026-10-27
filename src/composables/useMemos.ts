@@ -1,7 +1,5 @@
-import { ref, watch, computed } from 'vue'
-import { readTextFile, writeTextFile, mkdir, BaseDirectory } from '@tauri-apps/plugin-fs'
-import { emitTo, listen } from '@tauri-apps/api/event'
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
+import { ref, computed } from 'vue'
+import { createPersistedStore } from './persistence'
 
 export interface Memo {
   id: string
@@ -21,9 +19,6 @@ export interface MemoCategory {
   isDefault: boolean
   order: number
 }
-
-const MEMOS_FILE = 'focus-island/memos.json'
-const CATEGORIES_FILE = 'focus-island/memo-categories.json'
 
 // Available category colors - use const object for stable references
 export const CATEGORY_COLOR_MAP = {
@@ -55,95 +50,28 @@ const DEFAULT_CATEGORIES: MemoCategory[] = [
 
 const memos = ref<Memo[]>([])
 const categories = ref<MemoCategory[]>([...DEFAULT_CATEGORIES])
-const loaded = ref(false)
 const currentCategoryId = ref<string>('all')
-let loadPromise: Promise<void> | null = null
 
-let isSyncingMemos = false
-let isSyncingCategories = false
-
-async function loadMemos() {
-  try {
-    const raw = await readTextFile(MEMOS_FILE, { baseDir: BaseDirectory.AppData })
-    memos.value = JSON.parse(raw)
-  } catch {
-    memos.value = []
-  }
-}
-
-async function loadCategories() {
-  try {
-    const raw = await readTextFile(CATEGORIES_FILE, { baseDir: BaseDirectory.AppData })
-    const parsed = JSON.parse(raw) as MemoCategory[]
-    const defaultIds = new Set(DEFAULT_CATEGORIES.map(c => c.id))
-    const customCategories = parsed.filter(c => !defaultIds.has(c.id))
-    categories.value = [...DEFAULT_CATEGORIES, ...customCategories].sort((a, b) => a.order - b.order)
-  } catch {
-    categories.value = [...DEFAULT_CATEGORIES]
-  }
-}
-
-async function load() {
-  await Promise.all([loadMemos(), loadCategories()])
-  loaded.value = true
-}
-
-function ensureLoaded() {
-  if (loaded.value || loadPromise) return
-  loadPromise = load().finally(() => {
-    loadPromise = null
-  })
-}
-
-async function saveMemos() {
-  if (!loaded.value || isSyncingMemos) return
-  try {
-    await mkdir('focus-island', { baseDir: BaseDirectory.AppData, recursive: true })
-    const json = JSON.stringify(memos.value)
-    await writeTextFile(MEMOS_FILE, json, { baseDir: BaseDirectory.AppData })
-    const self = getCurrentWebviewWindow().label
-    const targets = self === 'main' ? ['panel'] : ['main']
-    for (const target of targets) {
-      emitTo(target, 'memos-updated', json).catch(() => {})
-    }
-  } catch (e) {
-    console.error('Failed to save memos', e)
-  }
-}
-
-async function saveCategories() {
-  if (!loaded.value || isSyncingCategories) return
-  try {
-    await mkdir('focus-island', { baseDir: BaseDirectory.AppData, recursive: true })
-    const json = JSON.stringify(categories.value)
-    await writeTextFile(CATEGORIES_FILE, json, { baseDir: BaseDirectory.AppData })
-    const self = getCurrentWebviewWindow().label
-    const targets = self === 'main' ? ['panel'] : ['main']
-    for (const target of targets) {
-      emitTo(target, 'memo-categories-updated', json).catch(() => {})
-    }
-  } catch (e) {
-    console.error('Failed to save memo categories', e)
-  }
-}
-
-watch(memos, saveMemos, { deep: true })
-watch(categories, saveCategories, { deep: true })
-
-listen<string>('memos-updated', (event) => {
-  try {
-    isSyncingMemos = true
-    memos.value = JSON.parse(event.payload)
-    setTimeout(() => { isSyncingMemos = false }, 50)
-  } catch { /* ignore */ }
+const memoStore = createPersistedStore({
+  file: 'memos.json',
+  snapshot: () => memos.value,
+  restore: (data) => {
+    if (!Array.isArray(data)) throw new Error('memos.json is not an array')
+    memos.value = data as Memo[]
+  },
+  syncEvent: 'memos-updated',
 })
 
-listen<string>('memo-categories-updated', (event) => {
-  try {
-    isSyncingCategories = true
-    categories.value = JSON.parse(event.payload)
-    setTimeout(() => { isSyncingCategories = false }, 50)
-  } catch { /* ignore */ }
+const categoryStore = createPersistedStore({
+  file: 'memo-categories.json',
+  snapshot: () => categories.value,
+  restore: (data) => {
+    if (!Array.isArray(data)) throw new Error('memo-categories.json is not an array')
+    const defaultIds = new Set(DEFAULT_CATEGORIES.map(c => c.id))
+    const customCategories = (data as MemoCategory[]).filter(c => !defaultIds.has(c.id))
+    categories.value = [...DEFAULT_CATEGORIES, ...customCategories].sort((a, b) => a.order - b.order)
+  },
+  syncEvent: 'memo-categories-updated',
 })
 
 function extractTitleFromContent(content: string, maxLength: number = 10): string {
@@ -153,7 +81,8 @@ function extractTitleFromContent(content: string, maxLength: number = 10): strin
 }
 
 export function useMemos() {
-  ensureLoaded()
+  void memoStore.ensureLoaded()
+  void categoryStore.ensureLoaded()
 
   function addMemo(categoryId: string = 'all'): Memo {
     const now = Date.now()

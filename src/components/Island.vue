@@ -4,7 +4,7 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { useIslandState } from "../composables/useIslandState";
 import { useTimer, type NotificationType } from "../composables/useTimer";
-import { useSettings, type Settings } from "../composables/useSettings";
+import { useSettings } from "../composables/useSettings";
 import { useDockMode } from "../composables/useDockMode";
 import CapsuleIdle from "./CapsuleIdle.vue";
 import DockStrip from "./DockStrip.vue";
@@ -14,12 +14,11 @@ import type { TimerStatePayload } from "../composables/useTimerBridge";
 
 const { state, setState, setNotificationVisible } = useIslandState();
 const timer = useTimer();
-const { settings, applyExternalSettings } = useSettings();
+const { settings } = useSettings();
 const { dockCollapsed, stripProgress, stripColor, DOCK_STRIP_WINDOW_H } = useDockMode();
 const showStrip = computed(() => dockCollapsed.value);
 
 let unlisten: (() => void) | null = null;
-let unlistenSettings: (() => void) | null = null;
 let unlistenPanelMotion: (() => void) | null = null;
 let unlistenRadio: (() => void) | null = null;
 let unlistenNotification: (() => void) | null = null;
@@ -195,11 +194,6 @@ onMounted(async () => {
     // 拉取 panel 当前计时快照，避免窗口晚启动时错过状态。
     emit("timer-state-request").catch(() => {});
 
-    unlistenSettings = await listen<Settings>("settings-changed", ({ payload }) => {
-        applyExternalSettings(payload);
-        applyWindowSize();
-    });
-
     unlistenPanelMotion = await listen<string>("island-panel-motion", ({ payload }) => {
         if (payload === "open" || payload === "close") {
             runPanelMotion(payload);
@@ -218,7 +212,6 @@ onMounted(async () => {
 
 onUnmounted(() => {
     unlisten?.();
-    unlistenSettings?.();
     unlistenPanelMotion?.();
     unlistenRadio?.();
     unlistenNotification?.();

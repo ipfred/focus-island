@@ -1,7 +1,6 @@
 import { ref, computed, watch, watchEffect } from 'vue'
-import { readTextFile, writeTextFile, mkdir, BaseDirectory } from '@tauri-apps/plugin-fs'
-import { emit } from '@tauri-apps/api/event'
 import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart'
+import { createPersistedStore } from './persistence'
 
 export interface ThemePreset {
   id: string
@@ -39,8 +38,6 @@ export const presetThemes: ThemePreset[] = [
   { id: 'cyber', name: '赛博朋克', focusColor: '#ff6b9d', breakColor: '#00d2d3', idleColor: '#a29bfe', alertColor: '#feca57' },
 ]
 
-const SETTINGS_FILE = 'focus-island/settings.json'
-
 const DEFAULT_SETTINGS: Settings = {
   islandOpacity: 0.25,
   islandScale: 1.0,
@@ -57,8 +54,6 @@ const DEFAULT_SETTINGS: Settings = {
 }
 
 const settings = ref<Settings>({ ...DEFAULT_SETTINGS })
-const loaded = ref(false)
-let suppressEmit = false
 let systemSchemeListenerBound = false
 
 function normalizeColorMode(mode: unknown): ColorMode {
@@ -105,23 +100,25 @@ function applyThemeToDOM() {
   root.style.setProperty('--island-scale', String(settings.value.islandScale))
 }
 
-async function load() {
-  try {
-    const raw = await readTextFile(SETTINGS_FILE, { baseDir: BaseDirectory.AppData })
-    const parsed = JSON.parse(raw) as Partial<Settings>
+const store = createPersistedStore({
+  file: 'settings.json',
+  snapshot: () => settings.value,
+  restore: (data) => {
+    if (!data || typeof data !== 'object') throw new Error('settings.json is not an object')
+    const parsed = data as Partial<Settings>
     settings.value = {
       ...DEFAULT_SETTINGS,
       ...parsed,
       colorMode: normalizeColorMode(parsed.colorMode),
     }
-  } catch {
-    settings.value = { ...DEFAULT_SETTINGS }
-  }
-  loaded.value = true
-  // Sync autoLaunch with OS autostart state
+  },
+  syncEvent: 'settings-changed',
+})
+const loaded = store.loaded
+
+async function syncAutostart() {
   try {
-    const enabled = await isEnabled()
-    settings.value.autoLaunch = enabled
+    settings.value.autoLaunch = await isEnabled()
   } catch {
     // autostart plugin unavailable (e.g. unsupported platform)
   }
@@ -130,23 +127,11 @@ async function load() {
   }
 }
 
-async function save() {
-  if (!loaded.value) return
-  try {
-    await mkdir('focus-island', { baseDir: BaseDirectory.AppData, recursive: true })
-    await writeTextFile(SETTINGS_FILE, JSON.stringify(settings.value), { baseDir: BaseDirectory.AppData })
-  } catch (e) {
-    console.error('Failed to save settings', e)
-  }
-}
+let initPromise: Promise<void> | null = null
 
-watch(settings, () => {
-  if (!suppressEmit) {
-    save()
-    emit('settings-changed', settings.value)
-  }
-  suppressEmit = false
-}, { deep: true })
+function ensureInitialized() {
+  if (!initPromise) initPromise = store.ensureLoaded().then(syncAutostart)
+}
 
 watch(() => settings.value.autoLaunch, (val) => {
   if (!loaded.value) return
@@ -165,18 +150,9 @@ const activeTheme = computed(() =>
   presetThemes.find(t => t.id === settings.value.activeThemeId) ?? presetThemes[0]
 )
 
-function applyExternalSettings(newSettings: Settings) {
-  suppressEmit = true
-  settings.value = {
-    ...newSettings,
-    colorMode: normalizeColorMode(newSettings.colorMode),
-  }
-  loaded.value = true
-}
-
 export function useSettings() {
   ensureSystemSchemeListener()
-  if (!loaded.value) load()
+  ensureInitialized()
 
-  return { settings, settingsReady: loaded, activeTheme, applyThemeToDOM, applyExternalSettings }
+  return { settings, settingsReady: loaded, activeTheme, applyThemeToDOM }
 }

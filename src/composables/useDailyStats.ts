@@ -1,5 +1,5 @@
-import { ref, watch, computed } from 'vue'
-import { readTextFile, writeTextFile, mkdir, BaseDirectory } from '@tauri-apps/plugin-fs'
+import { ref, computed } from 'vue'
+import { createPersistedStore } from './persistence'
 
 export interface DailyStat {
   date: string        // "2026-04-18"
@@ -8,11 +8,16 @@ export interface DailyStat {
   tasksCompleted: number // 当日完成任务数
 }
 
-const STATS_FILE = 'focus-island/daily-stats.json'
-
 const dailyStats = ref<DailyStat[]>([])
-const loaded = ref(false)
-let loadPromise: Promise<void> | null = null
+
+const store = createPersistedStore({
+  file: 'daily-stats.json',
+  snapshot: () => dailyStats.value,
+  restore: (data) => {
+    if (!Array.isArray(data)) throw new Error('daily-stats.json is not an array')
+    dailyStats.value = data as DailyStat[]
+  },
+})
 
 function getDateString(date: Date = new Date()): string {
   return date.toISOString().split('T')[0]
@@ -22,37 +27,8 @@ function getStatByDate(date: string): DailyStat | undefined {
   return dailyStats.value.find(s => s.date === date)
 }
 
-async function load() {
-  try {
-    const raw = await readTextFile(STATS_FILE, { baseDir: BaseDirectory.AppData })
-    dailyStats.value = JSON.parse(raw)
-  } catch {
-    dailyStats.value = []
-  }
-  loaded.value = true
-}
-
-function ensureLoaded() {
-  if (loaded.value || loadPromise) return
-  loadPromise = load().finally(() => {
-    loadPromise = null
-  })
-}
-
-async function save() {
-  if (!loaded.value) return
-  try {
-    await mkdir('focus-island', { baseDir: BaseDirectory.AppData, recursive: true })
-    await writeTextFile(STATS_FILE, JSON.stringify(dailyStats.value), { baseDir: BaseDirectory.AppData })
-  } catch (e) {
-    console.error('Failed to save daily stats', e)
-  }
-}
-
-watch(dailyStats, save, { deep: true })
-
 export function useDailyStats() {
-  ensureLoaded()
+  void store.ensureLoaded()
 
   function recordPomodoro(focusMinutes: number) {
     const today = getDateString()
