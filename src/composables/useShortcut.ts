@@ -4,7 +4,6 @@ import { invoke } from '@tauri-apps/api/core'
 import { useSettings } from './useSettings'
 
 let currentShortcut = ''
-let lastToggleTime = 0
 
 export function useShortcut() {
   const { settings } = useSettings()
@@ -18,10 +17,9 @@ export function useShortcut() {
       return
     }
     try {
-      await register(key, () => {
-        const now = Date.now()
-        if (now - lastToggleTime < 300) return
-        lastToggleTime = now
+      await register(key, (event) => {
+        // The handler fires on both press and release.
+        if (event.state !== 'Pressed') return
         invoke('toggle_panel')
       })
       currentShortcut = key
