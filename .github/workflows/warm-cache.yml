@@ -1,0 +1,103 @@
+name: Warm Rust cache
+
+# 在 master 上预编译依赖，供 release.yml（tag 触发）读取缓存。
+# GitHub 缓存按 ref 隔离：tag 只能读到自身或默认分支的缓存，所以必须在 master 上预热。
+# rust-cache 只缓存第三方依赖，项目自身代码的改动不影响缓存，因此只在依赖相关文件变化时运行。
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'src-tauri/Cargo.lock'
+      - 'src-tauri/Cargo.toml'
+      - '.github/workflows/warm-cache.yml'
+      - '.github/workflows/release.yml'
+  schedule:
+    # GitHub 会清理 7 天未访问的缓存；Rust stable 升级也会让缓存键失效
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: warm-cache-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  warm:
+    strategy:
+      fail-fast: false
+      matrix:
+        # 必须与 release.yml 的 matrix 保持一致（platform_name 即缓存键）
+        include:
+          - runner: macos-latest
+            platform_name: darwin-aarch64
+            target: aarch64-apple-darwin
+          - runner: macos-latest
+            platform_name: darwin-x86_64
+            target: x86_64-apple-darwin
+          - runner: windows-latest
+            platform_name: windows-x86_64
+            target: ''
+          - runner: windows-latest
+            platform_name: windows-aarch64
+            target: aarch64-pc-windows-msvc
+          - runner: ubuntu-22.04
+            platform_name: linux-x86_64
+            target: ''
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Dev Drive (Windows)
+        if: runner.os == 'Windows'
+        uses: samypr100/setup-dev-drive@v4
+        with:
+          drive-size: 16GB
+          mount-path: C:\dev-drive
+          workspace-copy: true
+          trusted-dev-drive: true
+          env-mapping: |
+            CARGO_HOME,{{ DEV_DRIVE }}/.cargo
+
+      - name: Resolve project directory
+        shell: bash
+        run: echo "PROJECT_DIR=${DEV_DRIVE_WORKSPACE:-$GITHUB_WORKSPACE}" >> "$GITHUB_ENV"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install Rust stable
+        if: matrix.target == ''
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust stable (with target)
+        if: matrix.target != ''
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ matrix.platform_name }}
+          workspaces: ${{ env.PROJECT_DIR }}/src-tauri -> target
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libx11-dev fakeroot xdg-utils
+
+      - name: Install frontend dependencies
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: npm ci
+
+      # 与发版使用同一个 tauri CLI 和编译参数，保证依赖的编译产物可复用；--no-bundle 跳过打包与签名
+      - name: Build release binary (no bundle)
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: bash
+        run: npx tauri build --no-bundle ${{ matrix.target != '' && format('--target {0}', matrix.target) || '' }}
