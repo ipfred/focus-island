@@ -1,7 +1,6 @@
 import { ref, computed } from 'vue'
 import { createPersistedStore } from './persistence'
 import { parseLocalDateStr, toLocalDateStr } from '../utils/date'
-import { useSettings } from './useSettings'
 import { useDailyStats } from './useDailyStats'
 
 // --- Date helpers ---
@@ -306,17 +305,6 @@ export function useTasks() {
     return taskBuckets.value.groups.get(groupId) ?? []
   }
 
-  const todayStats = computed(() => {
-    const { settings } = useSettings()
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
-    const ts = todayStart.getTime()
-    const todayDone = tasks.value.filter(t => t.updatedAt >= ts && t.completed)
-    const totalPomodoros = tasks.value.reduce((sum, t) => sum + t.pomodoroCount, 0)
-    const focusMinutes = totalPomodoros * settings.value.focusDuration
-    return { totalPomodoros, focusMinutes, completedToday: todayDone.length }
-  })
-
   return {
     tasks,
     activeTasks,
@@ -328,7 +316,6 @@ export function useTasks() {
     weekTasks,
     laterTasks,
     nodateTasks,
-    todayStats,
     addTask,
     updateTask,
     setTaskPriority,

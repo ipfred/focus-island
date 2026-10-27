@@ -296,11 +296,6 @@ fn mouse_position_raw() -> (f64, f64) {
 }
 
 #[tauri::command]
-fn get_mouse_position() -> (f64, f64) {
-    mouse_position_raw()
-}
-
-#[tauri::command]
 fn is_mouse_over_window<R: Runtime>(window: WebviewWindow<R>, pad: f64) -> bool {
     let (mx, my) = mouse_position_raw();
     let Ok(pos) = window.outer_position() else { return false };
@@ -324,22 +319,6 @@ fn is_mouse_over_window<R: Runtime>(window: WebviewWindow<R>, pad: f64) -> bool 
 #[tauri::command]
 fn set_click_through<R: Runtime>(window: WebviewWindow<R>, ignore: bool) {
     let _ = window.set_ignore_cursor_events(ignore);
-}
-
-#[tauri::command]
-fn set_island_height<R: Runtime>(app: AppHandle<R>, height: f64) {
-    if let Some(main) = app.get_webview_window("main") {
-        let _ = main.set_size(tauri::LogicalSize::new(360.0, height));
-        if let Ok(Some(monitor)) = main.current_monitor() {
-            let scale_factor = monitor.scale_factor();
-            let screen_width = monitor.size().width as f64;
-            let win_width = 360.0_f64 * scale_factor;
-            let position = monitor.position();
-            let x = position.x as f64 + (screen_width - win_width) / 2.0;
-            let y = position.y as f64;
-            let _ = main.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
-        }
-    }
 }
 
 #[tauri::command]
@@ -374,14 +353,6 @@ fn set_island_custom_size<R: Runtime>(app: AppHandle<R>, width: f64, height: f64
             let _ = main.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
         }
     }
-}
-
-#[tauri::command]
-fn get_window_position<R: Runtime>(window: WebviewWindow<R>) -> (i32, i32) {
-    window
-        .outer_position()
-        .map(|p| (p.x, p.y))
-        .unwrap_or((0, 0))
 }
 
 #[tauri::command]
@@ -550,11 +521,6 @@ fn get_panel_transition_metrics<R: Runtime>(app: AppHandle<R>) -> Option<PanelTr
 }
 
 #[tauri::command]
-fn show_panel<R: Runtime>(app: AppHandle<R>) {
-    animate_panel_open(app);
-}
-
-#[tauri::command]
 fn hide_panel<R: Runtime>(app: AppHandle<R>) {
     if let Some(panel) = app.get_webview_window("panel") {
         if let Ok(size) = panel.outer_size() {
@@ -575,7 +541,6 @@ fn toggle_panel<R: Runtime>(app: AppHandle<R>) {
     }
 }
 
-#[tauri::command]
 fn animate_panel_open<R: Runtime>(app: AppHandle<R>) {
     let Some(panel) = app.get_webview_window("panel") else {
         return;
@@ -642,30 +607,6 @@ fn is_panel_visible<R: Runtime>(app: AppHandle<R>) -> bool {
 }
 
 #[tauri::command]
-fn set_island_visible<R: Runtime>(app: AppHandle<R>, visible: bool) {
-    if let Some(main) = app.get_webview_window("main") {
-        if visible {
-            let _ = main.show();
-        } else {
-            let _ = main.hide();
-        }
-    }
-}
-
-#[tauri::command]
-fn get_screen_info<R: Runtime>(app: AppHandle<R>) -> (f64, f64, f64) {
-    if let Some(main) = app.get_webview_window("main") {
-        if let Ok(Some(monitor)) = main.current_monitor() {
-            let scale_factor = monitor.scale_factor();
-            let physical_width = monitor.size().width as f64;
-            let position = monitor.position();
-            return (physical_width, scale_factor, position.x as f64);
-        }
-    }
-    (1920.0, 1.0, 0.0)
-}
-
-#[tauri::command]
 fn get_macos_update_health<R: Runtime>(_app: AppHandle<R>) -> Option<MacosUpdateHealth> {
     #[cfg(target_os = "macos")]
     {
@@ -728,24 +669,17 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            get_mouse_position,
             is_mouse_over_window,
             set_click_through,
-            set_island_height,
             set_island_size,
             set_island_custom_size,
-            get_window_position,
             emit_island_panel_motion,
             position_panel_under_island,
             get_panel_transition_metrics,
-            animate_panel_open,
             animate_panel_close,
-            show_panel,
             hide_panel,
             toggle_panel,
             is_panel_visible,
-            set_island_visible,
-            get_screen_info,
             get_macos_update_health,
             get_local_audio_path,
             get_update_proxy,
