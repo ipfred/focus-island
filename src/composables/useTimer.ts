@@ -1,4 +1,4 @@
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, effectScope } from 'vue'
 import { useSettings } from './useSettings'
 
 export type TimerPhase = 'focus' | 'break'
@@ -52,28 +52,39 @@ function onPhaseDone() {
   pendingNotification.value = phase.value === 'focus' ? 'focus-done' : 'break-done'
 }
 
+let durationWatchInstalled = false
+
+function installDurationWatch() {
+  if (durationWatchInstalled) return
+  durationWatchInstalled = true
+  const { settings } = useSettings()
+  // Detached so the watcher outlives whichever component happened to call useTimer() first.
+  effectScope(true).run(() => {
+    watch(
+      () => [settings.value.focusDuration, settings.value.breakDuration],
+      ([newFocus, newBreak]) => {
+        if (!running.value) return
+        const newDuration = phase.value === 'focus' ? newFocus * 60 : newBreak * 60
+        if (totalDuration.value !== newDuration) {
+          const ratio = remaining.value / totalDuration.value
+          totalDuration.value = newDuration
+          remaining.value = Math.round(newDuration * ratio)
+          if (phaseEndAtMs !== null) {
+            phaseEndAtMs = Date.now() + remaining.value * 1000
+          }
+        }
+      },
+    )
+  })
+}
+
+const progress = computed(() => {
+  return 1 - remaining.value / totalDuration.value
+})
+
 export function useTimer() {
   const { settings } = useSettings()
-
-  const progress = computed(() => {
-    return 1 - remaining.value / totalDuration.value
-  })
-
-  watch(
-    () => [settings.value.focusDuration, settings.value.breakDuration],
-    ([newFocus, newBreak]) => {
-      if (!running.value) return
-      const newDuration = phase.value === 'focus' ? newFocus * 60 : newBreak * 60
-      if (totalDuration.value !== newDuration) {
-        const ratio = remaining.value / totalDuration.value
-        totalDuration.value = newDuration
-        remaining.value = Math.round(newDuration * ratio)
-        if (phaseEndAtMs !== null) {
-          phaseEndAtMs = Date.now() + remaining.value * 1000
-        }
-      }
-    },
-  )
+  installDurationWatch()
 
   const displayTime = computed(() => {
     const m = Math.floor(remaining.value / 60).toString().padStart(2, '0')
