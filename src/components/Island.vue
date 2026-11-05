@@ -22,6 +22,8 @@ let unlisten: (() => void) | null = null;
 let unlistenPanelMotion: (() => void) | null = null;
 let unlistenRadio: (() => void) | null = null;
 let unlistenNotification: (() => void) | null = null;
+let unlistenWindowReset: (() => void) | null = null;
+let heartbeatTimer: number | null = null;
 
 const radioPlaying = ref(false);
 const notificationType = ref<NotificationType>(null);
@@ -132,6 +134,11 @@ function runPanelMotion(phase: "open" | "close") {
     }, phase === "open" ? 280 : 240);
 }
 
+// Lets the Rust watchdog tell a stalled page apart from a window that is merely not being composited.
+function sendHeartbeat() {
+    invoke("island_heartbeat", { visibility: document.visibilityState }).catch(() => {});
+}
+
 function stopLocalCountdown() {
     if (countdownTimer !== null) {
         window.clearInterval(countdownTimer);
@@ -208,6 +215,16 @@ onMounted(async () => {
         notificationType.value = payload;
         if (payload) playNotificationSound();
     });
+
+    // Rust 在显示器变化、休眠唤醒、打开面板时重置窗口，这里按当前状态重新应用尺寸与鼠标穿透。
+    unlistenWindowReset = await listen<string>("island-window-reset", () => {
+        invoke("set_click_through", { ignore: notificationType.value === null });
+        applyWindowSize();
+    });
+
+    sendHeartbeat();
+    heartbeatTimer = window.setInterval(sendHeartbeat, 30_000);
+    document.addEventListener("visibilitychange", sendHeartbeat);
 });
 
 onUnmounted(() => {
@@ -215,6 +232,11 @@ onUnmounted(() => {
     unlistenPanelMotion?.();
     unlistenRadio?.();
     unlistenNotification?.();
+    unlistenWindowReset?.();
+    if (heartbeatTimer !== null) {
+        window.clearInterval(heartbeatTimer);
+    }
+    document.removeEventListener("visibilitychange", sendHeartbeat);
     stopLocalCountdown();
     if (panelMotionTimer) {
         window.clearTimeout(panelMotionTimer);

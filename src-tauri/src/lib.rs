@@ -7,6 +7,8 @@ use tauri::{
 };
 use std::sync::{Mutex, OnceLock};
 
+mod island_watch;
+
 #[cfg(target_os = "macos")]
 use core_graphics::event::CGEvent;
 #[cfg(target_os = "macos")]
@@ -442,15 +444,9 @@ fn position_panel_under_island_inner<R: Runtime>(app: &AppHandle<R>) {
 }
 
 fn focus_panel<R: Runtime>(app: &AppHandle<R>) {
-    // Ensure the main (island) window is visible first
-    if let Some(main) = app.get_webview_window("main") {
-        if !main.is_visible().unwrap_or(false) {
-            let _ = main.show();
-        }
-    }
-
     let Some(panel) = app.get_webview_window("panel") else {
         // No panel window yet, just focus main
+        island_watch::reset_island_window(app, "single-instance", true);
         if let Some(main) = app.get_webview_window("main") {
             let _ = main.set_focus();
         }
@@ -459,6 +455,7 @@ fn focus_panel<R: Runtime>(app: &AppHandle<R>) {
 
     let _ = panel.unminimize();
     if panel.is_visible().unwrap_or(false) {
+        island_watch::reset_island_window(app, "single-instance", true);
         position_panel_under_island_inner(app);
     } else {
         animate_panel_open(app.clone());
@@ -548,6 +545,9 @@ fn animate_panel_open<R: Runtime>(app: AppHandle<R>) {
     if panel.is_visible().unwrap_or(false) {
         return;
     }
+    // Opening the panel is the user's way back when the island stops being drawn, so repair it
+    // first; this also positions the panel against the island's corrected rect.
+    island_watch::reset_island_window(&app, "panel-open", true);
     let Some((main_pos, main_size)) = get_main_rect(&app) else {
         return;
     };
@@ -572,11 +572,6 @@ fn animate_panel_open<R: Runtime>(app: AppHandle<R>) {
     let _ = panel.set_size(target_size);
     let _ = panel.set_min_size(Some(tauri::LogicalSize::new(cfg_min_w, cfg_min_h)));
 
-    if let Some(main) = app.get_webview_window("main") {
-        if !main.is_visible().unwrap_or(true) {
-            let _ = main.show();
-        }
-    }
     let _ = panel.show();
     let _ = panel.emit("panel-window-transition", "open");
 }
@@ -683,6 +678,7 @@ pub fn run() {
             get_macos_update_health,
             get_local_audio_path,
             get_update_proxy,
+            island_watch::island_heartbeat,
         ])
         .setup(|app| {
             #[cfg(desktop)]
@@ -703,6 +699,16 @@ pub fn run() {
                     let _ = window.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
                 }
                 let _ = window.set_background_color(Some(Color(0, 0, 0, 0)));
+                let app_handle = app.handle().clone();
+                window.on_window_event(move |event| {
+                    if let WindowEvent::ScaleFactorChanged { scale_factor, .. } = event {
+                        island_watch::log(
+                            &app_handle,
+                            &format!("island scale factor changed to {scale_factor}"),
+                        );
+                        island_watch::schedule_reset("scale-factor-changed");
+                    }
+                });
             }
 
             if let Some(panel) = app.get_webview_window("panel") {
@@ -721,10 +727,15 @@ pub fn run() {
                 MenuItem::with_id(app, "open_panel", "打开专注清单", true, None::<&str>)?;
             let toggle_island =
                 MenuItem::with_id(app, "toggle_island", "显示/隐藏灵动岛", true, None::<&str>)?;
+            let reset_island =
+                MenuItem::with_id(app, "reset_island", "重置灵动岛", true, None::<&str>)?;
             let separator = PredefinedMenuItem::separator(app)?;
             let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
 
-            let menu = Menu::with_items(app, &[&open_panel, &toggle_island, &separator, &quit])?;
+            let menu = Menu::with_items(
+                app,
+                &[&open_panel, &toggle_island, &reset_island, &separator, &quit],
+            )?;
 
             let tray_icon = Image::from_bytes(TRAY_ICON_BYTES)?;
 
@@ -738,12 +749,19 @@ pub fn run() {
                     }
                     "toggle_island" => {
                         if let Some(main) = app.get_webview_window("main") {
-                            if main.is_visible().unwrap_or(true) {
+                            // A minimized window still reports visible on Windows, but the user can't see it.
+                            let shown = main.is_visible().unwrap_or(true)
+                                && !main.is_minimized().unwrap_or(false);
+                            if shown {
+                                island_watch::set_user_hidden(true);
                                 let _ = main.hide();
                             } else {
-                                let _ = main.show();
+                                island_watch::reset_island_window(app, "tray-show", true);
                             }
                         }
+                    }
+                    "reset_island" => {
+                        island_watch::reset_island_window(app, "tray-reset", true);
                     }
                     "quit" => {
                         app.exit(0);
@@ -751,6 +769,8 @@ pub fn run() {
                     _ => {}
                 })
                 .build(app)?;
+
+            island_watch::start(app.handle());
 
             Ok(())
         })

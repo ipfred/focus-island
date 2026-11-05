@@ -93,8 +93,18 @@ alert → 恢复（窗口内有鼠标/键盘活动）
 - `toggle_panel` / `animate_panel_close` / `hide_panel` / `is_panel_visible` / `position_panel_under_island` / `get_panel_transition_metrics` / `emit_island_panel_motion` — panel 显示与动画。Rust 端只负责定位、显示，并发出 `panel-window-transition` 事件，动画由前端完成
 - `get_update_proxy` / `get_macos_update_health` — 更新时的代理探测与 macOS quarantine 检测
 - `get_local_audio_path` — 本地音频资源路径
+- `island_heartbeat(visibility)` — 灵动岛页面每 30s 上报一次心跳（见下方 `island_watch.rs`）
 
-系统托盘菜单提供"打开专注清单"、"显示/隐藏灵动岛"、"退出"。
+系统托盘菜单提供"打开专注清单"、"显示/隐藏灵动岛"、"重置灵动岛"、"退出"。
+
+### 灵动岛自愈与诊断（src-tauri/src/island_watch.rs）
+
+Windows 上透明 + 置顶 + 鼠标穿透的窗口在显示器休眠/唤醒、DPI 变化后，偶尔会窗口仍在原位却不再被绘制。为此：
+- `reset_island_window` 重新应用最小化/显示、置顶、尺寸与位置，并向灵动岛发 `island-window-reset`，由前端按当前状态重新应用尺寸和鼠标穿透
+- 触发时机：打开面板、单实例唤起、托盘"重置灵动岛"/"显示"（显式，会取消托盘隐藏）；后台线程每 2s 检测到显示器变化或休眠唤醒、灵动岛 DPI 变化（自动，托盘隐藏时跳过）
+- 心跳超过 180s 未到达且窗口可见时记录日志；Windows 下会重新加载灵动岛页面（10 分钟内最多一次）
+- 诊断日志写入 `app_log_dir` 下的 `island-diagnostics.log`（Windows: `%LOCALAPPDATA%\com.focus-island.desktop\logs\`，macOS: `~/Library/Logs/com.focus-island.desktop/`），超过 1MB 轮转为 `.old`；时间为 UTC
+- release 构建 `panic = "abort"`，后台线程里不要 `unwrap`
 
 ### 安全
 
