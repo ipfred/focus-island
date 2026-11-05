@@ -42,9 +42,6 @@ jobs:
           - runner: windows-latest
             platform_name: windows-aarch64
             target: aarch64-pc-windows-msvc
-          - runner: ubuntu-22.04
-            platform_name: linux-x86_64
-            target: ''
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -85,12 +82,6 @@ jobs:
         with:
           shared-key: ${{ matrix.platform_name }}
           workspaces: ${{ env.PROJECT_DIR }}/src-tauri -> target
-
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libx11-dev fakeroot xdg-utils
 
       - name: Install frontend dependencies
         working-directory: ${{ env.PROJECT_DIR }}
